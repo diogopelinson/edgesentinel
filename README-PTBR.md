@@ -1,105 +1,115 @@
-# Edgesentinel
+# edgesentinel
 
-> Observabilidade inteligente para dispositivos Linux embarcados — lê sensores de hardware, roda inferência de ML no edge e expõe tudo para o Grafana em tempo real.
-
----
-
-## Visão Geral
-
-A maioria das ferramentas de monitoramento para single-board computers são apenas de hardware (`psutil`, `gpiozero`) ou apenas de ML (`tflite`, `onnxruntime`). O **edgesentinel** une os dois mundos: uma biblioteca Python que coleta dados de sensores, roda modelos leves de detecção de anomalias diretamente no dispositivo e exporta métricas estruturadas para uma stack Prometheus + Grafana — sem configuração complicada.
-
-```
-Hardware (Raspberry Pi, SBCs)
-        │
-        ▼
-  edgesentinel (Python)
-  ┌──────────────────────────────────────┐
-  │  sensores → inferência → rule engine │
-  │                │                     │
-  │        Prometheus Exporter           │
-  └──────────────────────────────────────┘
-        │
-        ▼
-   Prometheus → Grafana
-```
+> Observabilidade inteligente para dispositivos Linux embarcados — lê sensores de hardware, detecta anomalias com ML e envia tudo pro Grafana em tempo real.
 
 ---
 
-## Funcionalidades
+## O que é isso?
 
-- **Leitura de sensores de hardware** — temperatura de CPU, uso de CPU e memória via pseudo-filesystems do Linux (`/proc`, `/sys`, `vcgencmd`)
-- **Backends de ML plugáveis** — ONNX Runtime, TensorFlow Lite ou um adapter dummy embutido para desenvolvimento
-- **Rule engine** — regras declaradas em YAML com operadores configuráveis (`>`, `<`, `==`, `anomaly`) e suporte a cooldown
-- **Prometheus exporter** — endpoint HTTP `/metrics` com Gauges por sensor, Counters de anomalia e Histogramas de latência de inferência
-- **Dashboard Grafana pronto para importar** — JSON pré-configurado com painéis para valores de sensor, scores de anomalia, disparos de regras e latências P95
-- **Ações plugáveis** — log estruturado, webhooks HTTP e escrita em GPIO (LED, relé, buzzer)
-- **Shutdown gracioso** — trata `SIGINT` e `SIGTERM` para integração limpa com `systemd`
+A maioria das ferramentas para Raspberry Pi e SBCs são **só de hardware** (`psutil`, `gpiozero`) ou **só de ML** (`tflite`, `onnxruntime`). O `edgesentinel` une os dois:
 
----
+- Lê temperatura, CPU e memória direto dos pseudo-filesystems do Linux
+- Roda um modelo de detecção de anomalia **no próprio dispositivo**
+- Exporta métricas pro Prometheus e plota no Grafana em tempo real
+- Dispara alertas via log, webhook ou GPIO quando algo foge do normal
 
-## Arquitetura
-
-O edgesentinel segue **Arquitetura Hexagonal (Ports & Adapters)**. O domínio core não tem dependências externas — sem Prometheus, sem GPIO, sem ONNX. Toda a infraestrutura vive em adapters que implementam interfaces do core.
-
-```
-┌─────────────────────────────────────────────┐
-│                   core/                      │
-│  ports.py       → contratos abstratos        │
-│  entities.py    → dataclasses imutáveis      │
-│  rules.py       → Rule, Condition, cooldown  │
-└────────────────┬────────────────────────────┘
-                 │ depende de
-┌────────────────▼────────────────────────────┐
-│               application/                   │
-│  engine.py    → avaliação de regras          │
-│  pipeline.py  → sense → infer → act          │
-│  monitor.py   → loop async de polling        │
-└────────────────┬────────────────────────────┘
-                 │ depende de
-┌────────────────▼────────────────────────────┐
-│                adapters/                     │
-│  sensors/     → leitores de hardware         │
-│  inference/   → ONNX, TFLite, Dummy          │
-│  actions/     → log, webhook, GPIO           │
-│  exporter/    → servidor HTTP Prometheus     │
-└─────────────────────────────────────────────┘
-```
-
-**Regra de dependência:** adapters dependem da application, application depende do core. O core não sabe nada sobre o mundo externo. Trocar um backend (ex: TFLite → ONNX) toca só o adapter — nada mais muda.
+Tudo com um único arquivo `config.yaml` e zero boilerplate.
 
 ---
 
-## Início Rápido
+## Como funciona na prática
+
+```
+Raspberry Pi / SBC
+      │
+      ▼
+edgesentinel lê os sensores a cada N segundos
+      │
+      ├─ modelo ML avalia se é anomalia (score 0.0 → 1.0)
+      │
+      ├─ rule engine verifica as regras do config.yaml
+      │
+      ├─ ações disparam (log, webhook, GPIO)
+      │
+      └─ /metrics exposto na porta 8000
+            │
+            ▼
+      Prometheus coleta a cada 5s
+            │
+            ▼
+      Grafana plota em tempo real
+```
+
+---
+
+## Instalação
 
 ### Requisitos
 
 - Python 3.10+
 - Linux (Raspberry Pi, Orange Pi ou qualquer SBC)
-- Docker (opcional, para a stack Prometheus + Grafana)
+- Docker (opcional — para Prometheus + Grafana)
 
-### Instalação
+### Instala o pacote
 
 ```bash
 # instalação base
 pip install edgesentinel
 
-# com backend ONNX
+# com modelo ONNX (scikit-learn, PyTorch)
 pip install edgesentinel[onnx]
 
-# com backend TFLite (recomendado para Raspberry Pi)
+# com TFLite (mais leve, recomendado pro Raspberry Pi)
 pip install edgesentinel[tflite]
 
-# com suporte a GPIO
+# com suporte a GPIO (LED, relé, buzzer)
 pip install edgesentinel[gpio]
 ```
 
-### Configuração
+### Verifica se está tudo certo
 
-Crie um arquivo `config.yaml`:
+```bash
+edgesentinel doctor
+```
+
+Esse comando inspeciona o ambiente e mostra o que está disponível:
+
+```
+edgesentinel doctor
+====================================================
+Python
+  OK      Python 3.11.2
+
+Dependências
+  OK      pyyaml 6.0.3
+  OK      prometheus-client 0.24.1
+  OK      numpy 1.26.4
+  AVISO   tflite-runtime — não instalado (opcional)
+
+Sensores
+  OK      cpu_temperature      62.5 °C
+  OK      cpu_usage            34.1 %
+  OK      memory_usage         48.3 %
+
+Backends de inferência
+  OK      dummy      disponível
+  OK      onnx       disponível
+
+Exporter
+  OK      porta 8000 livre
+====================================================
+Tudo certo — sistema pronto para rodar.
+```
+
+---
+
+## Configuração
+
+Crie um arquivo `config.yaml` na raiz do projeto:
 
 ```yaml
 edgesentinel:
-  poll_interval_seconds: 5
+  poll_interval_seconds: 5       # intervalo de leitura dos sensores
 
   sensors:
     - id: cpu_temp
@@ -111,25 +121,25 @@ edgesentinel:
 
   inference:
     enabled: true
-    backend: dummy        # dummy | onnx | tflite
-    model_path: null      # caminho para o arquivo .onnx ou .tflite
+    backend: onnx                # dummy | onnx | tflite
+    model_path: models/anomaly.onnx
 
   exporter:
-    port: 8000
+    port: 8000                   # Prometheus vai buscar métricas aqui
 
   rules:
     - name: alta_temperatura
       condition:
         sensor_id: cpu_temp
-        operator: ">"
+        operator: ">"            # operadores disponíveis: > < >= <= == anomaly
         threshold: 75.0
-      actions: [log]
-      cooldown_seconds: 60
+      actions: [log, webhook]
+      cooldown_seconds: 60       # não dispara de novo por 60s
 
     - name: anomalia_detectada
       condition:
         sensor_id: cpu_temp
-        operator: anomaly
+        operator: anomaly        # usa o score do modelo ML
       actions: [log, webhook]
       cooldown_seconds: 30
 
@@ -141,145 +151,239 @@ edgesentinel:
       url: "https://hooks.exemplo.com/alerta"
 ```
 
-### Executar
+---
+
+## Executando
+
+### No hardware real (Raspberry Pi / SBC)
 
 ```bash
-edgesentinel --config config.yaml
+edgesentinel run --config config.yaml
+```
 
-# com log de debug
-edgesentinel --config config.yaml --log-level DEBUG
+### Simulando no Windows / Mac (sem hardware)
+
+O modo `simulate` roda o pipeline completo com dados sintéticos. Você vê as regras disparando, os logs aparecendo e as métricas chegando no Grafana — sem precisar de hardware.
+
+```bash
+# operação normal — valores estáveis
+edgesentinel simulate --scenario normal
+
+# stress — temperatura sobe progressivamente até disparar alertas
+edgesentinel simulate --scenario stress --interval 1
+
+# spike — picos repentinos de temperatura a cada ~20 segundos
+edgesentinel simulate --scenario spike
+```
+
+Exemplo do que aparece no terminal com `stress`:
+
+```
+[tick 023]
+  CPU Temperature        74.98 °C
+  CPU Usage              90.68 %
+  Memory Usage           64.50 %
+2026-04-04 00:11:38 [WARNING] Regra 'alta_temperatura' disparada | sensor=cpu_temp value=75.92°C | anomaly_score=0.9366 threshold=0.7
 ```
 
 ---
 
-## Dashboard Grafana
+## Modelo ML
 
-Importe o dashboard pré-configurado de `dashboards/edgesentinel.json`:
+O sistema vem com um script para treinar e exportar um modelo de detecção de anomalia com `scikit-learn`:
 
-1. Abra o Grafana → **Dashboards** → **Import**
-2. Faça upload do `edgesentinel.json`
-3. Selecione sua fonte de dados Prometheus
+```bash
+# instala dependências de treino
+pip install scikit-learn skl2onnx
 
-### Painéis incluídos
+# treina o modelo com dados de operação normal
+python scripts/train_model.py
+```
 
-| Painel | Query |
-|---|---|
-| Valores dos sensores ao longo do tempo | `edgesentinel_sensor_value` |
-| Score de anomalia | `edgesentinel_anomaly_score` |
-| Taxa de anomalias (5m) | `rate(edgesentinel_anomaly_total[5m])` |
-| Latência de inferência P95 | `histogram_quantile(0.95, ...)` |
-| Latência do pipeline P95 | `histogram_quantile(0.95, ...)` |
+O script gera dois arquivos:
+
+```
+models/
+├── anomaly.onnx    → modelo IsolationForest
+└── scaler.onnx     → normalizador MinMaxScaler
+```
+
+O modelo aprende o que é operação normal (~50°C a 65°C) e retorna score alto quando a temperatura foge desse padrão. Com `stress`, você vai ver o score subir de `0.1` até `0.93` conforme a temperatura escala.
+
+Você pode substituir pelo seu próprio modelo — qualquer framework que exporte para ONNX ou TFLite funciona.
 
 ---
 
-## Referência de Métricas
+## Grafana + Prometheus
+
+### Sobe a stack com Docker
+
+```bash
+cd docker/
+docker compose up -d
+```
+
+Isso sobe:
+- Prometheus em `http://localhost:9090`
+- Grafana em `http://localhost:3000` — login: `admin` / `edgesentinel`
+
+### Conecta ao Prometheus
+
+1. Grafana → **Connections** → **Data sources** → **Add data source**
+2. Seleciona **Prometheus**
+3. URL: `http://prometheus:9090`
+4. Clica **Save & test**
+
+### Importa o dashboard
+
+1. Grafana → **Dashboards** → **Import**
+2. Upload de `dashboards/edgesentinel.json`
+3. Seleciona a fonte Prometheus → **Import**
+
+### O que aparece no dashboard
+
+| Painel | O que mostra |
+|---|---|
+| Temperatura dos sensores | Valores em tempo real por sensor |
+| Anomaly score | Score do modelo ML — 0.0 normal, 1.0 anomalia |
+| Anomalias detectadas | Taxa de anomalias nos últimos 5 minutos |
+| Latência de inferência P95 | 95% das inferências terminam em menos de X ms |
+| Latência do pipeline P95 | Tempo total do ciclo completo por sensor |
+
+---
+
+## Métricas expostas
+
+Todas disponíveis em `http://localhost:8000/metrics`:
 
 | Métrica | Tipo | Descrição |
 |---|---|---|
-| `edgesentinel_sensor_value` | Gauge | Leitura atual do sensor |
-| `edgesentinel_anomaly_score` | Gauge | Saída do modelo ML (0.0 – 1.0) |
+| `edgesentinel_sensor_value` | Gauge | Valor atual do sensor |
+| `edgesentinel_anomaly_score` | Gauge | Score do modelo ML (0.0 – 1.0) |
 | `edgesentinel_anomaly_total` | Counter | Total de anomalias detectadas |
 | `edgesentinel_rule_triggered_total` | Counter | Total de disparos de regras |
 | `edgesentinel_inference_latency_seconds` | Histogram | Duração por inferência |
 | `edgesentinel_pipeline_latency_seconds` | Histogram | Duração do ciclo completo |
 
-Todas as métricas incluem labels para `sensor_id`, `sensor_name` e `model_id` — permitindo filtragem por sensor no Grafana.
+---
+
+## Ações disponíveis
+
+| Tipo | O que faz |
+|---|---|
+| `log` | Escreve no log estruturado com nível configurável |
+| `webhook` | POST JSON para qualquer URL (Slack, Discord, PagerDuty, n8n) |
+| `gpio_write` | Aciona pino GPIO (LED, relé, buzzer) com duração opcional |
+
+### Payload do webhook
+
+```json
+{
+  "rule": "alta_temperatura",
+  "sensor_id": "cpu_temp",
+  "sensor_name": "CPU Temperature",
+  "value": 76.22,
+  "unit": "°C",
+  "timestamp": 1712188800.123,
+  "anomaly": {
+    "score": 0.9366,
+    "threshold": 0.7,
+    "model_id": "onnx"
+  }
+}
+```
+
+Para testar o webhook sem servidor, use `https://webhook.site` — gera uma URL gratuita que mostra os payloads em tempo real no browser.
 
 ---
 
-## Sensores Suportados
+## Sensores suportados
 
-| Tipo | Fonte | Observações |
+| Tipo no config | Fonte Linux | Observações |
 |---|---|---|
 | `cpu_temperature` | `/sys/class/thermal` ou `vcgencmd` | Detecta Raspberry Pi automaticamente |
 | `cpu_usage` | `/proc/stat` | Calculado pela diferença de ticks |
-| `memory_usage` | `/proc/meminfo` | Usa `MemAvailable`, não `MemFree` |
+| `memory_usage` | `/proc/meminfo` | Usa `MemAvailable` — mais preciso que `MemFree` |
 
-Novos sensores implementam `SensorPort` de `core/ports.py` e se registram em `adapters/sensors/registry.py` — um arquivo, uma linha.
-
----
-
-## Backends de ML
-
-| Backend | Instalação | Caso de uso |
-|---|---|---|
-| `dummy` | embutido | Desenvolvimento e testes, sem modelo |
-| `onnx` | `pip install edgesentinel[onnx]` | Modelos exportados do scikit-learn, PyTorch |
-| `tflite` | `pip install edgesentinel[tflite]` | Otimizado para builds ARM do Raspberry Pi |
-
-O contrato do modelo é simples: entrada é um array 1D de float normalizado, saída é um score em `[0.0, 1.0]`. Qualquer framework que exporte para ONNX ou TFLite é compatível.
+Para adicionar um novo sensor, implemente `SensorPort` de `core/ports.py` e registre em `adapters/sensors/registry.py`.
 
 ---
 
-## Rodando os Testes
+## Testes
 
 ```bash
 pip install pytest pytest-mock pytest-cov
+
+# roda todos os testes
 pytest tests/ -v
+
+# com relatório de cobertura
 pytest tests/ --cov=. --cov-report=term-missing
 ```
 
-### Resumo de cobertura
+**69 testes, zero falhas.** Inclui unitários, integração e cenários de simulação — todos rodam sem hardware.
 
 | Camada | Cobertura |
 |---|---|
-| `core/` | 100% |
-| `config/` | 95%+ |
+| `core/` (domínio) | 100% |
 | `application/engine` | 100% |
+| `application/pipeline` | 100% |
 | `adapters/inference/dummy` | 100% |
-| `adapters/sensors/memory` | 100% |
-| `adapters/actions/log` | 100% |
-
-Adapters de infraestrutura (`gpio`, `onnx`, `tflite`, `prometheus`) requerem hardware ARM ou libs não instaláveis em sistemas não-Linux — cobertura zero é esperada em ambiente de desenvolvimento.
+| `adapters/inference/onnx` | 88% |
+| `adapters/sensors/simulated` | 100% |
+| `config/loader` | 95% |
 
 ---
 
-## Estrutura do Projeto
+## Estrutura do projeto
 
 ```
 edgesentinel/
-├── core/
-│   ├── ports.py          # contratos abstratos — SensorPort, InferencePort, ActionPort
-│   ├── entities.py       # dataclasses imutáveis — SensorReading, AnomalyScore
-│   └── rules.py          # Rule, Condition com suporte a cooldown
+├── core/                    # domínio puro — zero dependências externas
+│   ├── ports.py             # contratos abstratos
+│   ├── entities.py          # dataclasses imutáveis
+│   └── rules.py             # Rule e Condition com cooldown
 ├── config/
-│   ├── schema.py         # dataclasses espelhando a estrutura do YAML
-│   ├── loader.py         # YAML → EdgeSentinelConfig
-│   └── mapper.py         # EdgeSentinelConfig → objetos do domínio core
+│   ├── schema.py            # estrutura do YAML
+│   ├── loader.py            # lê e valida config.yaml
+│   └── mapper.py            # converte config em objetos do domínio
 ├── adapters/
-│   ├── sensors/          # cpu_temperature, cpu_usage, memory_usage
-│   ├── inference/        # dummy, onnx, tflite
-│   ├── actions/          # log, webhook, gpio_write
-│   └── exporter/         # Prometheus HTTP exporter
+│   ├── sensors/             # cpu_temperature, cpu_usage, memory_usage, simulated
+│   ├── inference/           # dummy, onnx, tflite
+│   ├── actions/             # log, webhook, gpio_write
+│   └── exporter/            # Prometheus HTTP /metrics
 ├── application/
-│   ├── engine.py         # RuleEngine — avalia regras e despacha ações
-│   ├── pipeline.py       # sense → infer → act por sensor
-│   └── monitor.py        # loop async de polling com shutdown gracioso
+│   ├── engine.py            # RuleEngine
+│   ├── pipeline.py          # sense → infer → act
+│   └── monitor.py           # loop assíncrono com shutdown gracioso
 ├── cli/
-│   ├── builder.py        # monta todos os componentes a partir do config
-│   └── main.py           # entry point da CLI
-└── dashboards/
-    └── edgesentinel.json # dashboard Grafana pronto para importar
+│   ├── main.py              # run / simulate / doctor
+│   ├── builder.py           # monta o sistema a partir do config
+│   ├── simulate.py          # sensores simulados
+│   └── doctor.py            # diagnóstico do ambiente
+├── scripts/
+│   └── train_model.py       # treina e exporta modelo ONNX
+├── docker/
+│   ├── docker-compose.yml   # Prometheus + Grafana
+│   └── prometheus.yml       # configuração de scrape
+├── dashboards/
+│   └── edgesentinel.json    # dashboard Grafana pronto
+└── tests/
+    ├── core/
+    ├── config/
+    ├── adapters/
+    ├── application/
+    └── integration/
 ```
 
 ---
 
-## Decisões de Design
+## Roadmap
 
-**Por que Arquitetura Hexagonal?**
-Sensores, backends de ML e exporters são todos intercambiáveis sem tocar na lógica de negócio. Adicionar um novo sensor é um arquivo novo implementando `SensorPort`. Trocar ONNX por TFLite é uma linha de config.
-
-**Por que ler `/proc` diretamente em vez de usar `psutil`?**
-`psutil` é uma dependência grande. Em um dispositivo com armazenamento limitado, ler `/proc/stat` e `/proc/meminfo` diretamente mantém o footprint mínimo e o código explícito sobre o que lê.
-
-**Por que `frozen=True` nas entidades?**
-O loop de monitoramento é assíncrono — objetos `SensorReading` transitam por múltiplas coroutines. Imutabilidade elimina bugs de estado compartilhado por completo.
-
-**Por que `time.monotonic()` para cooldowns e latência?**
-O relógio de parede (`time.time()`) pode andar para trás em sincronizações NTP. O relógio monotônico só avança — correto para medir intervalos de tempo.
-
-**Por que um backend de ML dummy?**
-O pipeline completo — sensores, regras, Prometheus, Grafana — é demonstrável desde o primeiro dia sem um modelo treinado. O backend de ML entra depois sem mudar nada no restante do sistema.
+- [ ] Redis para estado distribuído em deployments multi-dispositivo
+- [ ] Ingestão de frames de câmera com YOLO
+- [ ] Sensores adicionais: GPIO input, I2C, SPI, BME280
+- [ ] Terraform para deployments assistidos por nuvem
 
 ---
 
