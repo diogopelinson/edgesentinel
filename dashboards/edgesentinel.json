@@ -1,0 +1,62 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "type": "datasource",
+      "pluginId": "prometheus"
+    }
+  ],
+  "title": "edgesentinel",
+  "panels": [
+    {
+      "title": "Temperatura dos sensores",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "edgesentinel_sensor_value{unit=\"°C\"}",
+          "legendFormat": "{{sensor_name}}"
+        }
+      ]
+    },
+    {
+      "title": "Anomaly score",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "edgesentinel_anomaly_score",
+          "legendFormat": "{{sensor_id}} ({{model_id}})"
+        }
+      ]
+    },
+    {
+      "title": "Anomalias detectadas (rate 5m)",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "rate(edgesentinel_anomaly_total[5m])",
+          "legendFormat": "{{sensor_id}}"
+        }
+      ]
+    },
+    {
+      "title": "Latência de inferência (P95)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(edgesentinel_inference_latency_seconds_bucket[5m]))",
+          "legendFormat": "P95 {{model_id}}"
+        }
+      ]
+    },
+    {
+      "title": "Latência do pipeline (P95)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(edgesentinel_pipeline_latency_seconds_bucket[5m]))",
+          "legendFormat": "P95 {{sensor_id}}"
+        }
+      ]
+    }
+  ]
+}
