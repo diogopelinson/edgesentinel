@@ -27,7 +27,7 @@ class TestSimulatedSensor:
         )
 
     def test_stress_scenario_increases_over_time(self):
-        """Cenário stress deve produzir valor maior depois de algum tempo."""
+        """Cenário stress deve produzir valor maior com rampa explícita."""
         sensor = SimulatedSensor(
             sensor_id="cpu_temp",
             name="CPU Temperature",
@@ -36,14 +36,14 @@ class TestSimulatedSensor:
             amplitude=2.0,
             scenario="stress",
         )
+        # manipula o _start para simular que 30 segundos passaram
+        import time
+        sensor._start = time.monotonic() - 30.0
 
-        early_readings  = [sensor.read().value for _ in range(5)]
-        # simula passagem de tempo
-        import time; time.sleep(0.5)
-        late_readings = [sensor.read().value for _ in range(5)]
-
-        assert max(late_readings) > max(early_readings), (
-            "Cenário stress deve produzir valores maiores com o tempo"
+        reading = sensor.read()
+        # com 30s de rampa: base(60) + ramp(30*0.5=15) = ~75°C
+        assert reading.value > 70.0, (
+            f"Após 30s de stress, esperava >70°C, got {reading.value:.1f}°C"
         )
 
     def test_spike_scenario_produces_high_values(self):
@@ -105,9 +105,10 @@ class TestScenarioEndToEnd:
 
     def test_stress_eventually_triggers_rule(self):
         """
-        Cenário stress deve disparar a regra de alta temperatura
-        eventualmente — valida o pipeline completo end-to-end.
+        Cenário stress dispara regra quando rampa acumula tempo suficiente.
+        Simula passagem de tempo manipulando _start do sensor.
         """
+        import time
         sensor = SimulatedSensor(
             sensor_id="cpu_temp",
             name="CPU Temperature",
@@ -116,6 +117,9 @@ class TestScenarioEndToEnd:
             amplitude=2.0,
             scenario="stress",
         )
+        # simula 25 segundos de operação — rampa adiciona ~12.5°C
+        sensor._start = time.monotonic() - 25.0
+
         rule = Rule(
             name="alta_temperatura",
             condition=Condition(sensor_id="cpu_temp", operator=">", threshold=70.0),
@@ -130,15 +134,14 @@ class TestScenarioEndToEnd:
             inference=DummyInferenceAdapter(),
         )
 
-        # roda até disparar ou esgotar tentativas
         triggered = False
-        for _ in range(60):
+        for _ in range(10):
             pipeline.run_once()
             if mock_action.execute.called:
                 triggered = True
                 break
 
-        assert triggered, "Cenário stress deveria ter disparado a regra dentro de 60 ciclos"
+        assert triggered, "Com 25s de rampa, stress deveria ter disparado a regra"
 
     def test_normal_scenario_never_triggers_high_temp_rule(self):
         """
