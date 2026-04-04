@@ -1,0 +1,39 @@
+edgesentinel:
+  poll_interval_seconds: 5
+
+  sensors:
+    - id: cpu_temp
+      type: cpu_temperature
+    - id: cpu_usage
+      type: cpu_usage
+    - id: memory_usage
+      type: memory_usage
+
+  inference:
+    enabled: false
+    backend: dummy
+    model_path: null
+
+  exporter:
+    port: 8000
+
+  rules:
+    - name: alta_temperatura
+      condition:
+        sensor_id: cpu_temp
+        operator: ">"
+        threshold: 75.0
+      actions: [log]
+      cooldown_seconds: 60
+
+    - name: uso_alto_cpu
+      condition:
+        sensor_id: cpu_usage
+        operator: ">"
+        threshold: 80.0
+      actions: [log]
+      cooldown_seconds: 30
+
+  actions:
+    - id: log
+      type: log
