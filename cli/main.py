@@ -17,6 +17,8 @@ def main() -> None:
         _cmd_run(args)
     elif args.command == "simulate":
         _cmd_simulate(args)
+    elif args.command == "doctor":
+        _cmd_doctor(args)
 
 
 def _cmd_run(args) -> None:
@@ -45,6 +47,11 @@ def _cmd_simulate(args) -> None:
     )
 
 
+def _cmd_doctor(args) -> None:
+    from cli.doctor import run_doctor
+    run_doctor(config_path=str(args.config))
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="edgesentinel",
@@ -70,6 +77,11 @@ def _parse_args() -> argparse.Namespace:
     sim_p.add_argument("--config", "-c", type=Path, default=Path("config.yaml"))
     sim_p.add_argument("--interval", "-i", type=float, default=2.0, help="Intervalo entre leituras em segundos")
     sim_p.add_argument("--log-level", "-l", choices=["DEBUG","INFO","WARNING","ERROR"], default="INFO")
+
+    # --- subcomando: doctor ---
+    doc_p = sub.add_parser("doctor", help="Inspeciona o ambiente e reporta problemas")
+    doc_p.add_argument("--config", "-c", type=Path, default=Path("config.yaml"))
+    doc_p.add_argument("--log-level", "-l", choices=["DEBUG","INFO","WARNING","ERROR"], default="WARNING")
 
     return parser.parse_args()
 
