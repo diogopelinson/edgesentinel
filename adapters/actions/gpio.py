@@ -31,7 +31,7 @@ class GPIOWriteAction(BaseAction):
 
     def _write_gpiozero(self) -> None:
         import time
-        from gpiozero import OutputDevice
+        from gpiozero import OutputDevice  # type: ignore[import]
 
         device = OutputDevice(self.pin, active_high=True, initial_value=False)
 
@@ -48,7 +48,7 @@ class GPIOWriteAction(BaseAction):
 
     def _write_rpigpio(self) -> None:
         import time
-        import RPi.GPIO as GPIO
+        import RPi.GPIO as GPIO # type: ignore[import]
 
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(self.pin, GPIO.OUT)
