@@ -65,3 +65,4 @@ class TestMemoryUsageSensor:
             sensor = MemoryUsageSensor()
             reading = sensor.read()
             assert reading.value == pytest.approx(100.0)
+            
