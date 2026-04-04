@@ -59,7 +59,12 @@ def run_simulate(scenario: str, config_path: str, interval: float) -> None:
     config   = load(config_path)
     rules    = to_rules(config)
     actions  = build_actions(config.actions)
-    inference = DummyInferenceAdapter()
+    from adapters.inference.registry import build_inference
+    inference = build_inference(
+        backend=config.inference.backend,
+        model_path=str(config.inference.model_path) if config.inference.model_path else None,
+    ) if config.inference.enabled else None
+
     exporter  = PrometheusExporter(port=config.exporter.port)
     exporter.start()
 

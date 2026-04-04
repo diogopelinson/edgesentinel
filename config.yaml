@@ -10,9 +10,9 @@ edgesentinel:
       type: memory_usage
 
   inference:
-    enabled: false
-    backend: dummy
-    model_path: null
+    enabled: true
+    backend: onnx
+    model_path: models/anomaly.onnx
 
   exporter:
     port: 8000

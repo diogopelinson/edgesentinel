@@ -54,5 +54,5 @@ class SimulatedSensor(BaseSensor):
             # pico aleatório a cada ~20s
             if int(elapsed) % 20 < 3:
                 value += 25.0
-
+        value = max(0.0, min(100.0, value))
         return round(value, 2)
