@@ -27,6 +27,7 @@ def high_cpu_reading() -> SensorReading:
     )
 
 
+
 @pytest.fixture
 def anomaly_score(cpu_reading) -> AnomalyScore:
     """Score de anomalia confirmada."""
