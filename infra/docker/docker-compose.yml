@@ -26,3 +26,4 @@ services:
 
 volumes:
   grafana-data:
+  
