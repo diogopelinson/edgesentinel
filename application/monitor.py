@@ -70,12 +70,22 @@ class MonitorLoop:
 
     def _register_signals(self) -> None:
         """
-        Registra handlers para SIGINT (Ctrl+C) e SIGTERM (kill).
-        Ambos iniciam o shutdown gracioso.
+        Registra handlers para SIGINT e SIGTERM.
+        No Windows, add_signal_handler não é suportado — usa signal.signal.
         """
-        loop = asyncio.get_event_loop()
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, self._stop)
+        import signal as signal_module
+        import platform
+
+        if platform.system() == "Windows":
+            # no Windows o asyncio não suporta add_signal_handler
+            # signal.signal funciona mas só fora do event loop
+            # o KeyboardInterrupt já é capturado no main.py — basta garantir _running
+            signal_module.signal(signal_module.SIGINT,  lambda s, f: self._stop())
+            signal_module.signal(signal_module.SIGTERM, lambda s, f: self._stop())
+        else:
+            loop = asyncio.get_event_loop()
+            for sig in (signal_module.SIGINT, signal_module.SIGTERM):
+                loop.add_signal_handler(sig, self._stop)
 
     def _stop(self) -> None:
         logger.info("Sinal de encerramento recebido.")

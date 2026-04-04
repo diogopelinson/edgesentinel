@@ -12,12 +12,21 @@ requires-python = ">=3.10"
 dependencies = [
     "pyyaml>=6.0",
     "prometheus-client>=0.19",
+    "numpy>=1.24",
 ]
 
 [project.optional-dependencies]
-onnx   = ["onnxruntime>=1.17", "numpy>=1.24"]
-tflite = ["tflite-runtime>=2.14", "numpy>=1.24"]
+onnx   = ["onnxruntime>=1.17"]
+tflite = ["tflite-runtime>=2.14"]
 gpio   = ["gpiozero>=2.0"]
+camera = ["opencv-python>=4.8", "ultralytics>=8.0"]
+all    = [
+    "onnxruntime>=1.17",
+    "tflite-runtime>=2.14",
+    "gpiozero>=2.0",
+    "opencv-python>=4.8",
+    "ultralytics>=8.0",
+]
 
 [project.scripts]
 edgesentinel = "cli.main:main"

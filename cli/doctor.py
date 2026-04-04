@@ -6,7 +6,6 @@ from pathlib import Path
 
 logger = logging.getLogger("edgesentinel.doctor")
 
-# cores ANSI — funcionam no Windows 10+ e no terminal do VS Code
 GREEN  = "\033[92m"
 YELLOW = "\033[93m"
 RED    = "\033[91m"
@@ -29,10 +28,11 @@ def run_doctor(config_path: str) -> None:
         _check_config(config_path),
         _check_sensors(),
         _check_inference_backends(),
+        _check_camera_backends(),
+        _check_yolo(config_path),
         _check_exporter_port(config_path),
     ]
 
-    # cada função retorna (errors, warnings)
     errors   = sum(r[0] for r in results)
     warnings = sum(r[1] for r in results)
 
@@ -44,16 +44,15 @@ def run_doctor(config_path: str) -> None:
     else:
         print(f"\n{RED}{errors} erro(s) crítico(s) encontrado(s).{RESET}\n")
 
-# --- verificações ---
 
 def _check_python() -> tuple[int, int]:
     print(f"\n{BOLD}Python{RESET}")
     version = sys.version_info
     label = f"{version.major}.{version.minor}.{version.micro}"
     if version >= (3, 10):
-        print(f"  {ok(f'Python {label}')}")
+        print(f"  {ok('Python ' + label)}")
         return (0, 0)
-    print(f"  {fail(f'Python {label} — requer 3.10+')}")
+    print(f"  {fail('Python ' + label + ' — requer 3.10+')}")
     return (1, 0)
 
 
@@ -72,14 +71,14 @@ def _check_dependencies() -> tuple[int, int]:
         try:
             mod = importlib.import_module(import_name)
             version = getattr(mod, "__version__", "?")
-            print(f"  {ok(f'{pip_name} {version}')}")
+            print(f"  {ok(pip_name + ' ' + version)}")
         except ImportError:
             if required:
-                print(f"  {fail(f'{pip_name} — não instalado (obrigatório)')}")
+                print(f"  {fail(pip_name + ' — não instalado (obrigatório)')}")
                 print(f"         instale com: pip install {pip_name}")
                 errors += 1
             else:
-                print(f"  {warn(f'{pip_name} — não instalado (opcional)')}")
+                print(f"  {warn(pip_name + ' — não instalado (opcional)')}")
                 warnings += 1
     return (errors, warnings)
 
@@ -88,19 +87,19 @@ def _check_config(config_path: str) -> tuple[int, int]:
     print(f"\n{BOLD}Configuração{RESET}")
     path = Path(config_path).resolve()
     if not path.exists():
-        print(f"  {fail(f'config.yaml não encontrado em: {path}')}")
+        print(f"  {fail('config.yaml não encontrado em: ' + str(path))}")
         return (1, 0)
-    print(f"  {ok(f'config.yaml encontrado em {path}')}")
+    print(f"  {ok('config.yaml encontrado em ' + str(path))}")
     try:
         from config.loader import load
         config = load(path)
-        print(f"  {ok(f'{len(config.sensors)} sensor(es) configurado(s)')}")
-        print(f"  {ok(f'{len(config.rules)} regra(s) configurada(s)')}")
-        print(f"  {ok(f'{len(config.actions)} ação(ões) configurada(s)')}")
-        print(f"  {ok(f'backend de inferência: {config.inference.backend}')}")
+        print(f"  {ok(str(len(config.sensors)) + ' sensor(es) configurado(s)')}")
+        print(f"  {ok(str(len(config.rules)) + ' regra(s) configurada(s)')}")
+        print(f"  {ok(str(len(config.actions)) + ' ação(ões) configurada(s)')}")
+        print(f"  {ok('backend de inferência: ' + config.inference.backend)}")
         return (0, 0)
     except Exception as e:
-        print(f"  {fail(f'erro ao carregar config: {e}')}")
+        print(f"  {fail('erro ao carregar config: ' + str(e))}")
         return (1, 0)
 
 
@@ -115,16 +114,16 @@ def _check_sensors() -> tuple[int, int]:
     for sensor_type, module_path, class_name in sensors_to_check:
         try:
             module = importlib.import_module(module_path)
-            cls = getattr(module, class_name)
+            cls    = getattr(module, class_name)
             sensor = cls(sensor_id=sensor_type)
             if sensor.is_available():
                 reading = sensor.read()
-                print(f"  {ok(f'{sensor_type:<20} {reading.value:.1f} {reading.unit}')}")
+                print(f"  {ok(sensor_type.ljust(20) + ' ' + str(reading.value) + ' ' + reading.unit)}")
             else:
-                print(f"  {warn(f'{sensor_type:<20} indisponível nesse hardware')}")
+                print(f"  {warn(sensor_type.ljust(20) + ' indisponível nesse hardware')}")
                 warnings += 1
         except Exception as e:
-            print(f"  {warn(f'{sensor_type:<20} indisponível ({e.__class__.__name__})')}")
+            print(f"  {warn(sensor_type.ljust(20) + ' indisponível (' + e.__class__.__name__ + ')')}")
             warnings += 1
     return (0, warnings)
 
@@ -142,18 +141,73 @@ def _check_inference_backends() -> tuple[int, int]:
             try:
                 importlib.import_module(dep)
             except ImportError:
-                print(f"  {warn(f'{name:<10} não disponível — instale: pip install edgesentinel[{name}]')}")
+                print(f"  {warn(name.ljust(10) + ' não disponível — instale: pip install edgesentinel[' + name + ']')}")
                 warnings += 1
                 continue
         try:
             module = importlib.import_module(module_path)
-            cls = getattr(module, class_name)
+            cls    = getattr(module, class_name)
             cls()
-            print(f"  {ok(f'{name:<10} disponível')}")
+            print(f"  {ok(name.ljust(10) + ' disponível')}")
         except Exception as e:
-            print(f"  {fail(f'{name:<10} erro: {e}')}")
+            print(f"  {fail(name.ljust(10) + ' erro: ' + str(e))}")
             errors += 1
     return (errors, warnings)
+
+
+def _check_camera_backends() -> tuple[int, int]:
+    print(f"\n{BOLD}Câmera{RESET}")
+    warnings = 0
+    for lib, pip_name in [("cv2", "opencv-python"), ("ultralytics", "ultralytics")]:
+        try:
+            mod     = importlib.import_module(lib)
+            version = getattr(mod, "__version__", "?")
+            print(f"  {ok(pip_name + ' ' + version)}")
+        except ImportError:
+            print(f"  {warn(pip_name + ' — não instalado (necessário para câmera)')}")
+            print(f"         instale com: pip install edgesentinel[camera]")
+            warnings += 1
+    return (0, warnings)
+
+
+def _check_yolo(config_path: str) -> tuple[int, int]:
+    print(f"\n{BOLD}YOLO{RESET}")
+
+    try:
+        from config.loader import load
+        config = load(Path(config_path))
+    except Exception:
+        print(f"  {warn('config.yaml inválido — pulando verificação YOLO')}")
+        return (0, 1)
+
+    if not config.yolo.enabled:
+        print(f"  {warn('YOLO desabilitado no config')}")
+        return (0, 0)
+
+    model_path = Path(config.yolo.model_path)
+    if not model_path.exists():
+        print(f"  {warn('modelo não encontrado: ' + str(model_path))}")
+        print(f"         o modelo será baixado automaticamente na primeira execução")
+        return (0, 1)
+
+    print(f"  {ok('modelo encontrado: ' + str(model_path))}")
+
+    classes = config.yolo.target_classes
+    if classes:
+        print(f"  {ok('classes alvo: ' + ', '.join(classes))}")
+    else:
+        print(f"  {warn('target_classes vazio — detectará todas as classes')}")
+
+    if not config.cameras:
+        print(f"  {warn('nenhuma câmera configurada em config.yaml')}")
+        return (0, 1)
+
+    print(f"  {ok(str(len(config.cameras)) + ' câmera(s) configurada(s)')}")
+    for cam in config.cameras:
+        mode = "simulada (" + cam.simulated_mode + ")" if cam.simulated else "RTSP: " + cam.source
+        print(f"  {ok(cam.sensor_id + ' — ' + mode)}")
+
+    return (0, 0)
 
 
 def _check_exporter_port(config_path: str) -> tuple[int, int]:
@@ -162,15 +216,15 @@ def _check_exporter_port(config_path: str) -> tuple[int, int]:
     try:
         from config.loader import load
         config = load(Path(config_path))
-        port = config.exporter.port
+        port   = config.exporter.port
     except Exception:
         pass
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock   = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(1)
     result = sock.connect_ex(("localhost", port))
     sock.close()
     if result == 0:
-        print(f"  {warn(f'porta {port} em uso — exporter já rodando ou outra aplicação')}")
+        print(f"  {warn('porta ' + str(port) + ' em uso — exporter já rodando ou outra aplicação')}")
         return (0, 1)
-    print(f"  {ok(f'porta {port} livre — exporter pode subir normalmente')}")
+    print(f"  {ok('porta ' + str(port) + ' livre — exporter pode subir normalmente')}")
     return (0, 0)

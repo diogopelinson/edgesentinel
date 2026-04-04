@@ -9,6 +9,8 @@ from config.schema import (
     RuleConfig,
     ConditionConfig,
     ActionConfig,
+    CameraConfig,  
+    YOLOConfig,
 )
 
 
@@ -44,6 +46,8 @@ def _parse(raw: dict) -> EdgeSentinelConfig:
         exporter=_parse_exporter(raw.get("exporter", {})),
         rules=_parse_rules(raw.get("rules", [])),
         actions=_parse_actions(raw.get("actions", [])),
+        cameras=_parse_cameras(raw.get("cameras", [])),   
+        yolo=_parse_yolo(raw.get("yolo", {})),            
     )
 
 
@@ -102,3 +106,26 @@ def _parse_actions(raw: list[dict]) -> list[ActionConfig]:
             url=item.get("url"),
         ))
     return result
+
+def _parse_cameras(raw: list[dict]) -> list[CameraConfig]:
+    result = []
+    for item in raw:
+        if "sensor_id" not in item or "source" not in item:
+            raise ValueError(f"Camera inválida — precisa de 'sensor_id' e 'source': {item}")
+        result.append(CameraConfig(
+            sensor_id=item["sensor_id"],
+            source=item["source"],
+            name=item.get("name", "Camera"),
+            fps_limit=float(item.get("fps_limit", 1.0)),
+            simulated=item.get("simulated", False),
+            simulated_mode=item.get("simulated_mode", "noise"),
+        ))
+    return result
+
+def _parse_yolo(raw: dict) -> YOLOConfig:
+    return YOLOConfig(
+        enabled=raw.get("enabled", False),
+        model_path=raw.get("model_path", "models/yolov8n.pt"),
+        target_classes=raw.get("target_classes", []),
+        confidence=float(raw.get("confidence", 0.5)),
+    )

@@ -17,6 +17,20 @@ edgesentinel:
   exporter:
     port: 8000
 
+  cameras:
+    - sensor_id: camera_01
+      source: "rtsp://admin:senha@192.168.1.100:554/stream"
+      name: "Camera Entrada"
+      fps_limit: 1.0
+      simulated: true
+      simulated_mode: person
+
+  yolo:
+    enabled: true
+    model_path: models/yolov8n.pt
+    target_classes: [person, car, truck]
+    confidence: 0.5
+
   rules:
     - name: alta_temperatura
       condition:
@@ -32,6 +46,14 @@ edgesentinel:
         operator: ">"
         threshold: 80.0
       actions: [log]
+      cooldown_seconds: 30
+
+    - name: pessoa_detectada
+      condition:
+        sensor_id: camera_01
+        operator: ">"
+        threshold: 0.5
+      actions: [log, webhook]
       cooldown_seconds: 30
 
   actions:
