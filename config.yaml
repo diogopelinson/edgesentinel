@@ -23,7 +23,7 @@ edgesentinel:
         sensor_id: cpu_temp
         operator: ">"
         threshold: 75.0
-      actions: [log]
+      actions: [log, webhook]
       cooldown_seconds: 60
 
     - name: uso_alto_cpu
@@ -37,3 +37,6 @@ edgesentinel:
   actions:
     - id: log
       type: log
+    - id: webhook
+      type: webhook
+      url: "https://webhook.site/8d1d0a84-9978-4d2d-b447-507653eecbe7"
