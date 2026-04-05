@@ -1,5 +1,31 @@
 services:
 
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: edgesentinel-mediamtx
+    ports:
+      - "8554:8554"    # RTSP
+      - "8888:8888"    # HLS
+      - "8889:8889"    # WebRTC
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml
+    restart: unless-stopped
+
+  ai-inference-service:
+    build:
+      context: ../../ai-inference-service
+      dockerfile: Dockerfile
+    container_name: edgesentinel-ai-service
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../../models:/app/weights     # modelos compartilhados com o host
+    environment:
+      - OTEL_ENDPOINT=http://edgesentinel-otel-collector:4317
+    depends_on:
+      - otel-collector
+    restart: unless-stopped
+
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
     container_name: edgesentinel-otel-collector

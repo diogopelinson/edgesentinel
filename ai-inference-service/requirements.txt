@@ -1,0 +1,10 @@
+fastapi>=0.110
+uvicorn>=0.29
+pydantic>=2.0
+opencv-python-headless>=4.8
+ultralytics>=8.0
+onnxruntime>=1.17
+numpy>=1.24
+pyyaml>=6.0
+opentelemetry-sdk>=1.20
+opentelemetry-exporter-otlp-proto-grpc>=1.20

@@ -126,15 +126,23 @@ def _build_cameras(config: EdgeSentinelConfig):
 
 def _build_inference(config: EdgeSentinelConfig):
     if not config.inference.enabled:
-        logger.info("Inferência desabilitada no config.")
+        return None
+
+    if config.inference.backend == "remote" and not config.inference.model_id:
+        logger.error(
+            "Backend 'remote' requer 'model_id' no config.yaml. "
+            "Exemplo: model_id: yolo_v8n"
+        )
         return None
 
     try:
         adapter = build_inference(
             backend=config.inference.backend,
             model_path=config.inference.model_path,
+            service_url=config.inference.service_url,
+            model_id=config.inference.model_id,
         )
-        logger.info(f"Backend de inferência '{config.inference.backend}' carregado.")
+        logger.info(f"Backend '{config.inference.backend}' carregado.")
         return adapter
     except Exception as e:
         logger.error(f"Falha ao carregar inferência: {e}. Continuando sem ML.")

@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=false
+
+logLevel: info
+
+rtsp:
+  address: :8554
+
+hls:
+  address: :8888
+
+webRTC:
+  address: :8889
+
+paths:
+  all:
+    source: publisher

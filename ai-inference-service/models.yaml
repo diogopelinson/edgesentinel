@@ -1,0 +1,14 @@
+models:
+  - id: yolo_v8n
+    type: yolo
+    path: weights/yolov8n.pt
+    description: "YOLOv8 nano — detecção de objetos"
+    target_classes: [person, car, truck, bicycle]
+    confidence_threshold: 0.5
+
+  - id: anomaly_onnx
+    type: onnx
+    path: weights/anomaly.onnx
+    scaler_path: weights/scaler.onnx
+    description: "IsolationForest — anomalia de sensor"
+    confidence_threshold: 0.6

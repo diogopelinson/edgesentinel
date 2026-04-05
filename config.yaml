@@ -11,8 +11,11 @@ edgesentinel:
 
   inference:
     enabled: true
-    backend: onnx
-    model_path: models/anomaly.onnx
+    backend: remote
+    model_path: null
+    service_url: "http://localhost:8080"
+    model_id: "yolo_v8n"
+    threshold: 0.5
 
   exporter:
     port: 8000
