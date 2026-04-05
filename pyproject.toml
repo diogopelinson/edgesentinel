@@ -20,12 +20,20 @@ onnx   = ["onnxruntime>=1.17"]
 tflite = ["tflite-runtime>=2.14"]
 gpio   = ["gpiozero>=2.0"]
 camera = ["opencv-python>=4.8", "ultralytics>=8.0"]
+otel   = [
+    "opentelemetry-sdk>=1.20",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.20",
+    "opentelemetry-exporter-prometheus>=0.40",
+]
 all    = [
     "onnxruntime>=1.17",
     "tflite-runtime>=2.14",
     "gpiozero>=2.0",
     "opencv-python>=4.8",
     "ultralytics>=8.0",
+    "opentelemetry-sdk>=1.20",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.20",
+    "opentelemetry-exporter-prometheus>=0.40",
 ]
 
 [project.scripts]
@@ -34,3 +42,9 @@ edgesentinel = "cli.main:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["cli*", "core*", "config*", "adapters*", "application*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]

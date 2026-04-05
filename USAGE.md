@@ -1,226 +1,488 @@
-# Using edgesentinel as a library
+# Usage guide — edgesentinel
 
-`edgesentinel` can be used in two ways: via CLI (`edgesentinel run`) or imported directly into your Python code as a library. This guide covers the second approach.
+This guide covers how to use edgesentinel as a library, how to connect real cameras via MediaMTX, and how the AI Inference Service works in practice.
 
 ---
 
-## Installation
+## Table of contents
+
+1. [CLI usage](#1-cli-usage)
+2. [Library usage](#2-library-usage)
+3. [Connecting real cameras with MediaMTX](#3-connecting-real-cameras-with-mediamtx)
+4. [AI Inference Service in practice](#4-ai-inference-service-in-practice)
+5. [Creating your own sensor](#5-creating-your-own-sensor)
+6. [Creating your own action](#6-creating-your-own-action)
+7. [Interface reference](#7-interface-reference)
+
+---
+
+## 1. CLI usage
+
+### Check your environment
 
 ```bash
-pip install edgesentinel[onnx]
+edgesentinel doctor
+```
+
+Shows what is available on your system — Python, dependencies, sensors, models, cameras and the exporter port.
+
+### Run with real hardware
+
+```bash
+edgesentinel run --config config.yaml
+edgesentinel run --config config.yaml --log-level DEBUG
+```
+
+### Simulate without hardware (Windows / Mac)
+
+The `simulate` mode runs the full pipeline with synthetic data. You can watch rules firing, alerts appearing and metrics flowing into Grafana — without a Raspberry Pi.
+
+```bash
+# normal operation — stable values
+edgesentinel simulate --scenario normal
+
+# stress — temperature ramps up until alerts fire
+edgesentinel simulate --scenario stress --interval 1
+
+# spike — sudden temperature spikes every ~20 seconds
+edgesentinel simulate --scenario spike
 ```
 
 ---
 
-## Case 1 — Simplest usage: load from config.yaml
+## 2. Library usage
 
-If you already have a `config.yaml`, you can assemble and start the system in a few lines:
+### Simplest case — load from config.yaml
 
 ```python
 from config.loader import load
 from cli.builder import build_monitor
 
-# load config.yaml and assemble the full system
 config  = load("config.yaml")
 monitor = build_monitor(config)
-
-# start the monitoring loop (blocking)
-monitor.start()
-```
-
-This is equivalent to running `edgesentinel run --config config.yaml`.
-
----
-
-## Case 2 — Full control: assembling the pieces manually
-
-If you want more control — custom sensors, dynamic rule logic, integration with your own system — you can assemble each piece separately.
-
-### Step 1: create sensors
-
-```python
-from adapters.sensors.cpu_temp import CpuTemperatureSensor
-from adapters.sensors.memory_usage import MemoryUsageSensor
-from adapters.sensors.simulated import SimulatedSensor
-
-# real sensors (require Linux)
-cpu_sensor = CpuTemperatureSensor(sensor_id="cpu_temp")
-mem_sensor = MemoryUsageSensor(sensor_id="memory_usage")
-
-# simulated sensor (works on any OS — useful for testing)
-sim_sensor = SimulatedSensor(
-    sensor_id="cpu_temp",
-    name="CPU Temperature",
-    unit="°C",
-    base_value=58.0,
-    amplitude=5.0,
-    scenario="stress",   # normal | stress | spike
-)
-```
-
-### Step 2: create the inference backend
-
-```python
-from adapters.inference.dummy import DummyInferenceAdapter
-from adapters.inference.onnx import ONNXInferenceAdapter
-
-# dummy — always returns score 0.0, useful for development
-inference = DummyInferenceAdapter()
-
-# ONNX — real model trained with scripts/train_model.py
-inference = ONNXInferenceAdapter(threshold=0.7)
-inference.load("models/anomaly.onnx")
-```
-
-### Step 3: create actions
-
-```python
-from adapters.actions.log import LogAction
-from adapters.actions.webhook import WebhookAction
-
-log_action     = LogAction(action_id="log", level="WARNING")
-webhook_action = WebhookAction(
-    action_id="webhook",
-    url="https://hooks.example.com/alert",
-    timeout_seconds=5.0,
-)
-
-actions = {
-    "log":     log_action,
-    "webhook": webhook_action,
-}
-```
-
-### Step 4: create rules
-
-```python
-from core.rules import Rule, Condition
-
-rules = [
-    Rule(
-        name="high_temperature",
-        condition=Condition(
-            sensor_id="cpu_temp",
-            operator=">",       # > < >= <= == anomaly
-            threshold=75.0,
-        ),
-        action_ids=["log", "webhook"],
-        cooldown_seconds=60.0,
-    ),
-    Rule(
-        name="ml_anomaly",
-        condition=Condition(
-            sensor_id="cpu_temp",
-            operator="anomaly",   # uses the ML model score
-        ),
-        action_ids=["log"],
-        cooldown_seconds=30.0,
-    ),
-]
-```
-
-### Step 5: assemble the engine and pipeline
-
-```python
-from application.engine import RuleEngine
-from application.pipeline import Pipeline
-from adapters.exporter.prometheus import PrometheusExporter
-
-# exporter is optional — exposes /metrics on port 8000
-exporter = PrometheusExporter(port=8000)
-exporter.start()
-
-engine = RuleEngine(rules=rules, actions=actions)
-
-pipeline = Pipeline(
-    sensor=cpu_sensor,
-    engine=engine,
-    inference=inference,
-    exporter=exporter,    # optional
-)
-```
-
-### Step 6: run
-
-```python
-import time
-
-while True:
-    pipeline.run_once()
-    time.sleep(5)
-```
-
-Or use `MonitorLoop` for an async loop with graceful shutdown:
-
-```python
-from application.monitor import MonitorLoop
-
-monitor = MonitorLoop(
-    pipelines=[pipeline],
-    poll_interval_seconds=5.0,
-    exporter=exporter,
-)
-
 monitor.start()   # blocking — Ctrl+C shuts down cleanly
 ```
 
+### Full control — assembling manually
+
+```python
+from adapters.sensors.cpu_temp import CpuTemperatureSensor
+from adapters.sensors.simulated import SimulatedSensor
+from adapters.inference.remote import RemoteInferenceAdapter
+from adapters.actions.log import LogAction
+from adapters.actions.webhook import WebhookAction
+from adapters.exporter.otel import OTelExporter
+from application.engine import RuleEngine
+from application.pipeline import Pipeline
+from application.monitor import MonitorLoop
+from core.rules import Rule, Condition
+
+
+# sensors
+sensors = [
+    CpuTemperatureSensor(sensor_id="cpu_temp"),         # real (Linux)
+    SimulatedSensor("cpu_usage", "CPU", "%",             # simulated (any OS)
+                    base_value=60.0, scenario="stress"),
+]
+
+# inference — calls the AI Service via HTTP
+inference = RemoteInferenceAdapter(
+    model_id="yolo_v8n",
+    service_url="http://localhost:8080",
+    threshold=0.5,
+)
+inference.load("")
+
+# actions
+actions = {
+    "log":     LogAction(action_id="log"),
+    "webhook": WebhookAction(action_id="webhook",
+                             url="https://hooks.example.com/alert"),
+}
+
+# rules
+rules = [
+    Rule(
+        name="high_temperature",
+        condition=Condition(sensor_id="cpu_temp", operator=">", threshold=75.0),
+        action_ids=["log", "webhook"],
+        cooldown_seconds=60.0,
+    ),
+]
+
+# assemble and start
+exporter  = OTelExporter(backend="otlp", endpoint="http://localhost:4317")
+engine    = RuleEngine(rules=rules, actions=actions)
+pipelines = [
+    Pipeline(sensor=s, engine=engine, inference=inference, exporter=exporter)
+    for s in sensors
+]
+
+monitor = MonitorLoop(pipelines=pipelines, poll_interval_seconds=5.0, exporter=exporter)
+monitor.start()
+```
+
 ---
 
-## Case 3 — Creating your own sensor
+## 3. Connecting real cameras with MediaMTX
 
-Implement `SensorPort` from `core/ports.py`:
+### Why MediaMTX exists
+
+Cheap IP cameras — especially those used in industrial IoT — accept **only 1-2 simultaneous RTSP connections**. Without MediaMTX, if edgesentinel is connected, you cannot open the stream in VLC at the same time. Adding a second system like Smart Incident Management would be rejected by the camera.
+
+**With MediaMTX:**
+
+```
+Camera                                   Consumers
+   │                                        │
+   └──▶ MediaMTX ────────────────────────┬──▶ edgesentinel (YOLO)
+                                         ├──▶ VLC / browser
+                                         ├──▶ Smart Incident Management
+                                         └──▶ disk recording
+```
+
+The camera makes **one connection** to MediaMTX. MediaMTX distributes to as many consumers as needed — without limiting the camera.
+
+---
+
+### Step 1 — Start MediaMTX
+
+```bash
+cd infra/docker
+docker compose up -d mediamtx
+```
+
+Verify it started:
+
+```bash
+docker compose ps
+# mediamtx   Up   :8554 (RTSP), :8888 (HLS), :8889 (WebRTC)
+```
+
+---
+
+### Step 2 — Camera publishes to MediaMTX
+
+**Option A — Camera supports native RTSP push**
+
+Access the camera's web interface and set the stream destination to:
+
+```
+rtsp://YOUR_PC_IP:8554/camera_01
+```
+
+The name `camera_01` is arbitrary — you define it. Each camera uses a different name.
+
+**Option B — Relay with FFmpeg (camera doesn't support push)**
+
+```bash
+# install FFmpeg if you don't have it
+# Ubuntu/Raspberry Pi: sudo apt install ffmpeg
+# Windows: https://ffmpeg.org/download.html
+
+# relay from camera to MediaMTX
+ffmpeg -i rtsp://admin:password@192.168.1.100:554/stream \
+       -c copy \
+       -f rtsp rtsp://localhost:8554/camera_01
+```
+
+Replace `admin:password@192.168.1.100:554/stream` with your actual camera address.
+
+**Option C — Simulate without a physical camera**
+
+```bash
+# send a test video to MediaMTX
+ffmpeg -re -i test_video.mp4 \
+       -c copy \
+       -f rtsp rtsp://localhost:8554/camera_01
+```
+
+---
+
+### Step 3 — Verify the stream in MediaMTX
+
+Open VLC and access:
+
+```
+rtsp://localhost:8554/camera_01
+```
+
+If the image appears, MediaMTX is receiving and redistributing correctly.
+
+You can also access via browser (HLS):
+
+```
+http://localhost:8888/camera_01/index.m3u8
+```
+
+---
+
+### Step 4 — edgesentinel consumes from MediaMTX
+
+In `config.yaml`, point the camera to MediaMTX (not directly to the camera):
+
+```yaml
+cameras:
+  - sensor_id: camera_01
+    source: "rtsp://localhost:8554/camera_01"   # ← MediaMTX, not the camera
+    name: "Entrance Camera"
+    fps_limit: 1.0     # 1 frame per second — enough for detection
+    simulated: false
+```
+
+**Why `fps_limit: 1.0`?**
+
+YOLO on a Raspberry Pi takes ~200ms per frame. If the camera sends 30fps, the system cannot process in real time and memory will fill up. With `fps_limit: 1.0`, the sensor captures 1 frame per second — enough to detect a person's presence and sustainable on embedded hardware.
+
+---
+
+### Step 5 — Multiple cameras
+
+Each camera is one entry in MediaMTX and one sensor in edgesentinel:
+
+```yaml
+cameras:
+  - sensor_id: camera_entrance
+    source: "rtsp://localhost:8554/camera_entrance"
+    name: "Main Entrance"
+    fps_limit: 1.0
+    simulated: false
+
+  - sensor_id: camera_storage
+    source: "rtsp://localhost:8554/camera_storage"
+    name: "Storage Room"
+    fps_limit: 0.5    # 1 frame every 2 seconds — low risk area
+    simulated: false
+```
+
+And in FFmpeg, two relay processes (one per camera):
+
+```bash
+# camera 1
+ffmpeg -i rtsp://admin:password@192.168.1.100:554/stream \
+       -c copy -f rtsp rtsp://localhost:8554/camera_entrance &
+
+# camera 2
+ffmpeg -i rtsp://admin:password@192.168.1.101:554/stream \
+       -c copy -f rtsp rtsp://localhost:8554/camera_storage &
+```
+
+---
+
+## 4. AI Inference Service in practice
+
+### What it is
+
+A standalone Python microservice that exposes ML models via HTTP. edgesentinel calls `POST /predict` with a frame and gets detections back.
+
+**Why not run YOLO directly in edgesentinel?**
+
+- Swapping the model would require changing edgesentinel's code
+- Other systems (Smart Incident Management, etc.) cannot use it
+- If the model crashes, all of edgesentinel crashes
+
+With the AI Service, the model runs in isolation. Any system calls it via HTTP.
+
+---
+
+### Available endpoints
+
+**`GET /health`** — check if the service is up:
+
+```bash
+curl http://localhost:8080/health
+# {"status":"ok","models":2}
+```
+
+**`GET /models`** — list loaded models:
+
+```bash
+curl http://localhost:8080/models
+# [
+#   {"id":"yolo_v8n","type":"yolo","status":"loaded"},
+#   {"id":"anomaly_onnx","type":"onnx","status":"loaded"}
+# ]
+```
+
+**`POST /predict`** — run inference:
+
+```bash
+# with base64 frame
+curl -X POST http://localhost:8080/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model_id": "yolo_v8n",
+    "frame_b64": "BASE64_FRAME_HERE"
+  }'
+
+# with stream URL (captures one frame automatically)
+curl -X POST http://localhost:8080/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model_id": "yolo_v8n",
+    "stream_url": "rtsp://localhost:8554/camera_01"
+  }'
+
+# for sensor anomaly models
+curl -X POST http://localhost:8080/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model_id": "anomaly_onnx",
+    "sensor_value": 85.0
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "model_id": "yolo_v8n",
+  "detections": [
+    {
+      "class_name": "person",
+      "confidence": 0.91,
+      "bbox": [120.0, 50.0, 380.0, 480.0]
+    }
+  ],
+  "inference_latency_ms": 178.42,
+  "timestamp": 1712188800.123,
+  "has_detections": true
+}
+```
+
+---
+
+### Adding a new model
+
+Edit `ai-inference-service/models.yaml`:
+
+```yaml
+models:
+  - id: yolo_v8n
+    type: yolo
+    path: weights/yolov8n.pt
+    target_classes: [person, car, truck]
+    confidence_threshold: 0.5
+
+  # add your model here
+  - id: fire_detector
+    type: yolo
+    path: weights/fire.pt
+    target_classes: [fire, smoke]
+    confidence_threshold: 0.4
+    description: "Fire and smoke detector"
+```
+
+Restart the service:
+
+```bash
+cd infra/docker
+docker compose restart ai-inference-service
+```
+
+Verify:
+
+```bash
+curl http://localhost:8080/models
+# [..., {"id":"fire_detector","type":"yolo","status":"loaded"}]
+```
+
+---
+
+### Training the ONNX anomaly model
+
+edgesentinel includes a script to train an anomaly detection model from sensor data:
+
+```bash
+pip install scikit-learn skl2onnx
+python scripts/train_model.py
+```
+
+This generates:
+- `models/anomaly.onnx` — IsolationForest model
+- `models/scaler.onnx` — MinMaxScaler normalizer
+
+Copy to the service:
+
+```bash
+cp models/anomaly.onnx ai-inference-service/weights/
+cp models/scaler.onnx  ai-inference-service/weights/
+```
+
+And add to `models.yaml`:
+
+```yaml
+  - id: anomaly_onnx
+    type: onnx
+    path: weights/anomaly.onnx
+    scaler_path: weights/scaler.onnx
+    confidence_threshold: 0.6
+```
+
+---
+
+### edgesentinel calling the AI Service
+
+In `config.yaml`:
+
+```yaml
+inference:
+  enabled: true
+  backend: remote
+  service_url: "http://localhost:8080"
+  model_id: "yolo_v8n"
+  threshold: 0.5
+```
+
+edgesentinel does not know whether the model is local or remote — it just calls `InferencePort.predict()`. The `RemoteInferenceAdapter` handles the HTTP internally.
+
+---
+
+## 5. Creating your own sensor
 
 ```python
 from core.ports import SensorPort
 from core.entities import SensorReading
 
 
-class MyCustomSensor(SensorPort):
-    """
-    Sensor that reads from any source — file, serial, I2C, API, etc.
-    """
+class MotorTemperatureSensor(SensorPort):
+    """Reads motor temperature from a device file."""
 
-    def __init__(self, sensor_id: str) -> None:
-        self.sensor_id = sensor_id
+    def __init__(self, sensor_id: str, device_path: str) -> None:
+        self.sensor_id   = sensor_id
+        self.device_path = device_path
 
     def read(self) -> SensorReading:
-        value = self._read_hardware()
+        # read the value — can be a file, serial port, I2C, API, etc.
+        with open(self.device_path) as f:
+            value = float(f.read().strip()) / 1000.0
+
         return SensorReading(
             sensor_id=self.sensor_id,
-            name="My Sensor",
+            name="Motor Temperature",
             value=value,
             unit="°C",
         )
 
     def is_available(self) -> bool:
-        try:
-            self.read()
-            return True
-        except Exception:
-            return False
-
-    def _read_hardware(self) -> float:
-        # read from a file, serial port, I2C, API, etc.
-        return 42.0
+        import os
+        return os.path.exists(self.device_path)
 ```
 
 Plug it into the system:
 
 ```python
-my_sensor = MyCustomSensor(sensor_id="my_sensor")
-
-pipeline = Pipeline(
-    sensor=my_sensor,
-    engine=engine,
-    inference=inference,
+sensor = MotorTemperatureSensor(
+    sensor_id="motor_temp",
+    device_path="/sys/class/thermal/thermal_zone1/temp",
 )
+
+pipeline = Pipeline(sensor=sensor, engine=engine, inference=inference)
 ```
 
 ---
 
-## Case 4 — Creating your own action
-
-Implement `ActionPort` from `core/ports.py`:
+## 6. Creating your own action
 
 ```python
 from core.ports import ActionPort
@@ -228,84 +490,44 @@ from core.entities import ActionContext
 import requests
 
 
-class SlackAction(ActionPort):
-    """Sends a formatted message to a Slack channel."""
+class TelegramAction(ActionPort):
+    """Sends a Telegram message when a rule fires."""
 
-    def __init__(self, action_id: str, webhook_url: str) -> None:
+    def __init__(self, action_id: str, token: str, chat_id: str) -> None:
         self.action_id = action_id
-        self.webhook_url = webhook_url
+        self._token    = token
+        self._chat_id  = chat_id
 
     def execute(self, context: ActionContext) -> None:
         reading = context.reading
         score   = context.score
 
         text = (
-            f":warning: *{context.rule_name}*\n"
-            f"Sensor: `{reading.sensor_id}` — "
+            f"🚨 *{context.rule_name}*\n"
+            f"Sensor: `{reading.sensor_id}`\n"
             f"Value: `{reading.value}{reading.unit}`"
         )
 
-        if score is not None and score.is_anomaly:
+        if score and score.is_anomaly:
             text += f"\nAnomaly score: `{score.score:.2f}`"
 
-        requests.post(self.webhook_url, json={"text": text}, timeout=5)
+        requests.post(
+            f"https://api.telegram.org/bot{self._token}/sendMessage",
+            json={"chat_id": self._chat_id, "text": text, "parse_mode": "Markdown"},
+            timeout=5,
+        )
 ```
 
 ---
 
-## Case 5 — Reading a sensor directly (no pipeline)
-
-If you just want to read a sensor and use the value in your code:
-
-```python
-from adapters.sensors.cpu_temp import CpuTemperatureSensor
-
-sensor = CpuTemperatureSensor(sensor_id="cpu_temp")
-
-if sensor.is_available():
-    reading = sensor.read()
-    print(f"{reading.name}: {reading.value}{reading.unit}")
-    # CPU Temperature: 62.5°C
-```
-
----
-
-## Case 6 — Running inference directly (no pipeline)
-
-If you just want to use the anomaly model in your code:
-
-```python
-from adapters.inference.onnx import ONNXInferenceAdapter
-from core.entities import SensorReading
-
-adapter = ONNXInferenceAdapter(threshold=0.7)
-adapter.load("models/anomaly.onnx")
-
-reading = SensorReading(
-    sensor_id="cpu_temp",
-    name="CPU Temperature",
-    value=85.0,
-    unit="°C",
-)
-
-score = adapter.predict(reading)
-
-print(f"Score: {score.score:.3f}")
-print(f"Is anomaly: {score.is_anomaly}")
-# Score: 0.937
-# Is anomaly: True
-```
-
----
-
-## Interface reference
+## 7. Interface reference
 
 ### `SensorPort`
 
 ```python
 class SensorPort(ABC):
-    def read(self) -> SensorReading: ...       # reads one measurement
-    def is_available(self) -> bool: ...        # checks if sensor exists
+    def read(self) -> SensorReading: ...    # reads one measurement
+    def is_available(self) -> bool: ...     # checks if sensor exists on hardware
 ```
 
 ### `InferencePort`
@@ -332,8 +554,8 @@ class SensorReading:
     name: str
     value: float
     unit: str
-    timestamp: float      # auto-generated
-    metadata: dict        # optional extra fields
+    timestamp: float        # auto-generated
+    metadata: dict          # extra fields — camera frame lives here
 ```
 
 ### `AnomalyScore`
@@ -341,9 +563,9 @@ class SensorReading:
 ```python
 @dataclass(frozen=True)
 class AnomalyScore:
-    score: float          # 0.0 = normal, 1.0 = full anomaly
-    threshold: float      # configured threshold
-    is_anomaly: bool      # score >= threshold
+    score: float            # 0.0 = normal, 1.0 = full anomaly
+    threshold: float
+    is_anomaly: bool        # score >= threshold
     model_id: str
     reading: SensorReading
 ```
@@ -355,11 +577,11 @@ class AnomalyScore:
 class ActionContext:
     rule_name: str
     reading: SensorReading
-    score: AnomalyScore | None    # None if inference is disabled
-    extras: dict                   # optional extra data
+    score: AnomalyScore | None   # None if inference is disabled
+    extras: dict
 ```
 
-### `Rule`
+### `Rule` and `Condition`
 
 ```python
 @dataclass
@@ -369,11 +591,7 @@ class Rule:
     action_ids: list[str]
     enabled: bool = True
     cooldown_seconds: float = 0.0
-```
 
-### `Condition`
-
-```python
 @dataclass
 class Condition:
     sensor_id: str
@@ -381,63 +599,13 @@ class Condition:
     threshold: float = 0.0
 ```
 
----
+### Available operators
 
-## Full example
-
-Self-contained script that runs the full system programmatically:
-
-```python
-from adapters.sensors.simulated import SimulatedSensor
-from adapters.inference.onnx import ONNXInferenceAdapter
-from adapters.actions.log import LogAction
-from adapters.actions.webhook import WebhookAction
-from adapters.exporter.prometheus import PrometheusExporter
-from application.engine import RuleEngine
-from application.pipeline import Pipeline
-from application.monitor import MonitorLoop
-from core.rules import Rule, Condition
-
-
-def main():
-    # sensors
-    sensors = [
-        SimulatedSensor("cpu_temp",  "CPU Temperature", "°C", base_value=60.0, scenario="stress"),
-        SimulatedSensor("cpu_usage", "CPU Usage",       "%",  base_value=70.0, scenario="stress"),
-    ]
-
-    # inference
-    inference = ONNXInferenceAdapter(threshold=0.7)
-    inference.load("models/anomaly.onnx")
-
-    # actions
-    actions = {
-        "log":     LogAction(action_id="log"),
-        "webhook": WebhookAction(action_id="webhook", url="https://webhook.site/your-url"),
-    }
-
-    # rules
-    rules = [
-        Rule(
-            name="high_temperature",
-            condition=Condition(sensor_id="cpu_temp", operator=">", threshold=75.0),
-            action_ids=["log", "webhook"],
-            cooldown_seconds=60.0,
-        ),
-    ]
-
-    # assemble and start
-    exporter  = PrometheusExporter(port=8000)
-    engine    = RuleEngine(rules=rules, actions=actions)
-    pipelines = [
-        Pipeline(sensor=s, engine=engine, inference=inference, exporter=exporter)
-        for s in sensors
-    ]
-
-    monitor = MonitorLoop(pipelines=pipelines, poll_interval_seconds=2.0, exporter=exporter)
-    monitor.start()
-
-
-if __name__ == "__main__":
-    main()
-```
+| Operator | Description | Example |
+|---|---|---|
+| `>` | greater than | `cpu_temp > 75` |
+| `<` | less than | `cpu_temp < 10` |
+| `>=` | greater or equal | `cpu_usage >= 90` |
+| `<=` | less or equal | `memory_usage <= 20` |
+| `==` | equal | `cpu_temp == 0` (dead sensor) |
+| `anomaly` | ML model score above threshold | any sensor |

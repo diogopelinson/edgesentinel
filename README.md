@@ -1,43 +1,145 @@
 # edgesentinel
 
-> Intelligent observability for Linux embedded devices — reads hardware sensors, detects anomalies with ML, and streams everything to Grafana in real time.
+> Intelligent observability for Linux embedded devices — reads hardware sensors, processes camera streams with YOLO, detects anomalies with ML, and streams everything to Grafana in real time.
 
 ---
 
-## What is this?
+## What is edgesentinel?
 
-Most tools for Raspberry Pi and SBCs are either **hardware-only** (`psutil`, `gpiozero`) or **ML-only** (`tflite`, `onnxruntime`). `edgesentinel` bridges both worlds:
+edgesentinel is an **observability platform for embedded devices** (Raspberry Pi, Orange Pi, SBCs) that solves a common problem: hardware monitoring tools and ML tools live in separate worlds.
 
-- Reads CPU temperature, usage and memory directly from Linux pseudo-filesystems
-- Runs an anomaly detection model **on the device itself**
-- Exports metrics to Prometheus and plots them in Grafana in real time
-- Fires alerts via log, webhook or GPIO when something goes wrong
+- Hardware tools (`psutil`, `gpiozero`) read sensors but know nothing about ML
+- ML tools (`tflite`, `onnxruntime`) run models but don't monitor hardware
 
-All configured with a single `config.yaml` file and zero boilerplate.
+edgesentinel brings both together in a cohesive, observable and extensible system.
 
 ---
 
-## How it works
+## Why use it?
+
+**Without edgesentinel**, monitoring a Raspberry Pi with a camera means gluing multiple tools together with bash scripts, managing conflicting dependencies and reinventing the wheel for every project.
+
+**With edgesentinel**, you declare what to monitor in a `config.yaml`:
+
+```yaml
+rules:
+  - name: server_overheating
+    condition:
+      sensor_id: cpu_temp
+      operator: ">"
+      threshold: 80.0
+    actions: [log, webhook]
+    cooldown_seconds: 60
+```
+
+Temperature above 80°C → alert fires → webhook sent → data in Grafana. No code, no scripts.
+
+---
+
+## What the system does
+
+### Hardware sensor reading
+
+Reads directly from Linux pseudo-filesystems — no heavy dependencies:
+
+- **CPU temperature** via `/sys/class/thermal` or `vcgencmd` (Raspberry Pi)
+- **CPU usage** calculated from `/proc/stat` tick differences
+- **Memory usage** via `MemAvailable` from `/proc/meminfo`
+
+### Camera streams with MediaMTX
+
+**MediaMTX** is an RTSP stream hub. The camera connects once and the hub distributes to as many consumers as needed — edgesentinel, VLC, browser, other systems — without limiting the camera.
 
 ```
-Raspberry Pi / SBC
+IP Camera ──▶ MediaMTX ──▶ edgesentinel (YOLO 1fps)
+                      ├──▶ VLC (live view)
+                      └──▶ Smart Incident Management
+```
+
+This solves a real problem: cheap IP cameras accept only 1-2 simultaneous connections.
+
+### Containerized AI Inference Service
+
+A FastAPI microservice that exposes ML models via HTTP. edgesentinel sends a frame and receives detections back. Any system can use the same endpoint.
+
+- **YOLO** for object detection in camera frames
+- **ONNX** for any exported model (IsolationForest, classifiers, etc.)
+- **Plug-and-play** — adding a model is one line in `models.yaml`, no code changes
+
+### Rule Engine
+
+Evaluates rules on every sensor reading with configurable operators:
+
+| Operator | When it fires |
+|---|---|
+| `>` `<` `>=` `<=` `==` | simple numeric comparison |
+| `anomaly` | ML model score above threshold |
+
+### Observability with OpenTelemetry
+
+edgesentinel and the AI Service export metrics via OTel to the same Collector. Prometheus collects and Grafana plots everything in real time — two services, one dashboard.
+
+### Configurable actions
+
+- **`log`** — structured log with configurable level
+- **`webhook`** — HTTP POST with full JSON payload
+- **`gpio_write`** — write to a GPIO pin (LED, relay, buzzer)
+
+---
+
+## Architecture
+
+edgesentinel uses **Hexagonal Architecture (Ports & Adapters)**. The core domain knows nothing about Prometheus, GPIO or YOLO — only abstract contracts.
+
+```
+┌─────────────────────────────────────────────────┐
+│                    core/                         │
+│  ports.py     → abstract contracts               │
+│  entities.py  → immutable dataclasses            │
+│  rules.py     → Rule, Condition, cooldown        │
+└───────────────────────┬─────────────────────────┘
+                        │ everything depends on core
+┌───────────────────────▼─────────────────────────┐
+│                 application/                     │
+│  engine.py    → evaluates rules, dispatches      │
+│  pipeline.py  → sense → infer → act per sensor   │
+│  monitor.py   → async loop with graceful shutdown│
+└───────────────────────┬─────────────────────────┘
+                        │
+┌───────────────────────▼─────────────────────────┐
+│                  adapters/                       │
+│  sensors/     → hardware, camera, simulated      │
+│  inference/   → dummy, onnx, tflite, remote      │
+│  actions/     → log, webhook, gpio               │
+│  exporter/    → legacy Prometheus + OTel         │
+└─────────────────────────────────────────────────┘
+```
+
+Swapping the ML backend is one line in `config.yaml`. Adding a sensor is one Python file. Replacing Prometheus is a new adapter — no domain changes.
+
+---
+
+## Full stack
+
+```
+IP Camera (RTSP)
       │
       ▼
-edgesentinel reads sensors every N seconds
+MediaMTX  :8554 :8888 :8889
       │
-      ├─ ML model scores the reading (0.0 → 1.0)
-      │
-      ├─ rule engine checks config.yaml rules
-      │
-      ├─ actions fire (log, webhook, GPIO)
-      │
-      └─ /metrics exposed on port 8000
-            │
-            ▼
-      Prometheus scrapes every 5s
-            │
-            ▼
-      Grafana plots in real time
+  ┌───┴──────────────────┐
+  │                       │
+  ▼                       ▼
+edgesentinel          VLC / browser
+  │
+  ▼
+AI Inference Service  :8080
+  │
+  ▼
+OTel Collector  :4317
+  │
+  ▼
+Prometheus  :9090  ──▶  Grafana  :3000
 ```
 
 ---
@@ -46,24 +148,22 @@ edgesentinel reads sensors every N seconds
 
 ### Requirements
 
-- Python 3.10+
-- Linux (Raspberry Pi, Orange Pi, or any SBC)
-- Docker (optional — for Prometheus + Grafana)
+| Item | Minimum | Recommended |
+|---|---|---|
+| Python | 3.10+ | 3.11+ |
+| System | Linux (SBC) | Raspberry Pi 4 2GB+ |
+| Docker | 24+ | 28+ |
+
+> **Windows / Mac**: use simulation mode for development without hardware.
 
 ### Install the package
 
 ```bash
-# base install
-pip install edgesentinel
-
-# with ONNX backend (scikit-learn, PyTorch models)
-pip install edgesentinel[onnx]
-
-# with TFLite backend (lighter, recommended for Raspberry Pi)
-pip install edgesentinel[tflite]
-
-# with GPIO support (LED, relay, buzzer)
-pip install edgesentinel[gpio]
+pip install edgesentinel            # base
+pip install edgesentinel[onnx]      # + ONNX model
+pip install edgesentinel[camera]    # + camera and local YOLO
+pip install edgesentinel[gpio]      # + GPIO (Raspberry Pi)
+pip install edgesentinel[all]       # everything
 ```
 
 ### Check your environment
@@ -72,45 +172,15 @@ pip install edgesentinel[gpio]
 edgesentinel doctor
 ```
 
-This command inspects your environment and reports what is available:
-
-```
-edgesentinel doctor
-====================================================
-Python
-  OK      Python 3.11.2
-
-Dependencies
-  OK      pyyaml 6.0.3
-  OK      prometheus-client 0.24.1
-  OK      numpy 1.26.4
-  WARN    tflite-runtime — not installed (optional)
-
-Sensors
-  OK      cpu_temperature      62.5 °C
-  OK      cpu_usage            34.1 %
-  OK      memory_usage         48.3 %
-
-Inference backends
-  OK      dummy      available
-  OK      onnx       available
-
-Exporter
-  OK      port 8000 is free
-====================================================
-All good — system ready to run.
-```
-
 ---
 
 ## Configuration
 
-Create a `config.yaml` file at the project root:
-
 ```yaml
 edgesentinel:
-  poll_interval_seconds: 5       # how often to read sensors
+  poll_interval_seconds: 5
 
+  # hardware sensors
   sensors:
     - id: cpu_temp
       type: cpu_temperature
@@ -119,30 +189,47 @@ edgesentinel:
     - id: memory_usage
       type: memory_usage
 
+  # cameras (MediaMTX as source)
+  cameras:
+    - sensor_id: camera_01
+      source: "rtsp://localhost:8554/camera_01"
+      name: "Entrance Camera"
+      fps_limit: 1.0
+      simulated: false
+
+  # inference via AI Service
   inference:
     enabled: true
-    backend: onnx                # dummy | onnx | tflite
-    model_path: models/anomaly.onnx
+    backend: remote
+    service_url: "http://localhost:8080"
+    model_id: "yolo_v8n"
+    threshold: 0.5
 
+  # OpenTelemetry exporter
   exporter:
-    port: 8000                   # Prometheus will scrape this port
+    use_otel: true
+    backend: otlp
+    endpoint: "http://localhost:4317"
+    service_name: "edgesentinel"
 
+  # alert rules
   rules:
     - name: high_temperature
       condition:
         sensor_id: cpu_temp
-        operator: ">"            # available operators: > < >= <= == anomaly
+        operator: ">"
         threshold: 75.0
       actions: [log, webhook]
-      cooldown_seconds: 60       # won't fire again for 60s
+      cooldown_seconds: 60
 
-    - name: anomaly_detected
+    - name: person_detected
       condition:
-        sensor_id: cpu_temp
-        operator: anomaly        # uses the ML model score
+        sensor_id: camera_01
+        operator: anomaly
       actions: [log, webhook]
       cooldown_seconds: 30
 
+  # available actions
   actions:
     - id: log
       type: log
@@ -155,157 +242,138 @@ edgesentinel:
 
 ## Running
 
-### On real hardware (Raspberry Pi / SBC)
+### Start the infrastructure
 
 ```bash
-edgesentinel run --config config.yaml
+cd infra/docker
+docker compose up -d
+docker compose ps
 ```
 
-### Simulating on Windows / Mac (no hardware needed)
+| Service | Port | Role |
+|---|---|---|
+| MediaMTX | 8554 / 8888 | Camera stream hub |
+| AI Inference Service | 8080 | YOLO and ONNX via HTTP |
+| OTel Collector | 4317 | Collects metrics from all services |
+| Prometheus | 9090 | Stores time series |
+| Grafana | 3000 | Real-time dashboard |
 
-The `simulate` mode runs the full pipeline with synthetic data. You can watch rules firing, logs appearing and metrics flowing into Grafana — all without hardware.
+### Run edgesentinel
 
 ```bash
-# normal operation — stable values
-edgesentinel simulate --scenario normal
+# real hardware
+edgesentinel run --config config.yaml
 
-# stress — temperature ramps up until alerts fire
+# simulation (Windows / Mac)
 edgesentinel simulate --scenario stress --interval 1
-
-# spike — sudden temperature spikes every ~20 seconds
+edgesentinel simulate --scenario normal
 edgesentinel simulate --scenario spike
 ```
 
-Example terminal output with `stress`:
+### Diagnose your environment
+
+```bash
+edgesentinel doctor
+```
+
+### Import the Grafana dashboard
+
+1. Open `http://localhost:3000` → `admin` / `edgesentinel`
+2. **Dashboards → Import → Upload**
+3. Select `dashboards/edgesentinel.json`
+
+---
+
+## Simulation mode
+
+Runs the **full pipeline** with synthetic data — ideal for development without hardware.
+
+| Scenario | What happens |
+|---|---|
+| `normal` | Stable values, no rules fire |
+| `stress` | Temperature ramps up until alerts fire |
+| `spike` | Sudden temperature spikes every ~20 seconds |
 
 ```
 [tick 023]
-  CPU Temperature        74.98 °C
-  CPU Usage              90.68 %
-  Memory Usage           64.50 %
-2026-04-04 00:11:38 [WARNING] Rule 'high_temperature' fired | sensor=cpu_temp value=75.92°C | anomaly_score=0.9366 threshold=0.7
+  CPU Temperature   74.98 °C
+  CPU Usage         90.68 %
+  Memory Usage      64.50 %
+
+[WARNING] Rule 'high_temperature' fired | sensor=cpu_temp value=75.92°C | anomaly_score=0.9366
 ```
 
 ---
 
-## ML Model
+## AI Inference Service
 
-The project ships with a script to train and export an anomaly detection model using `scikit-learn`:
+### Verifying
 
 ```bash
-# install training dependencies
+curl http://localhost:8080/health
+# {"status":"ok","models":1}
+
+curl http://localhost:8080/models
+# [{"id":"yolo_v8n","type":"yolo","status":"loaded"}]
+```
+
+### Adding models
+
+Edit `ai-inference-service/models.yaml` and restart:
+
+```yaml
+models:
+  - id: yolo_v8n
+    type: yolo
+    path: weights/yolov8n.pt
+    target_classes: [person, car, truck]
+    confidence_threshold: 0.5
+
+  - id: fire_detector
+    type: yolo
+    path: weights/fire.pt
+    target_classes: [fire, smoke]
+    confidence_threshold: 0.4
+```
+
+```bash
+docker compose restart ai-inference-service
+```
+
+Zero code changes.
+
+---
+
+## ONNX anomaly model
+
+```bash
 pip install scikit-learn skl2onnx
-
-# train the model on normal operation data
 python scripts/train_model.py
+# generates: models/anomaly.onnx + models/scaler.onnx
 ```
 
-This generates two files:
-
-```
-models/
-├── anomaly.onnx    → IsolationForest model
-└── scaler.onnx     → MinMaxScaler normalizer
-```
-
-The model learns what normal operation looks like (~50°C to 65°C) and returns a high score when readings deviate. With the `stress` scenario, you will see the score climb from `0.1` to `0.93` as temperature scales up.
-
-You can replace this with your own model — any framework that exports to ONNX or TFLite works.
-
----
-
-## Grafana + Prometheus
-
-### Start the stack with Docker
-
-```bash
-cd docker/
-docker compose up -d
-```
-
-This starts:
-- Prometheus at `http://localhost:9090`
-- Grafana at `http://localhost:3000` — login: `admin` / `edgesentinel`
-
-### Connect Prometheus as a data source
-
-1. Grafana → **Connections** → **Data sources** → **Add data source**
-2. Select **Prometheus**
-3. URL: `http://prometheus:9090`
-4. Click **Save & test**
-
-### Import the dashboard
-
-1. Grafana → **Dashboards** → **Import**
-2. Upload `dashboards/edgesentinel.json`
-3. Select the Prometheus source → **Import**
-
-### What the dashboard shows
-
-| Panel | What it displays |
-|---|---|
-| Sensor temperatures | Real-time values per sensor over time |
-| Anomaly score | ML model output — 0.0 = normal, 1.0 = anomaly |
-| Anomalies detected | Anomaly rate over the last 5 minutes |
-| Inference latency P95 | 95% of inferences complete in under X ms |
-| Pipeline latency P95 | Total sense → infer → act cycle time |
+The model learns what normal operation looks like. When temperature deviates from that pattern, the score rises — with the `stress` scenario you will see scores reaching `0.93+`.
 
 ---
 
 ## Exposed metrics
 
-All available at `http://localhost:8000/metrics`:
+### edgesentinel
 
 | Metric | Type | Description |
 |---|---|---|
-| `edgesentinel_sensor_value` | Gauge | Current sensor reading |
-| `edgesentinel_anomaly_score` | Gauge | ML model output (0.0 – 1.0) |
-| `edgesentinel_anomaly_total` | Counter | Total anomalies detected |
-| `edgesentinel_rule_triggered_total` | Counter | Total rule triggers |
-| `edgesentinel_inference_latency_seconds` | Histogram | Per-inference duration |
-| `edgesentinel_pipeline_latency_seconds` | Histogram | Full cycle duration |
+| `edgesentinel.sensor.value` | Gauge | Current sensor reading |
+| `edgesentinel.anomaly.score` | Gauge | ML model score (0.0 – 1.0) |
+| `edgesentinel.anomaly.total` | Counter | Total anomalies detected |
+| `edgesentinel.pipeline.latency` | Histogram | Full cycle time per sensor |
 
----
+### AI Inference Service
 
-## Available actions
-
-| Type | What it does |
-|---|---|
-| `log` | Structured log with configurable level |
-| `webhook` | HTTP POST JSON to any URL (Slack, Discord, PagerDuty, n8n) |
-| `gpio_write` | Write to a GPIO pin (LED, relay, buzzer) with optional duration |
-
-### Webhook payload
-
-```json
-{
-  "rule": "high_temperature",
-  "sensor_id": "cpu_temp",
-  "sensor_name": "CPU Temperature",
-  "value": 76.22,
-  "unit": "°C",
-  "timestamp": 1712188800.123,
-  "anomaly": {
-    "score": 0.9366,
-    "threshold": 0.7,
-    "model_id": "onnx"
-  }
-}
-```
-
-To test webhooks without a server, use `https://webhook.site` — it generates a free URL that shows incoming payloads in real time in the browser.
-
----
-
-## Supported sensors
-
-| Config type | Linux source | Notes |
+| Metric | Type | Description |
 |---|---|---|
-| `cpu_temperature` | `/sys/class/thermal` or `vcgencmd` | Auto-detects Raspberry Pi |
-| `cpu_usage` | `/proc/stat` | Calculated from tick diff between reads |
-| `memory_usage` | `/proc/meminfo` | Uses `MemAvailable` — more accurate than `MemFree` |
-
-To add a new sensor, implement `SensorPort` from `core/ports.py` and register it in `adapters/sensors/registry.py`.
+| `ai_service.inference.total` | Counter | Total inferences per model |
+| `ai_service.inference.latency_ms` | Histogram | Inference latency |
+| `ai_service.detections.total` | Counter | Total detections per model |
 
 ---
 
@@ -313,24 +381,18 @@ To add a new sensor, implement `SensorPort` from `core/ports.py` and register it
 
 ```bash
 pip install pytest pytest-mock pytest-cov
-
-# run all tests
 pytest tests/ -v
-
-# with coverage report
 pytest tests/ --cov=. --cov-report=term-missing
 ```
 
-**69 tests, zero failures.** Includes unit, integration and simulation scenario tests — all run without hardware.
+**69 tests, zero failures.**
 
 | Layer | Coverage |
 |---|---|
-| `core/` (domain) | 100% |
+| `core/` | 100% |
 | `application/engine` | 100% |
 | `application/pipeline` | 100% |
 | `adapters/inference/dummy` | 100% |
-| `adapters/inference/onnx` | 88% |
-| `adapters/sensors/simulated` | 100% |
 | `config/loader` | 95% |
 
 ---
@@ -339,51 +401,48 @@ pytest tests/ --cov=. --cov-report=term-missing
 
 ```
 edgesentinel/
-├── core/                    # pure domain — zero external dependencies
-│   ├── ports.py             # abstract contracts
-│   ├── entities.py          # immutable dataclasses
-│   └── rules.py             # Rule and Condition with cooldown
-├── config/
-│   ├── schema.py            # YAML structure as dataclasses
-│   ├── loader.py            # reads and validates config.yaml
-│   └── mapper.py            # converts config into domain objects
+├── core/                       # pure domain — zero external dependencies
+├── config/                     # YAML loader and schema
 ├── adapters/
-│   ├── sensors/             # cpu_temperature, cpu_usage, memory_usage, simulated
-│   ├── inference/           # dummy, onnx, tflite
-│   ├── actions/             # log, webhook, gpio_write
-│   └── exporter/            # Prometheus HTTP /metrics
-├── application/
-│   ├── engine.py            # RuleEngine
-│   ├── pipeline.py          # sense → infer → act
-│   └── monitor.py           # async loop with graceful shutdown
-├── cli/
-│   ├── main.py              # run / simulate / doctor
-│   ├── builder.py           # assembles system from config
-│   ├── simulate.py          # simulated sensors
-│   └── doctor.py            # environment diagnostics
-├── scripts/
-│   └── train_model.py       # trains and exports ONNX model
-├── docker/
-│   ├── docker-compose.yml   # Prometheus + Grafana
-│   └── prometheus.yml       # scrape configuration
-├── dashboards/
-│   └── edgesentinel.json    # ready-to-import Grafana dashboard
-└── tests/
-    ├── core/
-    ├── config/
-    ├── adapters/
-    ├── application/
-    └── integration/
+│   ├── sensors/                # cpu_temp, cpu_usage, memory, camera, simulated
+│   ├── inference/              # dummy, onnx, tflite, remote (AI Service)
+│   ├── actions/                # log, webhook, gpio
+│   └── exporter/               # legacy Prometheus + OpenTelemetry
+├── application/                # RuleEngine, Pipeline, MonitorLoop
+├── cli/                        # run / simulate / doctor
+├── ai-inference-service/       # FastAPI with containerized YOLO/ONNX
+├── scripts/                    # train_model.py
+├── infra/docker/               # docker-compose, MediaMTX, OTel, Prometheus, Grafana
+├── dashboards/                 # edgesentinel.json for Grafana
+└── tests/                      # unit + integration (69 tests)
 ```
+
+---
+
+## Design decisions
+
+**Hexagonal Architecture** — the core knows nothing about infrastructure. Swapping Prometheus for Datadog is a new adapter. Swapping ONNX for TFLite is one config line.
+
+**Direct `/proc` reading** — no `psutil`. Lighter, more explicit, no compiled C dependency.
+
+**`frozen=True` on entities** — the loop is async. Immutability eliminates concurrency bugs.
+
+**`time.monotonic()` for cooldowns** — wall clock can go backward on NTP sync. Monotonic clock only moves forward.
+
+**AI Service separated** — failure isolation. If YOLO crashes, sensor monitoring continues. Other systems use the same endpoint.
+
+**MediaMTX** — cheap IP cameras accept 1-2 connections. The hub distributes to N consumers without limiting the camera.
+
+**OpenTelemetry** — instrument once, export anywhere. No coupling to Prometheus.
 
 ---
 
 ## Roadmap
 
 - [ ] Redis for distributed state in multi-device deployments
-- [ ] Camera frame ingestion with YOLO anomaly detection
+- [ ] gRPC in the AI Service as an alternative to HTTP
 - [ ] Additional sensors: GPIO input, I2C, SPI, BME280
-- [ ] Terraform configuration for cloud-assisted deployments
+- [ ] Terraform for cloud-assisted deployments
 
 ---
 
