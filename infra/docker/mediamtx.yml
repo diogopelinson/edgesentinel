@@ -8,7 +8,7 @@ rtsp:
 hls:
   address: :8888
 
-webRTC:
+webrtc:
   address: :8889
 
 paths:
