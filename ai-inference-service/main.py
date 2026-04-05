@@ -83,8 +83,18 @@ def predict(request: PredictRequest):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    frame = _get_frame(request)
-    result: InferenceResult = model.run(frame)
+    # sensor_value só é válido para modelos ONNX
+    if request.sensor_value is not None:
+        model_type = type(model).__name__
+        if "YOLO" in model_type:
+            raise HTTPException(
+                status_code=400,
+                detail="sensor_value não é suportado por modelos YOLO. "
+                       "Use stream_url ou frame_b64."
+            )
+
+    frame  = _get_frame(request)
+    result = model.run(frame)
 
     exporter.record_inference(
         model_id=request.model_id,
