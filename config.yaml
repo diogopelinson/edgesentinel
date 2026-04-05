@@ -51,8 +51,7 @@ edgesentinel:
     - name: pessoa_detectada
       condition:
         sensor_id: camera_01
-        operator: ">"
-        threshold: 0.5
+        operator: anomaly      
       actions: [log, webhook]
       cooldown_seconds: 30
 
