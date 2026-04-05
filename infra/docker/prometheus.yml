@@ -1,9 +1,9 @@
 global:
-  scrape_interval: 5s       # busca métricas a cada 5 segundos
+  scrape_interval: 5s
   evaluation_interval: 5s
 
 scrape_configs:
   - job_name: "edgesentinel"
     static_configs:
       - targets:
-          - "host.docker.internal:8000"   # Aponte (onde o edgesentinel roda)
+          - "edgesentinel-otel-collector:8889"

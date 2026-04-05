@@ -5,7 +5,6 @@ from config.mapper import to_rules
 from adapters.sensors.registry import build_sensor
 from adapters.inference.registry import build_inference
 from adapters.actions.registry import build_actions
-from adapters.exporter.prometheus import PrometheusExporter
 from application.engine import RuleEngine
 from application.pipeline import Pipeline
 from application.monitor import MonitorLoop
@@ -14,20 +13,20 @@ logger = logging.getLogger("edgesentinel.builder")
 
 
 def build_monitor(config: EdgeSentinelConfig) -> MonitorLoop:
-    sensors  = _build_sensors(config)
-    cameras  = _build_cameras(config)
+    sensors   = _build_sensors(config)
+    cameras   = _build_cameras(config)
     inference = _build_inference(config)
-    yolo     = _build_yolo(config)
-    actions  = build_actions(config.actions)
-    rules    = to_rules(config)
-    exporter = PrometheusExporter(port=config.exporter.port)
+    yolo      = _build_yolo(config)
+    actions   = build_actions(config.actions)
+    rules     = to_rules(config)
+    exporter  = _build_exporter(config)
 
     engine = RuleEngine(rules=rules, actions=actions)
 
     sensor_pipelines = [
-            Pipeline(sensor=s, engine=engine, inference=inference, exporter=exporter)
-            for s in sensors
-        ]
+        Pipeline(sensor=s, engine=engine, inference=inference, exporter=exporter)
+        for s in sensors
+    ]
 
     camera_pipelines = [
         Pipeline(sensor=c, engine=engine, inference=yolo, exporter=exporter)
@@ -49,6 +48,27 @@ def build_monitor(config: EdgeSentinelConfig) -> MonitorLoop:
     )
 
 
+def _build_exporter(config: EdgeSentinelConfig):
+    if config.exporter.use_otel:
+        from adapters.exporter.otel import OTelExporter
+        exporter = OTelExporter(
+            backend=config.exporter.backend,
+            endpoint=config.exporter.endpoint,
+            port=config.exporter.port,
+            service_name=config.exporter.service_name,
+        )
+        logger.info(
+            f"OTel exporter configurado — backend={config.exporter.backend} "
+            f"endpoint={config.exporter.endpoint}"
+        )
+        return exporter
+
+    from adapters.exporter.prometheus import PrometheusExporter
+    exporter = PrometheusExporter(port=config.exporter.port)
+    logger.info("Prometheus exporter configurado (legacy).")
+    return exporter
+
+
 def _build_sensors(config: EdgeSentinelConfig):
     sensors = []
     for sensor_config in config.sensors:
@@ -66,7 +86,6 @@ def _build_sensors(config: EdgeSentinelConfig):
             logger.error(f"Falha ao construir sensor '{sensor_config.id}': {e}")
 
     if not sensors:
-        # só lança erro se também não houver câmeras configuradas
         if not config.cameras:
             raise RuntimeError(
                 "Nenhum sensor disponível. Verifique o hardware e o config.yaml."

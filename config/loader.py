@@ -9,16 +9,12 @@ from config.schema import (
     RuleConfig,
     ConditionConfig,
     ActionConfig,
-    CameraConfig,  
+    CameraConfig,
     YOLOConfig,
 )
 
 
 def load(path: str | Path) -> EdgeSentinelConfig:
-    """
-    Lê um arquivo YAML e retorna a configuração validada.
-    Lança erros descritivos se algum campo obrigatório estiver faltando.
-    """
     raw = _read_yaml(path)
     return _parse(raw)
 
@@ -46,8 +42,8 @@ def _parse(raw: dict) -> EdgeSentinelConfig:
         exporter=_parse_exporter(raw.get("exporter", {})),
         rules=_parse_rules(raw.get("rules", [])),
         actions=_parse_actions(raw.get("actions", [])),
-        cameras=_parse_cameras(raw.get("cameras", [])),   
-        yolo=_parse_yolo(raw.get("yolo", {})),            
+        cameras=_parse_cameras(raw.get("cameras", [])),
+        yolo=_parse_yolo(raw.get("yolo", {})),
     )
 
 
@@ -69,7 +65,13 @@ def _parse_inference(raw: dict) -> InferenceConfig:
 
 
 def _parse_exporter(raw: dict) -> ExporterConfig:
-    return ExporterConfig(port=raw.get("port", 8000))
+    return ExporterConfig(
+        port=raw.get("port", 8000),
+        backend=raw.get("backend", "prometheus"),
+        endpoint=raw.get("endpoint", "http://localhost:4317"),
+        service_name=raw.get("service_name", "edgesentinel"),
+        use_otel=raw.get("use_otel", False),
+    )
 
 
 def _parse_rules(raw: list[dict]) -> list[RuleConfig]:
@@ -78,7 +80,7 @@ def _parse_rules(raw: list[dict]) -> list[RuleConfig]:
         if "name" not in item or "condition" not in item:
             raise ValueError(f"Regra inválida — precisa de 'name' e 'condition': {item}")
 
-        cond_raw = item["condition"]
+        cond_raw  = item["condition"]
         condition = ConditionConfig(
             sensor_id=cond_raw["sensor_id"],
             operator=cond_raw["operator"],
@@ -107,6 +109,7 @@ def _parse_actions(raw: list[dict]) -> list[ActionConfig]:
         ))
     return result
 
+
 def _parse_cameras(raw: list[dict]) -> list[CameraConfig]:
     result = []
     for item in raw:
@@ -121,6 +124,7 @@ def _parse_cameras(raw: list[dict]) -> list[CameraConfig]:
             simulated_mode=item.get("simulated_mode", "noise"),
         ))
     return result
+
 
 def _parse_yolo(raw: dict) -> YOLOConfig:
     return YOLOConfig(

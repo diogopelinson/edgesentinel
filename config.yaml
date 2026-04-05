@@ -16,6 +16,10 @@ edgesentinel:
 
   exporter:
     port: 8000
+    use_otel: true
+    backend: otlp   
+    endpoint: "http://localhost:4317"
+    service_name: "edgesentinel"
 
   cameras:
     - sensor_id: camera_01

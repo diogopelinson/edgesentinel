@@ -17,6 +17,10 @@ class InferenceConfig:
 @dataclass
 class ExporterConfig:
     port: int = 8000
+    backend: str = "prometheus"
+    endpoint: str = "http://localhost:4317"
+    service_name: str = "edgesentinel"
+    use_otel: bool = False
 
 
 @dataclass
