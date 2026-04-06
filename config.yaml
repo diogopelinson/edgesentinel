@@ -11,18 +11,14 @@ edgesentinel:
 
   inference:
     enabled: true
-    backend: remote
-    model_path: null
+    backend: onnx
+    model_path: models/anomaly.onnx
     service_url: "http://localhost:8080"
     model_id: "yolo_v8n"
-    threshold: 0.5
 
   exporter:
     port: 8000
-    use_otel: true
-    backend: otlp   
-    endpoint: "http://localhost:4317"
-    service_name: "edgesentinel"
+    use_otel: false
 
   cameras:
     - sensor_id: camera_01
@@ -52,13 +48,6 @@ edgesentinel:
         sensor_id: cpu_usage
         operator: ">"
         threshold: 80.0
-      actions: [log]
-      cooldown_seconds: 30
-
-    - name: pessoa_detectada
-      condition:
-        sensor_id: camera_01
-        operator: anomaly      
       actions: [log, webhook]
       cooldown_seconds: 30
 

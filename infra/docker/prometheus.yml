@@ -1,9 +1,13 @@
 global:
   scrape_interval: 5s
-  evaluation_interval: 5s
 
 scrape_configs:
   - job_name: "edgesentinel"
+    static_configs:
+      - targets:
+          - "host.docker.internal:8000"
+
+  - job_name: "ai-service-via-otel"
     static_configs:
       - targets:
           - "edgesentinel-otel-collector:8889"
