@@ -6,20 +6,20 @@
 
 ## What is edgesentinel?
 
-edgesentinel is an **observability platform for embedded devices** (Raspberry Pi, Orange Pi, SBCs) that solves a common problem: hardware monitoring tools and ML tools live in separate worlds.
+edgesentinel is a **monitoring platform for embedded devices** (Raspberry Pi, Orange Pi, SBCs in general) that solves a common problem: hardware monitoring tools and ML tools live in separate worlds.
 
-- Hardware tools (`psutil`, `gpiozero`) read sensors but know nothing about ML
+- Hardware tools (`psutil`, `gpiozero`) read sensors but don't understand ML
 - ML tools (`tflite`, `onnxruntime`) run models but don't monitor hardware
 
-edgesentinel brings both together in a cohesive, observable and extensible system.
+edgesentinel brings both together in a cohesive, observable, and extensible system.
 
 ---
 
 ## Why use it?
 
-**Without edgesentinel**, monitoring a Raspberry Pi with a camera means gluing multiple tools together with bash scripts, managing conflicting dependencies and reinventing the wheel for every project.
+**Without edgesentinel**, monitoring a Raspberry Pi with a camera means gluing multiple tools with bash scripts, managing conflicting dependencies, and reinventing the wheel each project.
 
-**With edgesentinel**, you declare what to monitor in a `config.yaml`:
+**With edgesentinel**, you declare what you want to monitor in a `config.yaml`:
 
 ```yaml
 rules:
@@ -36,7 +36,7 @@ Temperature above 80°C → alert fires → webhook sent → data in Grafana. No
 
 ---
 
-## What the system does
+## What it does
 
 ### Hardware sensor reading
 
@@ -52,8 +52,8 @@ Reads directly from Linux pseudo-filesystems — no heavy dependencies:
 
 ```
 IP Camera ──▶ MediaMTX ──▶ edgesentinel (YOLO 1fps)
-                      ├──▶ VLC (live view)
-                      └──▶ Smart Incident Management
+                     ├──▶ VLC (live viewing)
+                     └──▶ Smart Incident Management
 ```
 
 This solves a real problem: cheap IP cameras accept only 1-2 simultaneous connections.
@@ -64,7 +64,7 @@ A FastAPI microservice that exposes ML models via HTTP. edgesentinel sends a fra
 
 - **YOLO** for object detection in camera frames
 - **ONNX** for any exported model (IsolationForest, classifiers, etc.)
-- **Plug-and-play** — adding a model is one line in `models.yaml`, no code changes
+- **Plug-and-play** — new model is one block in `models.yaml`, no code changes
 
 ### Rule Engine
 
@@ -75,34 +75,34 @@ Evaluates rules on every sensor reading with configurable operators:
 | `>` `<` `>=` `<=` `==` | simple numeric comparison |
 | `anomaly` | ML model score above threshold |
 
-### Observability with OpenTelemetry
+### OpenTelemetry observability
 
-edgesentinel and the AI Service export metrics via OTel to the same Collector. Prometheus collects and Grafana plots everything in real time — two services, one dashboard.
+Both edgesentinel and the AI Service export metrics via OTel to the same Collector. Prometheus scrapes and Grafana plots everything in real time — two services, one dashboard.
 
 ### Configurable actions
 
 - **`log`** — structured log with configurable level
 - **`webhook`** — HTTP POST with full JSON payload
-- **`gpio_write`** — write to a GPIO pin (LED, relay, buzzer)
+- **`gpio_write`** — triggers GPIO pin (LED, relay, buzzer)
 
 ---
 
 ## Architecture
 
-edgesentinel uses **Hexagonal Architecture (Ports & Adapters)**. The core domain knows nothing about Prometheus, GPIO or YOLO — only abstract contracts.
+edgesentinel uses **Hexagonal Architecture (Ports & Adapters)**. The core domain doesn't know about Prometheus, GPIO, or YOLO — only abstract contracts.
 
 ```
 ┌─────────────────────────────────────────────────┐
 │                    core/                         │
-│  ports.py     → abstract contracts               │
-│  entities.py  → immutable dataclasses            │
-│  rules.py     → Rule, Condition, cooldown        │
+│  ports.py     → abstract contracts              │
+│  entities.py  → immutable dataclasses           │
+│  rules.py     → Rule, Condition, cooldown       │
 └───────────────────────┬─────────────────────────┘
                         │ everything depends on core
 ┌───────────────────────▼─────────────────────────┐
 │                 application/                     │
-│  engine.py    → evaluates rules, dispatches      │
-│  pipeline.py  → sense → infer → act per sensor   │
+│  engine.py    → evaluates rules, dispatches     │
+│  pipeline.py  → sense → infer → act per sensor  │
 │  monitor.py   → async loop with graceful shutdown│
 └───────────────────────┬─────────────────────────┘
                         │
@@ -115,14 +115,12 @@ edgesentinel uses **Hexagonal Architecture (Ports & Adapters)**. The core domain
 └─────────────────────────────────────────────────┘
 ```
 
-Swapping the ML backend is one line in `config.yaml`. Adding a sensor is one Python file. Replacing Prometheus is a new adapter — no domain changes.
-
 ---
 
 ## Full stack
 
 ```
-IP Camera (RTSP)
+RTSP Camera
       │
       ▼
 MediaMTX  :8554 :8888 :8889
@@ -151,7 +149,7 @@ Prometheus  :9090  ──▶  Grafana  :3000
 | Item | Minimum | Recommended |
 |---|---|---|
 | Python | 3.10+ | 3.11+ |
-| System | Linux (SBC) | Raspberry Pi 4 2GB+ |
+| OS | Linux (SBC) | Raspberry Pi 4 2GB+ |
 | Docker | 24+ | 28+ |
 
 > **Windows / Mac**: use simulation mode for development without hardware.
@@ -163,6 +161,7 @@ pip install edgesentinel            # base
 pip install edgesentinel[onnx]      # + ONNX model
 pip install edgesentinel[camera]    # + camera and local YOLO
 pip install edgesentinel[gpio]      # + GPIO (Raspberry Pi)
+pip install edgesentinel[otel]      # + OpenTelemetry
 pip install edgesentinel[all]       # everything
 ```
 
@@ -180,7 +179,6 @@ edgesentinel doctor
 edgesentinel:
   poll_interval_seconds: 5
 
-  # hardware sensors
   sensors:
     - id: cpu_temp
       type: cpu_temperature
@@ -189,7 +187,6 @@ edgesentinel:
     - id: memory_usage
       type: memory_usage
 
-  # cameras (MediaMTX as source)
   cameras:
     - sensor_id: camera_01
       source: "rtsp://localhost:8554/camera_01"
@@ -197,22 +194,23 @@ edgesentinel:
       fps_limit: 1.0
       simulated: false
 
-  # inference via AI Service
   inference:
     enabled: true
-    backend: remote
-    service_url: "http://localhost:8080"
-    model_id: "yolo_v8n"
-    threshold: 0.5
+    backend: onnx
+    model_path: models/anomaly.onnx
 
-  # OpenTelemetry exporter
+  # simple mode: Prometheus scrapes directly from :8000/metrics
   exporter:
-    use_otel: true
-    backend: otlp
-    endpoint: "http://localhost:4317"
-    service_name: "edgesentinel"
+    port: 8000
+    use_otel: false
 
-  # alert rules
+  # advanced mode: send to OTel Collector, export to any backend
+  # exporter:
+  #   use_otel: true
+  #   backend: otlp
+  #   endpoint: "http://localhost:4317"
+  #   service_name: "edgesentinel"
+
   rules:
     - name: high_temperature
       condition:
@@ -229,7 +227,6 @@ edgesentinel:
       actions: [log, webhook]
       cooldown_seconds: 30
 
-  # available actions
   actions:
     - id: log
       type: log
@@ -254,7 +251,7 @@ docker compose ps
 |---|---|---|
 | MediaMTX | 8554 / 8888 | Camera stream hub |
 | AI Inference Service | 8080 | YOLO and ONNX via HTTP |
-| OTel Collector | 4317 | Collects metrics from all services |
+| OTel Collector | 4317 | Receives metrics from all services |
 | Prometheus | 9090 | Stores time series |
 | Grafana | 3000 | Real-time dashboard |
 
@@ -276,23 +273,44 @@ edgesentinel simulate --scenario spike
 edgesentinel doctor
 ```
 
-### Import the Grafana dashboard
+---
 
-1. Open `http://localhost:3000` → `admin` / `edgesentinel`
-2. **Dashboards → Import → Upload**
+## Setting up Grafana from scratch
+
+### 1. Open Grafana
+
+Go to `http://localhost:3000` — login `admin` / `edgesentinel`.
+
+### 2. Add Prometheus as a datasource
+
+1. Side menu → **Connections** → **Data sources** → **Add data source**
+2. Select **Prometheus**
+3. URL: `http://prometheus:9090`
+4. Click **Save & test** — should show "Successfully queried the Prometheus API"
+
+### 3. Import the dashboard
+
+1. Side menu → **Dashboards** → **Import**
+2. Click **Upload dashboard JSON file**
 3. Select `dashboards/edgesentinel.json`
+4. Under **Prometheus**, select the datasource created in the previous step
+5. Click **Import**
+
+### 4. Verify data
+
+Leave edgesentinel running and click **Refresh** on the dashboard. Panels should show data within 10 seconds.
+
+> **Tip**: after any customization, export the dashboard via **Export → Save to file** and commit it to the repository — this way you never lose it when recreating containers.
 
 ---
 
 ## Simulation mode
 
-Runs the **full pipeline** with synthetic data — ideal for development without hardware.
-
 | Scenario | What happens |
 |---|---|
 | `normal` | Stable values, no rules fire |
 | `stress` | Temperature ramps up until alerts fire |
-| `spike` | Sudden temperature spikes every ~20 seconds |
+| `spike` | Sudden spikes every ~20 seconds |
 
 ```
 [tick 023]
@@ -307,7 +325,7 @@ Runs the **full pipeline** with synthetic data — ideal for development without
 
 ## AI Inference Service
 
-### Verifying
+### Checking
 
 ```bash
 curl http://localhost:8080/health
@@ -340,8 +358,6 @@ models:
 docker compose restart ai-inference-service
 ```
 
-Zero code changes.
-
 ---
 
 ## ONNX anomaly model
@@ -352,28 +368,29 @@ python scripts/train_model.py
 # generates: models/anomaly.onnx + models/scaler.onnx
 ```
 
-The model learns what normal operation looks like. When temperature deviates from that pattern, the score rises — with the `stress` scenario you will see scores reaching `0.93+`.
-
 ---
 
 ## Exposed metrics
 
 ### edgesentinel
 
-| Metric | Type | Description |
+| Prometheus metric | Type | Description |
 |---|---|---|
-| `edgesentinel.sensor.value` | Gauge | Current sensor reading |
-| `edgesentinel.anomaly.score` | Gauge | ML model score (0.0 – 1.0) |
-| `edgesentinel.anomaly.total` | Counter | Total anomalies detected |
-| `edgesentinel.pipeline.latency` | Histogram | Full cycle time per sensor |
+| `edgesentinel_sensor_value` | Gauge | Current sensor value |
+| `edgesentinel_anomaly_score` | Gauge | Model score (0.0 – 1.0) |
+| `edgesentinel_anomaly_total` | Counter | Total anomalies detected |
+| `edgesentinel_pipeline_latency_seconds` | Histogram | Full cycle time per sensor |
+| `edgesentinel_inference_latency_seconds` | Histogram | ML inference time |
 
 ### AI Inference Service
 
-| Metric | Type | Description |
+| Prometheus metric | Type | Description |
 |---|---|---|
-| `ai_service.inference.total` | Counter | Total inferences per model |
-| `ai_service.inference.latency_ms` | Histogram | Inference latency |
-| `ai_service.detections.total` | Counter | Total detections per model |
+| `ai_service_inference_total` | Counter | Total inferences |
+| `ai_service_inference_latency_ms_milliseconds` | Histogram | Latency per inference |
+| `ai_service_detections_total` | Counter | Total detections |
+
+> These are the exact names as they appear in Prometheus and Grafana. Use them verbatim in PromQL queries.
 
 ---
 
@@ -385,7 +402,7 @@ pytest tests/ -v
 pytest tests/ --cov=. --cov-report=term-missing
 ```
 
-**69 tests, zero failures.**
+**84 tests, zero failures.**
 
 | Layer | Coverage |
 |---|---|
@@ -414,22 +431,22 @@ edgesentinel/
 ├── scripts/                    # train_model.py
 ├── infra/docker/               # docker-compose, MediaMTX, OTel, Prometheus, Grafana
 ├── dashboards/                 # edgesentinel.json for Grafana
-└── tests/                      # unit + integration (69 tests)
+└── tests/                      # unit + integration (84 tests)
 ```
 
 ---
 
 ## Design decisions
 
-**Hexagonal Architecture** — the core knows nothing about infrastructure. Swapping Prometheus for Datadog is a new adapter. Swapping ONNX for TFLite is one config line.
+**Hexagonal Architecture** — the core doesn't know about infrastructure. Swapping Prometheus for Datadog is a new adapter. Swapping ONNX for TFLite is one config line.
 
 **Direct `/proc` reading** — no `psutil`. Lighter, more explicit, no compiled C dependency.
 
 **`frozen=True` on entities** — the loop is async. Immutability eliminates concurrency bugs.
 
-**`time.monotonic()` for cooldowns** — wall clock can go backward on NTP sync. Monotonic clock only moves forward.
+**`time.monotonic()` for cooldowns** — wall clock can go backwards under NTP. Monotonic only moves forward.
 
-**AI Service separated** — failure isolation. If YOLO crashes, sensor monitoring continues. Other systems use the same endpoint.
+**Separate AI Service** — fault isolation. If YOLO crashes, sensor monitoring keeps running.
 
 **MediaMTX** — cheap IP cameras accept 1-2 connections. The hub distributes to N consumers without limiting the camera.
 

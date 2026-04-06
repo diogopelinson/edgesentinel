@@ -115,8 +115,6 @@ O edgesentinel usa **Arquitetura Hexagonal (Ports & Adapters)**. O domínio cent
 └─────────────────────────────────────────────────┘
 ```
 
-Trocar o backend de ML é uma linha no `config.yaml`. Adicionar um sensor é um arquivo Python. Substituir o Prometheus é um novo adapter — sem tocar no domínio.
-
 ---
 
 ## Stack completa
@@ -163,6 +161,7 @@ pip install edgesentinel            # base
 pip install edgesentinel[onnx]      # + modelo ONNX
 pip install edgesentinel[camera]    # + câmera e YOLO local
 pip install edgesentinel[gpio]      # + GPIO (Raspberry Pi)
+pip install edgesentinel[otel]      # + OpenTelemetry
 pip install edgesentinel[all]       # tudo
 ```
 
@@ -180,7 +179,6 @@ edgesentinel doctor
 edgesentinel:
   poll_interval_seconds: 5
 
-  # sensores de hardware
   sensors:
     - id: cpu_temp
       type: cpu_temperature
@@ -189,7 +187,6 @@ edgesentinel:
     - id: memory_usage
       type: memory_usage
 
-  # câmeras (MediaMTX como fonte)
   cameras:
     - sensor_id: camera_01
       source: "rtsp://localhost:8554/camera_01"
@@ -197,22 +194,23 @@ edgesentinel:
       fps_limit: 1.0
       simulated: false
 
-  # inferência via AI Service
   inference:
     enabled: true
-    backend: remote
-    service_url: "http://localhost:8080"
-    model_id: "yolo_v8n"
-    threshold: 0.5
+    backend: onnx
+    model_path: models/anomaly.onnx
 
-  # exportador OpenTelemetry
+  # modo simples: Prometheus coleta direto em :8000/metrics
   exporter:
-    use_otel: true
-    backend: otlp
-    endpoint: "http://localhost:4317"
-    service_name: "edgesentinel"
+    port: 8000
+    use_otel: false
 
-  # regras de alerta
+  # modo avançado: manda pro OTel Collector, exporta para qualquer backend
+  # exporter:
+  #   use_otel: true
+  #   backend: otlp
+  #   endpoint: "http://localhost:4317"
+  #   service_name: "edgesentinel"
+
   rules:
     - name: alta_temperatura
       condition:
@@ -229,7 +227,6 @@ edgesentinel:
       actions: [log, webhook]
       cooldown_seconds: 30
 
-  # ações disponíveis
   actions:
     - id: log
       type: log
@@ -276,17 +273,38 @@ edgesentinel simulate --scenario spike
 edgesentinel doctor
 ```
 
-### Importa o dashboard no Grafana
+---
 
-1. Abre `http://localhost:3000` → `admin` / `edgesentinel`
-2. **Dashboards → Import → Upload**
+## Configurando o Grafana do zero
+
+### 1. Abre o Grafana
+
+Acessa `http://localhost:3000` — login `admin` / `edgesentinel`.
+
+### 2. Adiciona o Prometheus como datasource
+
+1. Menu lateral → **Connections** → **Data sources** → **Add data source**
+2. Seleciona **Prometheus**
+3. URL: `http://prometheus:9090`
+4. Clica **Save & test** — deve aparecer "Successfully queried the Prometheus API"
+
+### 3. Importa o dashboard
+
+1. Menu lateral → **Dashboards** → **Import**
+2. Clica **Upload dashboard JSON file**
 3. Seleciona `dashboards/edgesentinel.json`
+4. Em **Prometheus**, seleciona o datasource criado no passo anterior
+5. Clica **Import**
+
+### 4. Verifica os dados
+
+Deixa o edgesentinel rodando e clica **Refresh** no dashboard. Os painéis mostram dados em até 10 segundos.
+
+> **Dica**: após qualquer customização, exporte o dashboard em **Export → Save to file** e commita no repositório — assim nunca perde ao recriar os containers.
 
 ---
 
 ## Modo simulação
-
-Roda o **pipeline completo** com dados sintéticos — ideal para desenvolvimento sem hardware.
 
 | Cenário | O que acontece |
 |---|---|
@@ -340,8 +358,6 @@ models:
 docker compose restart ai-inference-service
 ```
 
-Zero código alterado.
-
 ---
 
 ## Modelo de anomalia ONNX
@@ -352,28 +368,29 @@ python scripts/train_model.py
 # gera: models/anomaly.onnx + models/scaler.onnx
 ```
 
-O modelo aprende o que é operação normal e detecta quando algo foge do padrão. Com o cenário `stress`, o score chega a `0.93+` quando a temperatura escala.
-
 ---
 
 ## Métricas expostas
 
 ### edgesentinel
 
-| Métrica | Tipo | Descrição |
+| Métrica Prometheus | Tipo | Descrição |
 |---|---|---|
-| `edgesentinel.sensor.value` | Gauge | Valor atual do sensor |
-| `edgesentinel.anomaly.score` | Gauge | Score do modelo (0.0 – 1.0) |
-| `edgesentinel.anomaly.total` | Counter | Total de anomalias |
-| `edgesentinel.pipeline.latency` | Histogram | Tempo do ciclo por sensor |
+| `edgesentinel_sensor_value` | Gauge | Valor atual do sensor |
+| `edgesentinel_anomaly_score` | Gauge | Score do modelo (0.0 – 1.0) |
+| `edgesentinel_anomaly_total` | Counter | Total de anomalias |
+| `edgesentinel_pipeline_latency_seconds` | Histogram | Tempo do ciclo por sensor |
+| `edgesentinel_inference_latency_seconds` | Histogram | Tempo de inferência ML |
 
 ### AI Inference Service
 
-| Métrica | Tipo | Descrição |
+| Métrica Prometheus | Tipo | Descrição |
 |---|---|---|
-| `ai_service.inference.total` | Counter | Total de inferências |
-| `ai_service.inference.latency_ms` | Histogram | Latência por inferência |
-| `ai_service.detections.total` | Counter | Total de detecções |
+| `ai_service_inference_total` | Counter | Total de inferências |
+| `ai_service_inference_latency_ms_milliseconds` | Histogram | Latência por inferência |
+| `ai_service_detections_total` | Counter | Total de detecções |
+
+> Os nomes acima são os que aparecem no Prometheus e no Grafana. Use-os exatamente assim nas queries PromQL.
 
 ---
 
@@ -385,7 +402,7 @@ pytest tests/ -v
 pytest tests/ --cov=. --cov-report=term-missing
 ```
 
-**69 testes, zero falhas.**
+**84 testes, zero falhas.**
 
 | Camada | Cobertura |
 |---|---|
@@ -413,8 +430,8 @@ edgesentinel/
 ├── ai-inference-service/       # FastAPI com YOLO/ONNX containerizado
 ├── scripts/                    # train_model.py
 ├── infra/docker/               # docker-compose, MediaMTX, OTel, Prometheus, Grafana
-├── dashboards/                 # dashboard.json para Grafana
-└── tests/                      # unitários + integração (69 testes)
+├── dashboards/                 # edgesentinel.json para Grafana
+└── tests/                      # unitários + integração (84 testes)
 ```
 
 ---
@@ -429,7 +446,7 @@ edgesentinel/
 
 **`time.monotonic()` para cooldowns** — o relógio de parede pode andar para trás em NTP. O monotônico só avança.
 
-**AI Service separado** — isolamento de falha. Se o YOLO travar, o monitoramento de sensores continua. Outros sistemas usam o mesmo endpoint.
+**AI Service separado** — isolamento de falha. Se o YOLO travar, o monitoramento de sensores continua.
 
 **MediaMTX** — câmeras IP baratas aceitam 1-2 conexões. O hub distribui para N consumidores sem limitar a câmera.
 

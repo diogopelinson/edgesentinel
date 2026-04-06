@@ -1,6 +1,6 @@
 # Guia de uso — edgesentinel
 
-Esse guia cobre como usar o edgesentinel como biblioteca, como conectar câmeras reais via MediaMTX e como o AI Inference Service funciona na prática.
+Esse guia cobre como usar o edgesentinel como biblioteca, como conectar câmeras reais via MediaMTX, como o AI Inference Service funciona na prática e como configurar o Prometheus e o Grafana do zero.
 
 ---
 
@@ -10,9 +10,10 @@ Esse guia cobre como usar o edgesentinel como biblioteca, como conectar câmeras
 2. [Uso como biblioteca Python](#2-uso-como-biblioteca-python)
 3. [Conectando câmeras reais com MediaMTX](#3-conectando-câmeras-reais-com-mediamtx)
 4. [AI Inference Service na prática](#4-ai-inference-service-na-prática)
-5. [Criando seu próprio sensor](#5-criando-seu-próprio-sensor)
-6. [Criando sua própria ação](#6-criando-sua-própria-ação)
-7. [Referência das interfaces](#7-referência-das-interfaces)
+5. [Configurando Prometheus e Grafana](#5-configurando-prometheus-e-grafana)
+6. [Criando seu próprio sensor](#6-criando-seu-próprio-sensor)
+7. [Criando sua própria ação](#7-criando-sua-própria-ação)
+8. [Referência das interfaces](#8-referência-das-interfaces)
 
 ---
 
@@ -38,13 +39,8 @@ edgesentinel run --config config.yaml --log-level DEBUG
 O modo `simulate` roda o pipeline completo com dados sintéticos. Você vê as regras disparando, os alertas aparecendo e as métricas chegando no Grafana — sem precisar de Raspberry Pi.
 
 ```bash
-# operação normal — valores estáveis
 edgesentinel simulate --scenario normal
-
-# stress — temperatura sobe até disparar alertas
 edgesentinel simulate --scenario stress --interval 1
-
-# spike — picos repentinos a cada ~20 segundos
 edgesentinel simulate --scenario spike
 ```
 
@@ -71,21 +67,17 @@ from adapters.sensors.simulated import SimulatedSensor
 from adapters.inference.remote import RemoteInferenceAdapter
 from adapters.actions.log import LogAction
 from adapters.actions.webhook import WebhookAction
-from adapters.exporter.otel import OTelExporter
+from adapters.exporter.prometheus import PrometheusExporter
 from application.engine import RuleEngine
 from application.pipeline import Pipeline
 from application.monitor import MonitorLoop
 from core.rules import Rule, Condition
 
-
-# sensores
 sensors = [
-    CpuTemperatureSensor(sensor_id="cpu_temp"),       # real (Linux)
-    SimulatedSensor("cpu_usage", "CPU", "%",           # simulado (qualquer OS)
-                    base_value=60.0, scenario="stress"),
+    CpuTemperatureSensor(sensor_id="cpu_temp"),
+    SimulatedSensor("cpu_usage", "CPU", "%", base_value=60.0, scenario="stress"),
 ]
 
-# inferência — chama o AI Service via HTTP
 inference = RemoteInferenceAdapter(
     model_id="yolo_v8n",
     service_url="http://localhost:8080",
@@ -93,14 +85,12 @@ inference = RemoteInferenceAdapter(
 )
 inference.load("")
 
-# ações
 actions = {
     "log":     LogAction(action_id="log"),
     "webhook": WebhookAction(action_id="webhook",
                              url="https://hooks.exemplo.com/alerta"),
 }
 
-# regras
 rules = [
     Rule(
         name="alta_temperatura",
@@ -110,8 +100,7 @@ rules = [
     ),
 ]
 
-# monta e inicia
-exporter  = OTelExporter(backend="otlp", endpoint="http://localhost:4317")
+exporter  = PrometheusExporter(port=8000)
 engine    = RuleEngine(rules=rules, actions=actions)
 pipelines = [
     Pipeline(sensor=s, engine=engine, inference=inference, exporter=exporter)
@@ -128,208 +117,113 @@ monitor.start()
 
 ### Por que o MediaMTX existe
 
-Câmeras IP baratas — especialmente as usadas em IoT industrial — aceitam **1 ou 2 conexões RTSP simultâneas**. Sem o MediaMTX, se o edgesentinel está conectado, você não consegue abrir no VLC. Se você adicionar o Smart Incident Management, a câmera rejeita a conexão.
-
-**Com o MediaMTX:**
+Câmeras IP baratas aceitam **1-2 conexões RTSP simultâneas**. Sem o MediaMTX, se o edgesentinel está conectado, você não consegue abrir no VLC. Com o MediaMTX:
 
 ```
-Câmera                                   Consumidores
-   │                                        │
-   └──▶ MediaMTX ────────────────────────┬──▶ edgesentinel (YOLO)
-                                         ├──▶ VLC / browser
-                                         ├──▶ Smart Incident Management
-                                         └──▶ gravação em disco
+Câmera ──▶ MediaMTX ──▶ edgesentinel (YOLO)
+                    ├──▶ VLC / browser
+                    ├──▶ Smart Incident Management
+                    └──▶ gravação em disco
 ```
 
-A câmera faz **uma conexão** pro MediaMTX. O MediaMTX distribui para quantos consumidores quiser — sem limitar a câmera.
-
----
+A câmera faz uma conexão. O MediaMTX distribui para quantos consumidores quiser.
 
 ### Passo 1 — Sobe o MediaMTX
 
 ```bash
 cd infra/docker
 docker compose up -d mediamtx
-```
-
-Verifica se subiu:
-
-```bash
 docker compose ps
 # mediamtx   Up   :8554 (RTSP), :8888 (HLS), :8889 (WebRTC)
 ```
-
----
 
 ### Passo 2 — Câmera publica no MediaMTX
 
 **Opção A — Câmera suporta RTSP push nativo**
 
-Acessa a interface web da câmera e configura o destino de stream como:
-
+Na interface web da câmera, configura o destino:
 ```
 rtsp://IP_DO_SEU_PC:8554/camera_01
 ```
 
-O nome `camera_01` é livre — você define. Cada câmera usa um nome diferente.
-
-**Opção B — Relay com FFmpeg (câmera não suporta push)**
+**Opção B — Relay com FFmpeg**
 
 ```bash
-# instala FFmpeg se não tiver
 # Ubuntu/Raspberry Pi: sudo apt install ffmpeg
-# Windows: https://ffmpeg.org/download.html
-
-# faz o relay da câmera para o MediaMTX
 ffmpeg -i rtsp://admin:senha@192.168.1.100:554/stream \
        -c copy \
        -f rtsp rtsp://localhost:8554/camera_01
 ```
 
-Substitui `admin:senha@192.168.1.100:554/stream` pelo endereço real da sua câmera.
-
-**Opção C — Simular sem câmera física**
+**Opção C — Simular com vídeo local**
 
 ```bash
-# envia um vídeo de teste para o MediaMTX
 ffmpeg -re -i video_teste.mp4 \
        -c copy \
        -f rtsp rtsp://localhost:8554/camera_01
 ```
 
----
+### Passo 3 — Verifica o stream
 
-### Passo 3 — Verifica o stream no MediaMTX
+Abre no VLC: `rtsp://localhost:8554/camera_01`
 
-Abre o VLC e acessa:
-
-```
-rtsp://localhost:8554/camera_01
-```
-
-Se a imagem aparecer, o MediaMTX está recebendo e redistribuindo corretamente.
-
-Também pode acessar via browser (HLS):
-
-```
-http://localhost:8888/camera_01/index.m3u8
-```
-
----
+Ou via browser (HLS): `http://localhost:8888/camera_01/index.m3u8`
 
 ### Passo 4 — edgesentinel consome do MediaMTX
-
-No `config.yaml`, aponta a câmera para o MediaMTX (não para a câmera direta):
 
 ```yaml
 cameras:
   - sensor_id: camera_01
-    source: "rtsp://localhost:8554/camera_01"   # ← MediaMTX, não a câmera
+    source: "rtsp://localhost:8554/camera_01"   # MediaMTX, não a câmera direta
     name: "Camera Entrada"
-    fps_limit: 1.0     # 1 frame por segundo — suficiente para detecção
+    fps_limit: 1.0     # 1fps é suficiente para detecção — não sobrecarrega o hardware
     simulated: false
 ```
 
-**Por que `fps_limit: 1.0`?**
-
-O YOLO num Raspberry Pi leva ~200ms por frame. Se a câmera envia 30fps, o sistema não consegue processar em tempo real e a memória vai enchendo. Com `fps_limit: 1.0`, o sensor captura 1 frame por segundo — suficiente para detectar presença de pessoa e sustentável em hardware embarcado.
-
----
-
 ### Passo 5 — Múltiplas câmeras
-
-Cada câmera é uma entrada no MediaMTX e um sensor no edgesentinel:
 
 ```yaml
 cameras:
   - sensor_id: camera_entrada
     source: "rtsp://localhost:8554/camera_entrada"
-    name: "Entrada Principal"
     fps_limit: 1.0
     simulated: false
 
   - sensor_id: camera_estoque
     source: "rtsp://localhost:8554/camera_estoque"
-    name: "Estoque"
     fps_limit: 0.5    # 1 frame a cada 2 segundos — área de baixo risco
     simulated: false
-```
-
-E no FFmpeg, dois processos de relay (um por câmera):
-
-```bash
-# câmera 1
-ffmpeg -i rtsp://admin:senha@192.168.1.100:554/stream \
-       -c copy -f rtsp rtsp://localhost:8554/camera_entrada &
-
-# câmera 2
-ffmpeg -i rtsp://admin:senha@192.168.1.101:554/stream \
-       -c copy -f rtsp rtsp://localhost:8554/camera_estoque &
 ```
 
 ---
 
 ## 4. AI Inference Service na prática
 
-### O que é
-
-Um microserviço Python independente que expõe modelos de ML via HTTP. O edgesentinel chama `POST /predict` com um frame e recebe as detecções de volta.
-
-**Por que não rodar o YOLO direto no edgesentinel?**
-
-- Trocar o modelo exigiria alterar o código do edgesentinel
-- Não dá para servir outros sistemas (Smart Incident Management, etc.)
-- Se o modelo travar, o edgesentinel todo trava
-
-Com o AI Service, o modelo roda isolado. Qualquer sistema chama via HTTP.
-
----
-
-### Endpoints disponíveis
-
-**`GET /health`** — verifica se o serviço está de pé:
+### Endpoints
 
 ```bash
+# status
 curl http://localhost:8080/health
 # {"status":"ok","models":2}
-```
 
-**`GET /models`** — lista modelos carregados:
-
-```bash
+# modelos carregados
 curl http://localhost:8080/models
-# [
-#   {"id":"yolo_v8n","type":"yolo","status":"loaded"},
-#   {"id":"anomaly_onnx","type":"onnx","status":"loaded"}
-# ]
-```
+# [{"id":"yolo_v8n","type":"yolo","status":"loaded"},...]
 
-**`POST /predict`** — roda inferência:
-
-```bash
-# com frame em base64
+# inferência com frame em base64
 curl -X POST http://localhost:8080/predict \
   -H "Content-Type: application/json" \
-  -d '{
-    "model_id": "yolo_v8n",
-    "frame_b64": "BASE64_DO_FRAME"
-  }'
+  -d '{"model_id":"yolo_v8n","frame_b64":"BASE64_AQUI"}'
 
-# com URL de stream (captura um frame automaticamente)
+# inferência com URL de stream (captura um frame automaticamente)
 curl -X POST http://localhost:8080/predict \
   -H "Content-Type: application/json" \
-  -d '{
-    "model_id": "yolo_v8n",
-    "stream_url": "rtsp://localhost:8554/camera_01"
-  }'
+  -d '{"model_id":"yolo_v8n","stream_url":"rtsp://localhost:8554/camera_01"}'
 
-# para modelos de anomalia de sensor
+# inferência de anomalia em sensor
 curl -X POST http://localhost:8080/predict \
   -H "Content-Type: application/json" \
-  -d '{
-    "model_id": "anomaly_onnx",
-    "sensor_value": 85.0
-  }'
+  -d '{"model_id":"anomaly_onnx","sensor_value":85.0}'
 ```
 
 **Resposta:**
@@ -338,21 +232,14 @@ curl -X POST http://localhost:8080/predict \
 {
   "model_id": "yolo_v8n",
   "detections": [
-    {
-      "class_name": "person",
-      "confidence": 0.91,
-      "bbox": [120.0, 50.0, 380.0, 480.0]
-    }
+    {"class_name": "person", "confidence": 0.91, "bbox": [120.0, 50.0, 380.0, 480.0]}
   ],
   "inference_latency_ms": 178.42,
-  "timestamp": 1712188800.123,
   "has_detections": true
 }
 ```
 
----
-
-### Adicionando um novo modelo
+### Adicionando um modelo
 
 Edita `ai-inference-service/models.yaml`:
 
@@ -364,81 +251,140 @@ models:
     target_classes: [person, car, truck]
     confidence_threshold: 0.5
 
-  # adiciona seu modelo aqui
   - id: fire_detector
     type: yolo
     path: weights/fire.pt
     target_classes: [fire, smoke]
     confidence_threshold: 0.4
-    description: "Detector de incêndio"
 ```
 
-Reinicia o serviço:
-
 ```bash
-cd infra/docker
 docker compose restart ai-inference-service
-```
-
-Verifica:
-
-```bash
 curl http://localhost:8080/models
 # [..., {"id":"fire_detector","type":"yolo","status":"loaded"}]
 ```
 
 ---
 
-### Treinando o modelo de anomalia ONNX
+## 5. Configurando Prometheus e Grafana
 
-O edgesentinel inclui um script para treinar um modelo de detecção de anomalia a partir de dados de sensor:
+### Dois modos de coleta de métricas
 
-```bash
-pip install scikit-learn skl2onnx
-python scripts/train_model.py
-```
+**Modo simples — Prometheus coleta direto do edgesentinel**
 
-Isso gera:
-- `models/anomaly.onnx` — modelo IsolationForest
-- `models/scaler.onnx` — normalizador
-
-Copia para o serviço:
-
-```bash
-cp models/anomaly.onnx ai-inference-service/weights/
-cp models/scaler.onnx  ai-inference-service/weights/
-```
-
-E adiciona no `models.yaml`:
+Ideal para começar. No `config.yaml`:
 
 ```yaml
-  - id: anomaly_onnx
-    type: onnx
-    path: weights/anomaly.onnx
-    scaler_path: weights/scaler.onnx
-    confidence_threshold: 0.6
+exporter:
+  port: 8000
+  use_otel: false
+```
+
+No `infra/docker/prometheus.yml`:
+
+```yaml
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: "edgesentinel"
+    static_configs:
+      - targets:
+          - "host.docker.internal:8000"   # Windows/Mac
+          # ou "172.17.0.1:8000"          # Linux
+
+  - job_name: "ai-service-via-otel"
+    static_configs:
+      - targets:
+          - "edgesentinel-otel-collector:8889"
+```
+
+**Modo avançado — via OTel Collector**
+
+Para exportar para Grafana Cloud, Datadog ou InfluxDB sem mudar código. No `config.yaml`:
+
+```yaml
+exporter:
+  use_otel: true
+  backend: otlp
+  endpoint: "http://localhost:4317"
+  service_name: "edgesentinel"
+```
+
+O OTel Collector recebe na `:4317` e expõe pro Prometheus na `:8889`. O `prometheus.yml` aponta só para o Collector:
+
+```yaml
+scrape_configs:
+  - job_name: "edgesentinel"
+    static_configs:
+      - targets:
+          - "edgesentinel-otel-collector:8889"
+```
+
+### Verificando o Prometheus
+
+Abre `http://localhost:9090/targets` — todos os targets devem estar **UP**.
+
+Para confirmar que as métricas estão chegando:
+
+```
+http://localhost:9090/api/v1/label/__name__/values
+```
+
+Deve retornar os nomes das métricas, incluindo `edgesentinel_sensor_value`.
+
+### Configurando o Grafana do zero
+
+**1. Abre o Grafana**
+
+```
+http://localhost:3000
+login: admin
+senha: edgesentinel
+```
+
+**2. Adiciona o Prometheus como datasource**
+
+1. Menu lateral → **Connections** → **Data sources**
+2. Clica **Add data source** → seleciona **Prometheus**
+3. URL: `http://prometheus:9090`
+4. Clica **Save & test**
+
+Se aparecer "Successfully queried the Prometheus API", está funcionando.
+
+**3. Importa o dashboard**
+
+1. Menu lateral → **Dashboards** → **Import**
+2. Clica **Upload dashboard JSON file**
+3. Seleciona `dashboards/edgesentinel.json`
+4. Seleciona o datasource Prometheus criado no passo anterior
+5. Clica **Import**
+
+**4. Queries PromQL úteis para criar painéis próprios**
+
+```promql
+# valor atual de todos os sensores
+edgesentinel_sensor_value
+
+# anomaly score por sensor
+edgesentinel_anomaly_score{sensor_id="cpu_temp"}
+
+# taxa de anomalias nos últimos 5 minutos
+rate(edgesentinel_anomaly_total[5m])
+
+# latência P95 do pipeline
+histogram_quantile(0.95, rate(edgesentinel_pipeline_latency_seconds_bucket[5m]))
+
+# latência P95 do AI Service em ms
+histogram_quantile(0.95, rate(ai_service_inference_latency_ms_milliseconds_bucket[5m]))
+
+# taxa de inferências por segundo por modelo
+rate(ai_service_inference_total[1m])
 ```
 
 ---
 
-### edgesentinel chamando o AI Service
-
-No `config.yaml`:
-
-```yaml
-inference:
-  enabled: true
-  backend: remote
-  service_url: "http://localhost:8080"
-  model_id: "yolo_v8n"
-  threshold: 0.5
-```
-
-O edgesentinel não sabe se o modelo é local ou remoto — só chama `InferencePort.predict()`. O `RemoteInferenceAdapter` faz o HTTP internamente.
-
----
-
-## 5. Criando seu próprio sensor
+## 6. Criando seu próprio sensor
 
 ```python
 from core.ports import SensorPort
@@ -453,7 +399,6 @@ class SensorTemperaturaMotor(SensorPort):
         self.device_path = device_path
 
     def read(self) -> SensorReading:
-        # lê o valor — pode ser arquivo, serial, I2C, API, etc.
         with open(self.device_path) as f:
             value = float(f.read().strip()) / 1000.0
 
@@ -469,20 +414,9 @@ class SensorTemperaturaMotor(SensorPort):
         return os.path.exists(self.device_path)
 ```
 
-Plugar no sistema:
-
-```python
-sensor = SensorTemperaturaMotor(
-    sensor_id="motor_temp",
-    device_path="/sys/class/thermal/thermal_zone1/temp",
-)
-
-pipeline = Pipeline(sensor=sensor, engine=engine, inference=inference)
-```
-
 ---
 
-## 6. Criando sua própria ação
+## 7. Criando sua própria ação
 
 ```python
 from core.ports import ActionPort
@@ -520,14 +454,14 @@ class TelegramAction(ActionPort):
 
 ---
 
-## 7. Referência das interfaces
+## 8. Referência das interfaces
 
 ### `SensorPort`
 
 ```python
 class SensorPort(ABC):
-    def read(self) -> SensorReading: ...    # lê uma medição
-    def is_available(self) -> bool: ...     # verifica se existe no hardware
+    def read(self) -> SensorReading: ...
+    def is_available(self) -> bool: ...
 ```
 
 ### `InferencePort`
@@ -554,8 +488,8 @@ class SensorReading:
     name: str
     value: float
     unit: str
-    timestamp: float        # auto-gerado
-    metadata: dict          # campos extras — frame da câmera fica aqui
+    timestamp: float        # auto-gerado via time.time()
+    metadata: dict          # frames de câmera ficam aqui
 ```
 
 ### `AnomalyScore`
@@ -577,26 +511,8 @@ class AnomalyScore:
 class ActionContext:
     rule_name: str
     reading: SensorReading
-    score: AnomalyScore | None   # None se inferência desabilitada
+    score: AnomalyScore | None
     extras: dict
-```
-
-### `Rule` e `Condition`
-
-```python
-@dataclass
-class Rule:
-    name: str
-    condition: Condition
-    action_ids: list[str]
-    enabled: bool = True
-    cooldown_seconds: float = 0.0
-
-@dataclass
-class Condition:
-    sensor_id: str
-    operator: str        # ">" | "<" | ">=" | "<=" | "==" | "anomaly"
-    threshold: float = 0.0
 ```
 
 ### Operadores disponíveis
@@ -608,4 +524,4 @@ class Condition:
 | `>=` | maior ou igual | `cpu_usage >= 90` |
 | `<=` | menor ou igual | `memory_usage <= 20` |
 | `==` | igual | `cpu_temp == 0` (sensor morto) |
-| `anomaly` | score do modelo ML acima do threshold | qualquer sensor |
+| `anomaly` | score ML acima do threshold | câmera, qualquer sensor |
