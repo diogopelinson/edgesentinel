@@ -86,3 +86,60 @@ edgesentinel:
     assert config.exporter.port == 8000
     assert config.inference.enabled is False
     assert config.inference.backend == "dummy"
+
+
+def _config_with_rule_severity(tmp_path, severity_line: str) -> Path:
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(f"""
+edgesentinel:
+  sensors:
+    - id: cpu_temp
+      type: cpu_temperature
+  rules:
+    - name: alta_temp
+      condition:
+        sensor_id: cpu_temp
+        operator: ">"
+        threshold: 75.0
+      actions: [log]
+{severity_line}
+  actions:
+    - id: log
+      type: log
+""")
+    return config_file
+
+
+@pytest.mark.parametrize("declared", ["info", "warning", "critical"])
+def test_parses_each_severity_level(tmp_path, declared):
+    config = load(_config_with_rule_severity(tmp_path, f"      severity: {declared}"))
+
+    assert config.rules[0].severity == declared
+
+
+def test_severity_defaults_to_warning_when_omitted(tmp_path):
+    """Nenhum config existente declara severity — todos devem seguir válidos."""
+    config = load(_config_with_rule_severity(tmp_path, ""))
+
+    assert config.rules[0].severity == "warning"
+
+
+def test_severity_is_case_insensitive(tmp_path):
+    config = load(_config_with_rule_severity(tmp_path, "      severity: CRITICAL"))
+
+    assert config.rules[0].severity == "critical"
+
+
+def test_raises_on_unknown_severity(tmp_path):
+    """
+    Severity inválida precisa falhar no carregamento, não no primeiro disparo
+    da regra — que pode acontecer dias depois, em campo.
+    """
+    config_file = _config_with_rule_severity(tmp_path, "      severity: catastrophic")
+
+    with pytest.raises(ValueError) as exc:
+        load(config_file)
+
+    message = str(exc.value)
+    assert "catastrophic" in message
+    assert "alta_temp" in message
