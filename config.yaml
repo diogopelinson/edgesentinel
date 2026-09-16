@@ -34,20 +34,33 @@ edgesentinel:
     target_classes: [person, car, truck]
     confidence: 0.5
 
+  # severity: info | warning | critical  (padrão: warning)
+  # define o nível do log e, mais adiante, o peso do evento no histórico
   rules:
     - name: alta_temperatura
       condition:
         sensor_id: cpu_temp
         operator: ">"
         threshold: 75.0
+      severity: warning
       actions: [log, webhook]
       cooldown_seconds: 60
+
+    - name: temperatura_critica
+      condition:
+        sensor_id: cpu_temp
+        operator: ">"
+        threshold: 85.0
+      severity: critical
+      actions: [log, webhook]
+      cooldown_seconds: 30
 
     - name: uso_alto_cpu
       condition:
         sensor_id: cpu_usage
         operator: ">"
         threshold: 80.0
+      severity: warning
       actions: [log, webhook]
       cooldown_seconds: 30
 
