@@ -2,7 +2,7 @@ import time
 import pytest
 
 from unittest.mock import MagicMock, call
-from core.rules import Rule, Condition
+from core.rules import Rule, Condition, Severity
 from core.entities import SensorReading, AnomalyScore, ActionContext
 from core.ports import ActionPort
 from application.engine import RuleEngine
@@ -218,3 +218,61 @@ class TestRuleEngineCooldown:
         engine.evaluate(reading_82)
 
         assert log_action.execute.call_count == 3
+
+
+class TestRuleEngineSeverityPropagation:
+    """
+    A severidade viaja em ActionContext.extras, que já existe em
+    core/entities.py:25 — nenhuma assinatura de ActionPort muda por causa dela.
+    """
+
+    def _context_of(self, action) -> ActionContext:
+        action.execute.assert_called_once()
+        return action.execute.call_args.args[0]
+
+    def test_severity_reaches_the_action_context(self, reading_82):
+        log_action = make_action()
+        rule = Rule(
+            name="cpu_critica",
+            condition=Condition(sensor_id="cpu_temp", operator=">", threshold=75.0),
+            action_ids=["log"],
+            severity=Severity.CRITICAL,
+        )
+        engine = make_engine(rules=[rule], actions={"log": log_action})
+
+        engine.evaluate(reading_82)
+
+        assert self._context_of(log_action).extras["severity"] == Severity.CRITICAL
+
+    def test_default_severity_reaches_the_action_context(self, reading_82):
+        log_action = make_action()
+        rule = Rule(
+            name="alta_temp",
+            condition=Condition(sensor_id="cpu_temp", operator=">", threshold=75.0),
+            action_ids=["log"],
+        )
+        engine = make_engine(rules=[rule], actions={"log": log_action})
+
+        engine.evaluate(reading_82)
+
+        assert self._context_of(log_action).extras["severity"] == Severity.WARNING
+
+    def test_every_action_of_a_rule_receives_the_severity(self, reading_82):
+        """Uma regra despacha para N ações — todas precisam ver o mesmo nível."""
+        log_action     = make_action()
+        webhook_action = make_action()
+        rule = Rule(
+            name="cpu_critica",
+            condition=Condition(sensor_id="cpu_temp", operator=">", threshold=75.0),
+            action_ids=["log", "webhook"],
+            severity=Severity.CRITICAL,
+        )
+        engine = make_engine(
+            rules=[rule],
+            actions={"log": log_action, "webhook": webhook_action},
+        )
+
+        engine.evaluate(reading_82)
+
+        assert self._context_of(log_action).extras["severity"] == Severity.CRITICAL
+        assert self._context_of(webhook_action).extras["severity"] == Severity.CRITICAL
