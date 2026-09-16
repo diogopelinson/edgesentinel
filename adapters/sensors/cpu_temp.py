@@ -19,30 +19,41 @@ class CpuTemperatureSensor(BaseSensor):
 
     def __init__(self, sensor_id: str = "cpu_temp") -> None:
         super().__init__(sensor_id=sensor_id, name="CPU Temperature", unit="°C")
-        self._path = self._find_thermal_path()
 
     def read(self) -> SensorReading:
-        if self._path == "vcgencmd":
+        path = self._find_thermal_path()
+        if path == "vcgencmd":
             return self._build_reading(self._read_vcgencmd())
-        return self._build_reading(self._read_sysfs())
+        return self._build_reading(self._read_sysfs(path))
 
     # --- métodos privados ---
 
     def _find_thermal_path(self) -> str:
-        """Escolhe a melhor fonte disponível no hardware atual."""
+        """
+        Escolhe a melhor fonte disponível no hardware atual.
+
+        Resolvido a cada leitura, não no __init__: um sensor sinaliza ausência
+        de hardware por is_available(), e esse hook fica inalcançável se a
+        construção levantar exceção.
+        """
         for path in _THERMAL_PATHS:
             if Path(path).exists():
                 return path
         if Path(_VCGENCMD_PATH).exists():
             return "vcgencmd"
-        raise RuntimeError("Nenhuma fonte de temperatura encontrada nesse hardware.")
 
-    def _read_sysfs(self) -> float:
+        tentados = ", ".join([*_THERMAL_PATHS, _VCGENCMD_PATH])
+        raise RuntimeError(
+            f"Nenhuma fonte de temperatura de CPU encontrada. "
+            f"Caminhos tentados: {tentados}"
+        )
+
+    def _read_sysfs(self, path: str) -> float:
         """
         /sys/class/thermal/thermal_zone0/temp retorna o valor em milligraus.
         Ex: "72500" → 72.5°C
         """
-        raw = Path(self._path).read_text(encoding="utf-8").strip()
+        raw = Path(path).read_text(encoding="utf-8").strip()
         return int(raw) / 1000.0
 
     def _read_vcgencmd(self) -> float:
