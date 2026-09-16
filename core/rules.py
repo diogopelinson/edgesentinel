@@ -1,7 +1,31 @@
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Callable
 
 from core.entities import SensorReading, AnomalyScore
+
+
+class Severity(str, Enum):
+    """
+    Peso de uma regra quando ela dispara.
+
+    Herda de str para atravessar ActionContext.extras — e, mais adiante, a
+    serialização do Event Store — sem conversão em cada fronteira.
+    """
+    INFO     = "info"
+    WARNING  = "warning"
+    CRITICAL = "critical"
+
+    @classmethod
+    def from_name(cls, name: str) -> "Severity":
+        """Converte o texto do YAML. Case-insensitive porque é escrito à mão."""
+        try:
+            return cls(name.strip().lower())
+        except ValueError:
+            aceitos = ", ".join(s.value for s in cls)
+            raise ValueError(
+                f"Severidade desconhecida: '{name}'. Aceitos: {aceitos}"
+            ) from None
 
 
 @dataclass
@@ -47,6 +71,7 @@ class Rule:
     name: str
     condition: Condition
     action_ids: list[str]       # referência às ações registradas no container
+    severity: Severity = Severity.WARNING
     enabled: bool = True
     cooldown_seconds: float = 0.0   # evita spam de ação (ex: não alerta 2x em 30s)
     _last_triggered: float = field(default=0.0, init=False, repr=False)
