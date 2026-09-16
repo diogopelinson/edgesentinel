@@ -62,13 +62,19 @@ class RuleEngine:
         """Executa todas as ações da regra e atualiza o timestamp de disparo."""
         rule._last_triggered = time.monotonic()
 
+        # construído uma vez por regra, não por ação — todas as ações de um
+        # mesmo disparo precisam observar exatamente o mesmo contexto
         context = ActionContext(
             rule_name=rule.name,
             reading=reading,
             score=score,
+            extras={"severity": rule.severity},
         )
 
-        logger.info(f"Regra '{rule.name}' disparada para sensor '{reading.sensor_id}'.")
+        logger.info(
+            f"Regra '{rule.name}' [{rule.severity.value}] disparada "
+            f"para sensor '{reading.sensor_id}'."
+        )
 
         for action_id in rule.action_ids:
             action = self._actions.get(action_id)
