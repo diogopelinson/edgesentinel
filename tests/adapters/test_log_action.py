@@ -3,6 +3,7 @@ import pytest
 
 from adapters.actions.log import LogAction
 from core.entities import ActionContext, SensorReading, AnomalyScore
+from core.rules import Severity
 
 
 @pytest.fixture
@@ -85,6 +86,37 @@ class TestLogAction:
 
         assert len(caplog.records) == 1
         assert caplog.records[0].levelno == logging.WARNING
+
+    def test_severity_in_context_overrides_the_configured_level(self, context, caplog):
+        """
+        O nível do construtor é o default da ação; a severidade da regra que
+        disparou é mais específica e deve vencer.
+        """
+        context.extras["severity"] = Severity.CRITICAL
+        action = LogAction(level="WARNING")
+
+        with caplog.at_level(logging.INFO, logger="edgesentinel.action.log"):
+            action.execute(context)
+
+        assert caplog.records[0].levelno == logging.CRITICAL
+
+    def test_info_severity_logs_at_info_level(self, context, caplog):
+        context.extras["severity"] = Severity.INFO
+        action = LogAction()
+
+        with caplog.at_level(logging.INFO, logger="edgesentinel.action.log"):
+            action.execute(context)
+
+        assert caplog.records[0].levelno == logging.INFO
+
+    def test_falls_back_to_configured_level_without_severity(self, context, caplog):
+        """Contexto sem severidade preserva o comportamento atual."""
+        action = LogAction(level="ERROR")
+
+        with caplog.at_level(logging.INFO, logger="edgesentinel.action.log"):
+            action.execute(context)
+
+        assert caplog.records[0].levelno == logging.ERROR
 
     def test_execute_does_not_raise_on_empty_context(self):
         """BaseAction captura exceções — LogAction nunca deve propagar erros."""
