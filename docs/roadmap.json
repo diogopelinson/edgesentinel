@@ -10,7 +10,17 @@
     "hardware_available": "none",
     "dev_platform": "windows",
     "hardware_note": "Sem SBC disponível. Qualquer feature que exija I2C/SPI/GPIO físico fica em 'backlog-hardware' com status 'blocked'. Sensores baseados em /proc e /sys continuam testáveis via patch de pathlib.Path.read_text — padrão já estabelecido em tests/adapters/test_sensors.py.",
-    "versioning_note": "pyproject.toml declara 0.1.0 e o repositório não tem nenhuma tag git. Os marcos abaixo foram renumerados a partir de 0.2 para refletir o estado real, em vez de partir de um 0.4 que nunca existiu. cli/main.py:6 duplica a versão do pyproject.toml — unificar antes da primeira tag."
+    "versioning_note": "pyproject.toml declara 0.1.0 e o repositório não tem nenhuma tag git. Os marcos abaixo foram renumerados a partir de 0.2 para refletir o estado real, em vez de partir de um 0.4 que nunca existiu. cli/main.py:6 duplica a versão do pyproject.toml — unificar antes da primeira tag.",
+
+    "language_boundary": {
+      "rule": "Python onde há lock-in de ecossistema — ML e drivers de hardware. Go onde há restrição de deploy — serviço de rede longo, ou binário que precisa rodar sem runtime.",
+      "python": ["agente de edge", "ai-inference-service", "scripts de treino"],
+      "go": ["control plane da frota", "qualquer binário que deva rodar sem runtime no dispositivo"],
+      "decided_at": "2026-09-16",
+      "rationale": "Repo poliglota com fronteira principiada é sinal forte; com fronteira arbitrária é sinal fraco. O diferencial é conseguir responder 'por que Go aqui e não ali' em uma frase, e a regra acima é essa frase. É também a fronteira que a stack já desenha sem ele ter escrito Go: MediaMTX, Prometheus, OTel Collector e Grafana são todos binários Go que o projeto já executa.",
+      "not_the_agent": "O agente permanece em Python por três motivos: a arquitetura hexagonal com sua suíte de testes é o ativo mais defensável do repositório e reescrevê-la joga fora exatamente o que há de melhor para mostrar; adapters/inference/yolo.py e onnx.py rodam modelo local, então portar partiria o agente ao meio; e sem SBC disponível a vantagem prática de Go (binário ARM estático, RSS muito menor) é hoje indemonstrável — a mesma armadilha dos sensores de hardware.",
+      "cost": "Duas toolchains, duas suítes, dois caminhos de CI, e o payload do heartbeat deixa de ser detalhe interno para virar contrato versionado entre linguagens."
+    }
   },
 
   "legend": {
@@ -723,16 +733,17 @@
       "milestone": "v0.6",
       "status": "planned",
       "effort": "L",
-      "portfolio_value": "medium",
+      "portfolio_value": "high",
+      "language": "go",
       "testable_now": true,
-      "rationale": "Primeiro componente servidor do projeto: recebe heartbeats e marca como offline quem parou de falar. Note que isto é um produto distinto do agente, não uma feature dele — decidir cedo se mora neste repositório ou em outro evita um monólito acidental.",
+      "rationale": "Primeiro componente servidor do projeto: recebe heartbeats e marca como offline quem parou de falar. Note que isto é um produto distinto do agente, não uma feature dele — decidir cedo se mora neste repositório ou em outro evita um monólito acidental. É também onde Go entra no projeto: serviço de rede longo com muitas conexões concorrentes é o caso de uso da linguagem, e é a primeira vez que a fronteira declarada em context.language_boundary produz código.",
       "depends_on": ["heartbeat", "redis-state"],
       "unlocks": ["dashboard-api", "ota-updates", "terraform-deploy"],
       "touches": [
         "server/",
         "infra/docker/docker-compose.yml"
       ],
-      "design_notes": "FastAPI, mesmo padrão de ai-inference-service que já está estabelecido no repositório. Estado da frota no Redis com TTL — o mesmo mecanismo de expiração do RedisState, então a detecção de offline é a ausência da chave e não uma varredura periódica. Exporta métricas para o mesmo OTel Collector, aparecendo no dashboard existente.",
+      "design_notes": "Escrito em Go, não em FastAPI. Estado da frota no Redis com TTL — o mesmo mecanismo de expiração do RedisState, então a detecção de offline é a ausência da chave e não uma varredura periódica. Exporta métricas para o mesmo OTel Collector, aparecendo no dashboard existente. O contrato do heartbeat deixa de ser detalhe interno e passa a ser versionado: definir o payload antes de escrever os dois lados, e testá-lo a partir das duas linguagens. O binário resultante roda sem runtime, coerente com MediaMTX, Prometheus e OTel Collector, que já são os vizinhos dele no docker-compose.",
       "acceptance": [
         "POST /devices/heartbeat registra ou atualiza o dispositivo",
         "GET /devices lista a frota com status online e offline",
@@ -871,14 +882,15 @@
       "effort": "L",
       "portfolio_value": "medium",
       "testable_now": true,
-      "rationale": "Fecha o ciclo de operação de frota. Também é a feature de maior risco do backlog: um bug aqui deixa dispositivos inacessíveis em campo, e é exatamente por isso que vem depois de heartbeat e registry existirem para detectar o estrago.",
+      "language": "go",
+      "rationale": "Fecha o ciclo de operação de frota. Também é a feature de maior risco do backlog: um bug aqui deixa dispositivos inacessíveis em campo, e é exatamente por isso que vem depois de heartbeat e registry existirem para detectar o estrago. É o argumento técnico mais forte para Go em todo o projeto — ver design_notes.",
       "depends_on": ["device-registry-server", "model-registry"],
       "unlocks": [],
       "touches": [
         "server/",
-        "adapters/updater/"
+        "updater/"
       ],
-      "design_notes": "Atualização baseada em imagem Docker, não em pip — atômica e com rollback trivial. Health check obrigatório após o update, com rollback automático em caso de falha. Rollout progressivo por device, nunca para a frota inteira de uma vez. O dispositivo puxa a atualização em vez de receber push, o que dispensa porta aberta no edge.",
+      "design_notes": "O updater é um binário Go estático, e isso não é preferência: um atualizador escrito na mesma linguagem e no mesmo runtime que ele atualiza é frágil por construção, porque precisa sobreviver à troca do que está embaixo dele. Um supervisor que não compartilha venv, intérprete nem dependências com o agente Python pode substituí-lo inteiro e reverter se o health check falhar. Atualização baseada em imagem Docker, não em pip — atômica e com rollback trivial. Health check obrigatório após o update, com rollback automático em caso de falha. Rollout progressivo por device, nunca para a frota inteira de uma vez. O dispositivo puxa a atualização em vez de receber push, o que dispensa porta aberta no edge.",
       "acceptance": [
         "dispositivo reporta a versão em execução",
         "update pode ser disparado por dispositivo",
