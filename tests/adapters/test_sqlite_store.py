@@ -211,6 +211,36 @@ class TestRetention:
             second.close()
 
 
+class TestReadOnlyAccess:
+    """
+    `edgesentinel events` consulta sem chamar start(): start() aplica a
+    retenção e sobe a thread de escrita, e um comando de leitura não pode
+    apagar nada nem deixar thread para trás.
+    """
+
+    def test_query_reads_an_existing_database_without_start(self, tmp_path):
+        path = tmp_path / "events.db"
+        writer = SQLiteEventStore(path=path)
+        writer.start()
+        append_and_wait(writer, make_event(rule_name="gravada"))
+        writer.close()
+
+        reader = SQLiteEventStore(path=path)
+
+        assert [e.rule_name for e in reader.query()] == ["gravada"]
+
+    def test_query_without_start_does_not_apply_retention(self, tmp_path):
+        path = tmp_path / "events.db"
+        writer = SQLiteEventStore(path=path, retention_days=30)
+        writer.start()   # a poda do start acontece antes deste append
+        append_and_wait(writer, make_event(rule_name="de_40_dias", timestamp=time.time() - 40 * 86400))
+        writer.close()
+
+        reader = SQLiteEventStore(path=path, retention_days=30)
+
+        assert [e.rule_name for e in reader.query()] == ["de_40_dias"]
+
+
 class TestNonBlockingWrites:
     """
     O pipeline roda em run_in_executor (application/monitor.py:66), num pool

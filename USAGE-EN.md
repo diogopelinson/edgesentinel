@@ -46,6 +46,43 @@ edgesentinel simulate --scenario spike
 
 Both `run` and `simulate` record every fired rule in `data/events.db` (SQLite), with a 30-day retention. The path and retention are set in the `event_store` block of `config.yaml`, and `enabled: false` turns history off. To query it from Python, see [Querying the history](#querying-the-history).
 
+### Query the history
+
+```bash
+# what fired in the last hour
+edgesentinel events --last 1h
+
+# only critical events from one sensor
+edgesentinel events --severity critical --sensor cpu_temp
+
+# another config (and therefore another database)
+edgesentinel events --config /etc/edgesentinel/config.yaml -n 100
+```
+
+With `--json`, each line is a complete object:
+
+```json
+{"event_id": 1159, "time": "2026-09-16T23:18:10-03:00", "timestamp": 1789611490.73, "severity": "warning", "rule_name": "uso_alto_cpu", "sensor_id": "cpu_usage", "value": 91.54, "unit": "%", "anomaly_score": 0.9366}
+```
+
+That makes the history easy to script (Linux / macOS):
+
+```bash
+# firings per rule over the last 24 hours
+edgesentinel events --last 24h --limit 100000 --json | jq -r .rule_name | sort | uniq -c
+
+# external alert if anything critical happened in the last 5 minutes
+if edgesentinel events --severity critical --last 5m --json | grep -q .; then
+    echo "recent critical"
+fi
+```
+
+Three guarantees back these uses:
+
+- **stdout holds data only.** "No events found" and errors go to stderr, so the `grep -q .` above only matches real events.
+- **Querying changes nothing.** The command applies no retention and does not create the database when it is missing.
+- **The exit code tells the cases apart.** `0` for results, no results or an empty history; `1` for an invalid config, a disabled store or an unreadable file; `2` for an invalid option such as `--last yesterday`.
+
 ---
 
 ## 2. Library usage
