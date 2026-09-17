@@ -557,6 +557,8 @@ edgesentinel/
 - [ ] Additional sensors: GPIO input, I2C, SPI, BME280
 - [ ] Terraform for cloud-assisted deployments
 
+Current version: **0.3.0** (`edgesentinel --version`). What changed in each release is in [CHANGELOG.md](CHANGELOG.md); the full backlog, with dependencies and delivery status per feature, is in [docs/roadmap.json](docs/roadmap.json).
+
 ---
 
 ## License
