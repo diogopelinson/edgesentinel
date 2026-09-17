@@ -71,7 +71,7 @@ from adapters.exporter.prometheus import PrometheusExporter
 from application.engine import RuleEngine
 from application.pipeline import Pipeline
 from application.monitor import MonitorLoop
-from core.rules import Rule, Condition
+from core.rules import Rule, Condition, Severity
 
 sensors = [
     CpuTemperatureSensor(sensor_id="cpu_temp"),
@@ -97,6 +97,14 @@ rules = [
         condition=Condition(sensor_id="cpu_temp", operator=">", threshold=75.0),
         action_ids=["log", "webhook"],
         cooldown_seconds=60.0,
+        # sem severity: Severity.WARNING
+    ),
+    Rule(
+        name="temperatura_critica",
+        condition=Condition(sensor_id="cpu_temp", operator=">", threshold=85.0),
+        action_ids=["log", "webhook"],
+        severity=Severity.CRITICAL,
+        cooldown_seconds=30.0,
     ),
 ]
 
@@ -431,7 +439,15 @@ Herdando de `adapters.sensors.base.BaseSensor` em vez de `SensorPort`, o `is_ava
 ```python
 from core.ports import ActionPort
 from core.entities import ActionContext
+from core.rules import Severity
 import requests
+
+
+ICONES = {
+    Severity.INFO:     "ℹ️",
+    Severity.WARNING:  "⚠️",
+    Severity.CRITICAL: "🚨",
+}
 
 
 class TelegramAction(ActionPort):
@@ -443,11 +459,12 @@ class TelegramAction(ActionPort):
         self._chat_id  = chat_id
 
     def execute(self, context: ActionContext) -> None:
-        reading = context.reading
-        score   = context.score
+        reading  = context.reading
+        score    = context.score
+        severity = context.extras.get("severity", Severity.WARNING)
 
         texto = (
-            f"🚨 *{context.rule_name}*\n"
+            f"{ICONES[severity]} *{context.rule_name}* [{severity.value}]\n"
             f"Sensor: `{reading.sensor_id}`\n"
             f"Valor: `{reading.value}{reading.unit}`"
         )
@@ -461,6 +478,8 @@ class TelegramAction(ActionPort):
             timeout=5,
         )
 ```
+
+A severidade da regra que disparou chega em `context.extras["severity"]` como um `Severity`. Para texto, use `.value` — no Python 3.10, `str(Severity.CRITICAL)` devolve `'Severity.CRITICAL'`, não `'critical'`. O `.get` com padrão cobre o caso de a ação ser chamada fora do `RuleEngine`.
 
 ---
 
@@ -522,8 +541,39 @@ class ActionContext:
     rule_name: str
     reading: SensorReading
     score: AnomalyScore | None
-    extras: dict
+    extras: dict            # extras["severity"] traz a Severity da regra
 ```
+
+### `Rule`
+
+```python
+@dataclass
+class Rule:
+    name: str
+    condition: Condition
+    action_ids: list[str]
+    severity: Severity = Severity.WARNING
+    enabled: bool = True
+    cooldown_seconds: float = 0.0
+```
+
+### `Severity`
+
+```python
+class Severity(str, Enum):
+    INFO     = "info"
+    WARNING  = "warning"     # padrão
+    CRITICAL = "critical"
+
+    @classmethod
+    def from_name(cls, name: str) -> "Severity": ...   # ignora maiúsculas
+```
+
+| Severidade | Nível no `log` | Uso típico |
+|---|---|---|
+| `info` | INFO | evento esperado que vale registrar |
+| `warning` | WARNING | fora do normal, merece atenção — **padrão** |
+| `critical` | CRITICAL | exige ação imediata |
 
 ### Operadores disponíveis
 
