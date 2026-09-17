@@ -169,6 +169,26 @@ monitor.start()
 
 `events` é opcional nos dois lugares: sem ele, nada é gravado e o resto funciona igual. O mesmo objeto precisa ir para o `RuleEngine`, que escreve, e para o `MonitorLoop`, que controla o ciclo de vida.
 
+`default_actions` é um recurso do `config.yaml`, resolvido por `config.mapper.to_rules` antes de as regras chegarem ao engine. Regras montadas à mão, como acima, recebem `action_ids` já resolvido — o `RuleEngine` só enxerga a lista final. Para aproveitar o roteamento por severidade sem YAML, monte um `EdgeSentinelConfig` e passe por `to_rules`:
+
+```python
+from config.mapper import to_rules
+from config.schema import ConditionConfig, EdgeSentinelConfig, RuleConfig
+
+config = EdgeSentinelConfig(
+    sensors=[], actions=[],
+    default_actions={"warning": ["log"], "critical": ["log", "webhook"]},
+    rules=[
+        RuleConfig(
+            name="temperatura_critica",
+            condition=ConditionConfig(sensor_id="cpu_temp", operator=">", threshold=85.0),
+            severity="critical",
+        ),
+    ],
+)
+rules = to_rules(config)   # rules[0].action_ids == ["log", "webhook"]
+```
+
 ### Consultando o histórico
 
 ```python
@@ -676,6 +696,17 @@ class Severity(str, Enum):
 | `info` | INFO | evento esperado que vale registrar |
 | `warning` | WARNING | fora do normal, merece atenção — **padrão** |
 | `critical` | CRITICAL | exige ação imediata |
+
+### Resolução de ações (`default_actions`)
+
+| A regra declara | `default_actions` tem a severidade da regra | Ações disparadas |
+|---|---|---|
+| `actions: [log]` | tanto faz | `[log]` — a lista da regra, sem somar ao padrão |
+| `actions: []` | tanto faz | nenhuma — o evento ainda vai para o histórico |
+| nada | sim | a lista de `default_actions` para essa severidade |
+| nada | não | nenhuma |
+
+Regras sem ação nenhuma aparecem em `DEBUG` no logger `edgesentinel.config`. No `config.yaml`, severidade desconhecida em `default_actions`, a mesma severidade escrita duas vezes (`warning` e `Warning`), lista que não seja de ids e `actions` de regra escrito como mapa falham ao carregar.
 
 ### Operadores disponíveis
 
