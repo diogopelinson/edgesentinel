@@ -402,7 +402,7 @@ pytest tests/ -v
 pytest tests/ --cov=. --cov-report=term-missing
 ```
 
-**84 tests, zero failures.**
+**90 tests, zero failures.**
 
 | Layer | Coverage |
 |---|---|
@@ -410,7 +410,7 @@ pytest tests/ --cov=. --cov-report=term-missing
 | `application/engine` | 100% |
 | `application/pipeline` | 100% |
 | `adapters/inference/dummy` | 100% |
-| `config/loader` | 95% |
+| `config/loader` | 91% |
 
 ---
 
@@ -431,7 +431,7 @@ edgesentinel/
 ├── scripts/                    # train_model.py
 ├── infra/docker/               # docker-compose, MediaMTX, OTel, Prometheus, Grafana
 ├── dashboards/                 # edgesentinel.json for Grafana
-└── tests/                      # unit + integration (84 tests)
+└── tests/                      # unit + integration (90 tests)
 ```
 
 ---
@@ -441,6 +441,8 @@ edgesentinel/
 **Hexagonal Architecture** — the core doesn't know about infrastructure. Swapping Prometheus for Datadog is a new adapter. Swapping ONNX for TFLite is one config line.
 
 **Direct `/proc` reading** — no `psutil`. Lighter, more explicit, no compiled C dependency.
+
+**Lazy hardware discovery** — no sensor touches hardware in its constructor. A missing device is reported through `is_available()`, never by raising. The same `config.yaml` starts on a Raspberry Pi and on a laptop: unavailable sensors are skipped with a warning, and the rest of the monitoring carries on.
 
 **`frozen=True` on entities** — the loop is async. Immutability eliminates concurrency bugs.
 
