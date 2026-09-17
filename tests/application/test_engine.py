@@ -1,10 +1,11 @@
+import logging
 import time
 import pytest
 
 from unittest.mock import MagicMock, call
 from core.rules import Rule, Condition, Severity
 from core.entities import SensorReading, AnomalyScore, ActionContext
-from core.ports import ActionPort
+from core.ports import ActionPort, EventPort
 from application.engine import RuleEngine
 
 
@@ -276,3 +277,112 @@ class TestRuleEngineSeverityPropagation:
 
         assert self._context_of(log_action).extras["severity"] == Severity.CRITICAL
         assert self._context_of(webhook_action).extras["severity"] == Severity.CRITICAL
+
+
+class TestRuleEngineEventRecording:
+    """
+    Todo disparo de regra vira um Event no store. Um disparo suprimido por
+    cooldown não é disparo, e uma falha do store não pode custar a ação.
+    """
+
+    @pytest.fixture
+    def store(self) -> MagicMock:
+        return MagicMock(spec=EventPort)
+
+    @pytest.fixture
+    def critical_rule(self) -> Rule:
+        return Rule(
+            name="cpu_critica",
+            condition=Condition(sensor_id="cpu_temp", operator=">", threshold=75.0),
+            action_ids=["log"],
+            severity=Severity.CRITICAL,
+        )
+
+    def _recorded(self, store) -> "Event":
+        store.append.assert_called_once()
+        return store.append.call_args.args[0]
+
+    def test_records_an_event_when_a_rule_fires(self, store, critical_rule, reading_82):
+        engine = RuleEngine(rules=[critical_rule], actions={"log": make_action()}, events=store)
+
+        engine.evaluate(reading_82)
+
+        event = self._recorded(store)
+        assert event.rule_name     == "cpu_critica"
+        assert event.sensor_id     == "cpu_temp"
+        assert event.value         == pytest.approx(82.0)
+        assert event.unit          == reading_82.unit
+        assert event.severity      == "critical"
+        assert event.anomaly_score is None
+
+    def test_event_time_is_the_reading_time(self, store, critical_rule, reading_82):
+        """
+        O evento aconteceu quando o sensor foi lido, não quando o engine
+        terminou de avaliar — num tick lento a diferença é visível.
+        """
+        engine = RuleEngine(rules=[critical_rule], actions={}, events=store)
+
+        engine.evaluate(reading_82)
+
+        assert self._recorded(store).timestamp == reading_82.timestamp
+
+    def test_event_severity_is_a_plain_string(self, store, critical_rule, reading_82):
+        """
+        str(Severity.CRITICAL) é 'Severity.CRITICAL' no Python 3.10 — o valor
+        que chega ao store precisa ser o texto puro, não o membro do enum.
+        """
+        engine = RuleEngine(rules=[critical_rule], actions={}, events=store)
+
+        engine.evaluate(reading_82)
+
+        assert type(self._recorded(store).severity) is str
+
+    def test_records_the_anomaly_score_when_present(
+        self, store, critical_rule, reading_82, anomaly_score
+    ):
+        engine = RuleEngine(rules=[critical_rule], actions={}, events=store)
+
+        engine.evaluate(reading_82, score=anomaly_score)
+
+        assert self._recorded(store).anomaly_score == pytest.approx(0.91)
+
+    def test_records_nothing_when_no_rule_fires(self, store, critical_rule, reading_72):
+        engine = RuleEngine(rules=[critical_rule], actions={}, events=store)
+
+        engine.evaluate(reading_72)
+
+        store.append.assert_not_called()
+
+    def test_cooldown_suppressed_firing_is_not_recorded(self, store, reading_82):
+        rule = Rule(
+            name="com_cooldown",
+            condition=Condition(sensor_id="cpu_temp", operator=">", threshold=75.0),
+            action_ids=[],
+            cooldown_seconds=60.0,
+        )
+        engine = RuleEngine(rules=[rule], actions={}, events=store)
+
+        engine.evaluate(reading_82)
+        engine.evaluate(reading_82)
+
+        store.append.assert_called_once()
+
+    def test_store_failure_does_not_cost_the_action(self, store, critical_rule, reading_82):
+        """O alerta é o que importa; o histórico é secundário."""
+        store.append.side_effect = RuntimeError("disco cheio")
+        log_action = make_action()
+        engine = RuleEngine(rules=[critical_rule], actions={"log": log_action}, events=store)
+
+        engine.evaluate(reading_82)
+
+        log_action.execute.assert_called_once()
+
+    def test_store_failure_is_logged(self, store, critical_rule, reading_82, caplog):
+        store.append.side_effect = RuntimeError("disco cheio")
+        engine = RuleEngine(rules=[critical_rule], actions={}, events=store)
+
+        with caplog.at_level(logging.ERROR, logger="edgesentinel.engine"):
+            engine.evaluate(reading_82)
+
+        assert "cpu_critica" in caplog.text
+        assert "disco cheio" in caplog.text
