@@ -231,18 +231,25 @@ class TestNonBlockingWrites:
         assert elapsed < 0.5
         assert "descartado" in caplog.text
 
-    def test_close_flushes_what_is_still_queued(self, tmp_path):
-        path  = tmp_path / "events.db"
-        store = SQLiteEventStore(path=path)
-        store.start()
+    def test_close_waits_for_queued_events_to_be_written(self, tmp_path, monkeypatch):
+        """
+        Disco lento de propósito: com escrita rápida, a thread grava tudo antes
+        de qualquer verificação e o teste passaria mesmo com um close() que não
+        espera nada. O atraso envolve a escrita real — os dados vão ao disco.
+        """
+        real_write = SQLiteEventStore._write
 
-        for i in range(50):
-            store.append(make_event(timestamp=float(i)))
+        def slow_write(conn, events):
+            time.sleep(0.02)
+            real_write(conn, events)
+
+        monkeypatch.setattr(SQLiteEventStore, "_write", staticmethod(slow_write))
+
+        store = SQLiteEventStore(path=tmp_path / "events.db", batch_size=1)
+        store.start()
+        for _ in range(20):
+            store.append(make_event())
         store.close()
 
-        reopened = SQLiteEventStore(path=path)
-        reopened.start()
-        try:
-            assert len(reopened.query(limit=100)) == 50
-        finally:
-            reopened.close()
+        # sem reabrir: a pergunta é o que já estava gravado quando close() voltou
+        assert len(store.query(limit=100)) == 20
