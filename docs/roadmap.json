@@ -332,28 +332,32 @@
       "id": "severity-action-routing",
       "title": "ações roteadas por severidade",
       "milestone": "v0.3",
-      "status": "ready",
+      "status": "done",
+      "delivered_in": "1f5612d",
       "effort": "S",
       "portfolio_value": "medium",
       "testable_now": true,
-      "rationale": "Permite declarar 'warning só loga, critical aciona o relé' sem duplicar a regra inteira só para trocar a lista de ações.",
+      "rationale": "Permite declarar uma vez 'warning só loga, critical aciona o relé' em vez de repetir a lista de ações em cada regra.",
       "depends_on": ["rule-severity"],
       "unlocks": [],
       "touches": [
-        "config/schema.py:36-42",
-        "config/loader.py:76-98",
-        "application/engine.py:79-88"
+        "config/schema.py",
+        "config/loader.py",
+        "config/mapper.py"
       ],
-      "design_notes": "actions passa a aceitar duas formas: a lista atual, ou um mapa severity → lista. Retrocompatível — lista simples continua valendo para qualquer severidade. A resolução acontece no loader, não no engine, para que _trigger continue recebendo uma lista plana de action_ids.",
+      "design_notes": "Entregue diferente do desenho original, que punha um mapa severidade → lista dentro de cada regra: como uma regra tem uma severidade fixa, esse mapa sempre escolheria a mesma lista. O que vale configurar é uma política global — bloco default_actions no nível do edgesentinel — herdada por regras que não declaram actions. RuleConfig.actions é None quando não declarado, distinto de [] explícito (nenhuma ação, só histórico). Lista declarada substitui o padrão, nunca mescla. A resolução fica no mapper, fronteira config → domínio; o RuleEngine continua recebendo uma lista plana.",
       "acceptance": [
-        "actions aceita lista simples (comportamento atual) ou mapa por severidade",
+        "bloco default_actions mapeia severidade → lista de ids de ação",
+        "regra sem actions herda a lista da sua severidade",
+        "actions declarado substitui o padrão; actions: [] não dispara nada",
         "configs existentes seguem funcionando sem alteração",
-        "severidade sem entrada no mapa não dispara ação nenhuma e registra debug"
+        "severidade desconhecida, chave duplicada, lista malformada e actions de regra escrito como mapa falham no carregamento",
+        "regra que termina sem ações é registrada em DEBUG"
       ],
       "tests": [
-        "lista simples preserva comportamento atual",
-        "mapa por severidade resolve as ações corretas por nível",
-        "severidade ausente do mapa resulta em zero ações disparadas"
+        "loader: None vs [] explícito, parsing e as quatro validações de default_actions, actions de regra como mapa e como string",
+        "mapper: as quatro combinações de resolução, cópia independente por regra, log de regra sem ações",
+        "integração: YAML → loader → mapper → RuleEngine despacha as ações certas para 78, 90 e 72 °C"
       ]
     },
     {
