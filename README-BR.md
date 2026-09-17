@@ -83,6 +83,8 @@ Toda regra que dispara vira uma linha num SQLite local (`data/events.db`): regra
 
 A gravação nunca atrasa o monitoramento. A leitura do sensor só enfileira o evento, e uma thread dedicada grava em lote; se o disco travar e a fila encher, o evento é descartado com aviso, porque perder uma linha do histórico é melhor que atrasar o próximo alerta. No encerramento, inclusive por Ctrl+C, o que está na fila é gravado antes de sair. Eventos mais velhos que a retenção configurada são removidos ao iniciar.
 
+O histórico é consultado pelo terminal com `edgesentinel events` — veja [Consulta o histórico de eventos](#consulta-o-histórico-de-eventos).
+
 ### Observabilidade com OpenTelemetry
 
 O edgesentinel e o AI Service exportam métricas via OTel para o mesmo Collector. O Prometheus coleta e o Grafana plota tudo em tempo real — dois serviços, um dashboard.
@@ -294,6 +296,37 @@ edgesentinel simulate --scenario normal
 edgesentinel simulate --scenario spike
 ```
 
+### Consulta o histórico de eventos
+
+```bash
+edgesentinel events                                   # os 20 mais recentes
+edgesentinel events --severity critical --last 24h    # críticos das últimas 24 horas
+edgesentinel events --rule alta_temperatura -n 50
+edgesentinel events --sensor cpu_temp --json | jq .value
+```
+
+```
+QUANDO               SEVERIDADE  REGRA                SENSOR        VALOR  SCORE
+2026-09-16 23:18:10  WARNING     uso_alto_cpu         cpu_usage  91.54 %    0.94
+2026-09-16 23:18:10  CRITICAL    temperatura_critica  cpu_temp   85.66 °C   0.94
+2026-09-16 23:18:10  WARNING     alta_temperatura     cpu_temp   85.66 °C   0.94
+2026-09-16 23:18:10  WARNING     uso_alto_cpu         cpu_usage  91.98 %    0.94
+
+4 evento(s) — mostrando os 4 mais recentes; use --limit para ver mais
+```
+
+| Opção | Efeito |
+|---|---|
+| `-s, --severity info\|warning\|critical` | só esse nível |
+| `--sensor ID` | só esse sensor |
+| `-r, --rule NOME` | só essa regra |
+| `--last 30m\|24h\|7d` | janela até agora (`s`, `m`, `h`, `d`) |
+| `-n, --limit N` | no máximo N eventos, mais recentes primeiro (padrão 20) |
+| `--json` | um objeto JSON por linha, com o campo `time` em ISO |
+| `-c, --config CAMINHO` | config de onde vem o `event_store.path` |
+
+O comando só lê: nunca poda eventos antigos e nunca cria o banco. Dados vão para o stdout e mensagens de status para o stderr, então `--json` pode ir direto para um pipe. Código de saída 0 cobre resultados, nenhum resultado e histórico ainda vazio; 1 indica config inválido, store desabilitado ou arquivo ilegível; 2 é opção inválida.
+
 ### Diagnostica o ambiente
 
 ```bash
@@ -440,7 +473,7 @@ pytest tests/ -v
 pytest tests/ --cov=. --cov-report=term-missing
 ```
 
-**149 testes, zero falhas.**
+**193 testes, zero falhas.**
 
 | Camada | Cobertura |
 |---|---|
@@ -449,6 +482,7 @@ pytest tests/ --cov=. --cov-report=term-missing
 | `application/pipeline` | 100% |
 | `adapters/actions/log` | 100% |
 | `adapters/inference/dummy` | 100% |
+| `cli/events` | 99% |
 | `adapters/store/sqlite` | 92% |
 | `config/loader` | 92% |
 
@@ -467,13 +501,13 @@ edgesentinel/
 │   ├── exporter/               # Prometheus legacy + OpenTelemetry
 │   └── store/                  # Event Store em SQLite
 ├── application/                # RuleEngine, Pipeline, MonitorLoop
-├── cli/                        # run / simulate / doctor
+├── cli/                        # run / simulate / doctor / events
 ├── ai-inference-service/       # FastAPI com YOLO/ONNX containerizado
 ├── scripts/                    # train_model.py
 ├── infra/docker/               # docker-compose, MediaMTX, OTel, Prometheus, Grafana
 ├── dashboards/                 # edgesentinel.json para Grafana
 ├── data/                       # events.db — gerado em execução, fora do git
-└── tests/                      # unitários + integração (149 testes)
+└── tests/                      # unitários + integração (193 testes)
 ```
 
 ---
