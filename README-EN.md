@@ -77,6 +77,12 @@ Evaluates rules on every sensor reading with configurable operators:
 
 Every rule has a **severity** — `info`, `warning` (default) or `critical`. It sets the log level and reaches every action of the rule, so the same sensor can have a warning at 75 °C and a critical alert at 85 °C. An invalid severity in the YAML fails when the config is loaded, not on the first firing.
 
+### Event history
+
+Every rule that fires becomes a row in a local SQLite file (`data/events.db`): rule, sensor, value, severity, reading time and anomaly score. No server and no new dependency — standard library only.
+
+Recording never delays monitoring. Reading a sensor only enqueues the event, and a dedicated thread writes in batches; if the disk stalls and the queue fills up, the event is dropped with a warning, because losing one history row is better than delaying the next alert. On shutdown, Ctrl+C included, whatever is queued is written before exiting. Events older than the configured retention are removed at startup.
+
 ### OpenTelemetry observability
 
 Both edgesentinel and the AI Service export metrics via OTel to the same Collector. Prometheus scrapes and Grafana plots everything in real time — two services, one dashboard.
@@ -114,6 +120,7 @@ edgesentinel uses **Hexagonal Architecture (Ports & Adapters)**. The core domain
 │  inference/   → dummy, onnx, tflite, remote      │
 │  actions/     → log, webhook, gpio               │
 │  exporter/    → legacy Prometheus + OTel         │
+│  store/       → event history (SQLite)           │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -212,6 +219,12 @@ edgesentinel:
   #   backend: otlp
   #   endpoint: "http://localhost:4317"
   #   service_name: "edgesentinel"
+
+  # local history — enabled by default, even without this block
+  event_store:
+    enabled: true
+    path: data/events.db
+    retention_days: 30          # must be > 0
 
   # severity: info | warning | critical  (default: warning)
   rules:
@@ -344,6 +357,8 @@ Leave edgesentinel running and click **Refresh** on the dashboard. Panels should
 
 In the `stress` scenario the temperature crosses 85 °C around the 50-second mark and the `critical` rule from the example config fires. `high_temperature` does not repeat there because it is still inside its 60 s cooldown.
 
+Simulation records history just like `run` mode; the database path is printed at the start of the output, on the `Eventos :` line.
+
 ---
 
 ## AI Inference Service
@@ -425,7 +440,7 @@ pytest tests/ -v
 pytest tests/ --cov=. --cov-report=term-missing
 ```
 
-**108 tests, zero failures.**
+**149 tests, zero failures.**
 
 | Layer | Coverage |
 |---|---|
@@ -434,6 +449,7 @@ pytest tests/ --cov=. --cov-report=term-missing
 | `application/pipeline` | 100% |
 | `adapters/actions/log` | 100% |
 | `adapters/inference/dummy` | 100% |
+| `adapters/store/sqlite` | 92% |
 | `config/loader` | 92% |
 
 ---
@@ -448,14 +464,16 @@ edgesentinel/
 │   ├── sensors/                # cpu_temp, cpu_usage, memory, camera, simulated
 │   ├── inference/              # dummy, onnx, tflite, remote (AI Service)
 │   ├── actions/                # log, webhook, gpio
-│   └── exporter/               # legacy Prometheus + OpenTelemetry
+│   ├── exporter/               # legacy Prometheus + OpenTelemetry
+│   └── store/                  # SQLite Event Store
 ├── application/                # RuleEngine, Pipeline, MonitorLoop
 ├── cli/                        # run / simulate / doctor
 ├── ai-inference-service/       # FastAPI with containerized YOLO/ONNX
 ├── scripts/                    # train_model.py
 ├── infra/docker/               # docker-compose, MediaMTX, OTel, Prometheus, Grafana
 ├── dashboards/                 # edgesentinel.json for Grafana
-└── tests/                      # unit + integration (108 tests)
+├── data/                       # events.db — created at runtime, not tracked
+└── tests/                      # unit + integration (149 tests)
 ```
 
 ---
@@ -473,6 +491,8 @@ edgesentinel/
 **`time.monotonic()` for cooldowns** — wall clock can go backwards under NTP. Monotonic only moves forward.
 
 **Separate AI Service** — fault isolation. If YOLO crashes, sensor monitoring keeps running.
+
+**History behind a queue and a writer thread** — pipelines run on a bounded thread pool, and on an SD card a single `fsync` can stall for hundreds of milliseconds. Writing directly would hold the thread that reads sensors; enqueueing does not. For the same reason, a history failure is logged and swallowed: the alert always goes out.
 
 **MediaMTX** — cheap IP cameras accept 1-2 connections. The hub distributes to N consumers without limiting the camera.
 
