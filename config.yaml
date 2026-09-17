@@ -20,6 +20,13 @@ edgesentinel:
     port: 8000
     use_otel: false
 
+  # histórico local de regras disparadas — uma linha por disparo, em SQLite
+  # eventos mais velhos que retention_days são removidos ao iniciar
+  event_store:
+    enabled: true
+    path: data/events.db
+    retention_days: 30
+
   cameras:
     - sensor_id: camera_01
       source: "rtsp://admin:senha@192.168.1.100:554/stream"
