@@ -2,7 +2,7 @@
   "$comment": "Backlog executável do edgesentinel. Fonte única de verdade para as próximas features. O roadmap público do README deve ser derivado deste arquivo, não mantido em paralelo.",
   "project": "edgesentinel",
   "generated_at": "2026-09-16",
-  "current_version": "0.1.0",
+  "current_version": "0.3.0",
 
   "context": {
     "goal": "portfolio",
@@ -10,7 +10,7 @@
     "hardware_available": "none",
     "dev_platform": "windows",
     "hardware_note": "Sem SBC disponível. Qualquer feature que exija I2C/SPI/GPIO físico fica em 'backlog-hardware' com status 'blocked'. Sensores baseados em /proc e /sys continuam testáveis via patch de pathlib.Path.read_text — padrão já estabelecido em tests/adapters/test_sensors.py.",
-    "versioning_note": "pyproject.toml declara 0.1.0 e o repositório não tem nenhuma tag git. Os marcos abaixo foram renumerados a partir de 0.2 para refletir o estado real, em vez de partir de um 0.4 que nunca existiu. cli/main.py:6 duplica a versão do pyproject.toml — unificar antes da primeira tag.",
+    "versioning_note": "A versão tem fonte única em cli/__init__.py (__version__), lida pelo pyproject.toml via [tool.setuptools.dynamic]; tests/cli/test_version.py impede que ela diverja do pyproject, do --version, dos READMEs e do CHANGELOG. A numeração de release segue o marco que fecha: 0.3.0 (tag v0.3.0) saiu quando a v0.3 ficou completa. Os ids de marco são temas, não uma sequência de entrega — features de marcos anteriores ainda abertos, como a v0.2, entram na release seguinte a ficarem prontas. O AI Inference Service versiona à parte.",
 
     "language_boundary": {
       "rule": "Python onde há lock-in de ecossistema — ML e drivers de hardware. Go onde há restrição de deploy — serviço de rede longo, ou binário que precisa rodar sem runtime.",
