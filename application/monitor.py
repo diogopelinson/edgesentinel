@@ -3,7 +3,7 @@ import logging
 import signal
 
 from application.pipeline import Pipeline
-from core.ports import ExporterPort
+from core.ports import ExporterPort, EventPort
 
 logger = logging.getLogger("edgesentinel.monitor")
 
@@ -24,10 +24,12 @@ class MonitorLoop:
         pipelines: list[Pipeline],
         poll_interval_seconds: float = 5.0,
         exporter: ExporterPort | None = None,
+        event_store: EventPort | None = None,
     ) -> None:
         self._pipelines = pipelines
         self._interval = poll_interval_seconds
         self._exporter = exporter
+        self._event_store = event_store
         self._running = False
 
     def start(self) -> None:
@@ -41,6 +43,9 @@ class MonitorLoop:
         if self._exporter is not None:
             self._exporter.start()
 
+        if self._event_store is not None:
+            self._event_store.start()
+
         logger.info(
             f"edgesentinel iniciado — {len(self._pipelines)} sensor(es), "
             f"intervalo={self._interval}s"
@@ -53,6 +58,10 @@ class MonitorLoop:
         except asyncio.CancelledError:
             pass
         finally:
+            # fechar grava o que ainda está na fila — sem isso, os últimos
+            # eventos antes de um Ctrl+C se perdem
+            if self._event_store is not None:
+                self._event_store.close()
             logger.info("edgesentinel encerrado.")
 
     async def _tick(self) -> None:
