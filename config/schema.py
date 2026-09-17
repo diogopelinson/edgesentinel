@@ -68,6 +68,13 @@ class YOLOConfig:
 
 
 @dataclass
+class EventStoreConfig:
+    enabled: bool = True
+    path: str = "data/events.db"
+    retention_days: float = 30.0
+
+
+@dataclass
 class EdgeSentinelConfig:
     sensors: list[SensorConfig]
     rules: list[RuleConfig]
@@ -77,3 +84,4 @@ class EdgeSentinelConfig:
     poll_interval_seconds: float = 5.0
     cameras: list[CameraConfig] = field(default_factory=list)
     yolo: YOLOConfig = field(default_factory=YOLOConfig)
+    event_store: EventStoreConfig = field(default_factory=EventStoreConfig)

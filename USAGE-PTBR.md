@@ -44,6 +44,10 @@ edgesentinel simulate --scenario stress --interval 1
 edgesentinel simulate --scenario spike
 ```
 
+### Histórico de eventos
+
+Tanto `run` quanto `simulate` gravam cada regra disparada em `data/events.db` (SQLite), com retenção de 30 dias. O caminho e a retenção mudam no bloco `event_store` do `config.yaml`, e `enabled: false` desliga o histórico. Para consultar pelo Python, veja [Consultando o histórico](#consultando-o-histórico).
+
 ---
 
 ## 2. Uso como biblioteca Python
@@ -68,6 +72,7 @@ from adapters.inference.remote import RemoteInferenceAdapter
 from adapters.actions.log import LogAction
 from adapters.actions.webhook import WebhookAction
 from adapters.exporter.prometheus import PrometheusExporter
+from adapters.store.sqlite import SQLiteEventStore
 from application.engine import RuleEngine
 from application.pipeline import Pipeline
 from application.monitor import MonitorLoop
@@ -109,15 +114,48 @@ rules = [
 ]
 
 exporter  = PrometheusExporter(port=8000)
-engine    = RuleEngine(rules=rules, actions=actions)
+events    = SQLiteEventStore(path="data/events.db", retention_days=30)
+engine    = RuleEngine(rules=rules, actions=actions, events=events)
 pipelines = [
     Pipeline(sensor=s, engine=engine, inference=inference, exporter=exporter)
     for s in sensors
 ]
 
-monitor = MonitorLoop(pipelines=pipelines, poll_interval_seconds=5.0, exporter=exporter)
+monitor = MonitorLoop(
+    pipelines=pipelines,
+    poll_interval_seconds=5.0,
+    exporter=exporter,
+    event_store=events,   # o loop abre o store ao iniciar e grava a fila ao encerrar
+)
 monitor.start()
 ```
+
+`events` é opcional nos dois lugares: sem ele, nada é gravado e o resto funciona igual. O mesmo objeto precisa ir para o `RuleEngine`, que escreve, e para o `MonitorLoop`, que controla o ciclo de vida.
+
+### Consultando o histórico
+
+```python
+import time
+from adapters.store.sqlite import SQLiteEventStore
+
+store = SQLiteEventStore(path="data/events.db")
+store.start()
+try:
+    criticos_24h = store.query(
+        severity="critical",
+        since=time.time() - 24 * 3600,
+        limit=20,
+    )
+    for e in criticos_24h:
+        print(e.event_id, e.rule_name, e.sensor_id, e.value, e.unit, e.anomaly_score)
+finally:
+    store.close()
+```
+
+- Filtros combináveis: `severity`, `sensor_id`, `rule_name`, `since` e `until` (ambos inclusivos, em timestamp Unix) e `limit` (padrão 100).
+- O resultado vem do mais recente para o mais antigo.
+- `start()` aplica a retenção: eventos mais velhos que `retention_days` são removidos ao abrir.
+- `start()` cria o arquivo e as pastas se não existirem.
 
 ---
 
@@ -508,6 +546,18 @@ class ActionPort(ABC):
     def execute(self, context: ActionContext) -> None: ...
 ```
 
+### `EventPort`
+
+```python
+class EventPort(ABC):
+    def start(self) -> None: ...                 # construir não toca o disco
+    def append(self, event: Event) -> None: ...  # nunca bloqueia quem chama
+    def query(self, *, severity=None, sensor_id=None, rule_name=None,
+              since=None, until=None, limit=100) -> list[Event]: ...
+    def prune(self, before: float) -> int: ...   # devolve quantos removeu
+    def close(self) -> None: ...                 # grava o que estiver pendente
+```
+
 ### `SensorReading`
 
 ```python
@@ -542,6 +592,21 @@ class ActionContext:
     reading: SensorReading
     score: AnomalyScore | None
     extras: dict            # extras["severity"] traz a Severity da regra
+```
+
+### `Event`
+
+```python
+@dataclass(frozen=True)
+class Event:
+    rule_name: str
+    sensor_id: str
+    value: float
+    unit: str
+    severity: str                   # texto puro: "info", "warning", "critical"
+    timestamp: float                # horário da leitura, não da avaliação
+    anomaly_score: float | None     # None em regras sem inferência
+    event_id: int | None            # atribuído pelo store ao gravar
 ```
 
 ### `Rule`

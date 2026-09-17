@@ -24,6 +24,24 @@ class AnomalyScore:
     reading: SensorReading
 
 
+@dataclass(frozen=True)
+class Event:
+    """
+    Registro persistido de uma regra que disparou.
+
+    severity é str, não Severity: core/rules.py importa este módulo, e o
+    valor já chega aqui como o texto puro que vai para o armazenamento.
+    """
+    rule_name: str
+    sensor_id: str
+    value: float
+    unit: str
+    severity: str
+    timestamp: float = field(default_factory=time.time)
+    anomaly_score: float | None = None
+    event_id: int | None = None       # atribuído pelo store ao persistir
+
+
 @dataclass
 class ActionContext:
     """Contexto passado para um ActionPort quando uma regra dispara."""

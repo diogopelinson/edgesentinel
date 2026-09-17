@@ -42,6 +42,10 @@ edgesentinel simulate --scenario stress --interval 1
 edgesentinel simulate --scenario spike
 ```
 
+### Event history
+
+Both `run` and `simulate` record every fired rule in `data/events.db` (SQLite), with a 30-day retention. The path and retention are set in the `event_store` block of `config.yaml`, and `enabled: false` turns history off. To query it from Python, see [Querying the history](#querying-the-history).
+
 ---
 
 ## 2. Library usage
@@ -66,6 +70,7 @@ from adapters.inference.remote import RemoteInferenceAdapter
 from adapters.actions.log import LogAction
 from adapters.actions.webhook import WebhookAction
 from adapters.exporter.prometheus import PrometheusExporter
+from adapters.store.sqlite import SQLiteEventStore
 from application.engine import RuleEngine
 from application.pipeline import Pipeline
 from application.monitor import MonitorLoop
@@ -107,15 +112,48 @@ rules = [
 ]
 
 exporter  = PrometheusExporter(port=8000)
-engine    = RuleEngine(rules=rules, actions=actions)
+events    = SQLiteEventStore(path="data/events.db", retention_days=30)
+engine    = RuleEngine(rules=rules, actions=actions, events=events)
 pipelines = [
     Pipeline(sensor=s, engine=engine, inference=inference, exporter=exporter)
     for s in sensors
 ]
 
-monitor = MonitorLoop(pipelines=pipelines, poll_interval_seconds=5.0, exporter=exporter)
+monitor = MonitorLoop(
+    pipelines=pipelines,
+    poll_interval_seconds=5.0,
+    exporter=exporter,
+    event_store=events,   # the loop opens the store on start and flushes the queue on shutdown
+)
 monitor.start()
 ```
+
+`events` is optional in both places: without it nothing is recorded and everything else works the same. The same object must go to `RuleEngine`, which writes, and to `MonitorLoop`, which owns the lifecycle.
+
+### Querying the history
+
+```python
+import time
+from adapters.store.sqlite import SQLiteEventStore
+
+store = SQLiteEventStore(path="data/events.db")
+store.start()
+try:
+    critical_24h = store.query(
+        severity="critical",
+        since=time.time() - 24 * 3600,
+        limit=20,
+    )
+    for e in critical_24h:
+        print(e.event_id, e.rule_name, e.sensor_id, e.value, e.unit, e.anomaly_score)
+finally:
+    store.close()
+```
+
+- Combinable filters: `severity`, `sensor_id`, `rule_name`, `since` and `until` (both inclusive, Unix timestamps) and `limit` (default 100).
+- Results come newest first.
+- `start()` applies retention: events older than `retention_days` are removed on open.
+- `start()` creates the file and its folders if they do not exist.
 
 ---
 
@@ -506,6 +544,18 @@ class ActionPort(ABC):
     def execute(self, context: ActionContext) -> None: ...
 ```
 
+### `EventPort`
+
+```python
+class EventPort(ABC):
+    def start(self) -> None: ...                 # constructing never touches the disk
+    def append(self, event: Event) -> None: ...  # never blocks the caller
+    def query(self, *, severity=None, sensor_id=None, rule_name=None,
+              since=None, until=None, limit=100) -> list[Event]: ...
+    def prune(self, before: float) -> int: ...   # returns how many were removed
+    def close(self) -> None: ...                 # writes whatever is pending
+```
+
 ### `SensorReading`
 
 ```python
@@ -540,6 +590,21 @@ class ActionContext:
     reading: SensorReading
     score: AnomalyScore | None
     extras: dict            # extras["severity"] carries the rule's Severity
+```
+
+### `Event`
+
+```python
+@dataclass(frozen=True)
+class Event:
+    rule_name: str
+    sensor_id: str
+    value: float
+    unit: str
+    severity: str                   # plain text: "info", "warning", "critical"
+    timestamp: float                # time of the reading, not of evaluation
+    anomaly_score: float | None     # None for rules without inference
+    event_id: int | None            # assigned by the store on write
 ```
 
 ### `Rule`

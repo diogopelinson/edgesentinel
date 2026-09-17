@@ -143,3 +143,54 @@ def test_raises_on_unknown_severity(tmp_path):
     message = str(exc.value)
     assert "catastrophic" in message
     assert "alta_temp" in message
+
+
+def _config_with_event_store(tmp_path, section: str) -> Path:
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(f"""
+edgesentinel:
+  sensors:
+    - id: cpu_temp
+      type: cpu_temperature
+  rules: []
+  actions: []
+{section}
+""", encoding="utf-8")
+    return config_file
+
+
+def test_event_store_is_enabled_by_default(tmp_path):
+    """Histórico sem configuração nenhuma — o banco nasce na primeira execução."""
+    config = load(_config_with_event_store(tmp_path, ""))
+
+    assert config.event_store.enabled is True
+    assert config.event_store.path == "data/events.db"
+    assert config.event_store.retention_days == 30.0
+
+
+def test_parses_the_event_store_section(tmp_path):
+    config = load(_config_with_event_store(tmp_path, """
+  event_store:
+    enabled: false
+    path: /var/lib/edgesentinel/events.db
+    retention_days: 7
+"""))
+
+    assert config.event_store.enabled is False
+    assert config.event_store.path == "/var/lib/edgesentinel/events.db"
+    assert config.event_store.retention_days == 7.0
+
+
+@pytest.mark.parametrize("retention", ["0", "-5"])
+def test_rejects_non_positive_retention(tmp_path, retention):
+    """
+    Retenção zero apagaria o histórico inteiro a cada inicialização — é
+    quase certamente um erro de digitação, não uma intenção.
+    """
+    config_file = _config_with_event_store(tmp_path, f"""
+  event_store:
+    retention_days: {retention}
+""")
+
+    with pytest.raises(ValueError, match="retention_days"):
+        load(config_file)

@@ -68,7 +68,13 @@ def run_simulate(scenario: str, config_path: str, interval: float) -> None:
     exporter  = PrometheusExporter(port=config.exporter.port)
     exporter.start()
 
-    engine = RuleEngine(rules=rules, actions=actions)
+    from cli.builder import build_event_store
+    events = build_event_store(config)
+    if events is not None:
+        events.start()
+        print(f"Eventos : {config.event_store.path}\n")
+
+    engine = RuleEngine(rules=rules, actions=actions, events=events)
     pipelines = [
         Pipeline(sensor=sensor, engine=engine, inference=inference, exporter=exporter)
         for sensor in s["sensors"]
@@ -92,3 +98,7 @@ def run_simulate(scenario: str, config_path: str, interval: float) -> None:
 
     except KeyboardInterrupt:
         print("\n\nSimulação encerrada.")
+    finally:
+        # grava o que ainda estiver na fila antes de sair
+        if events is not None:
+            events.close()

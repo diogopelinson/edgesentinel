@@ -12,6 +12,7 @@ from config.schema import (
     ActionConfig,
     CameraConfig,
     YOLOConfig,
+    EventStoreConfig,
 )
 
 
@@ -45,6 +46,7 @@ def _parse(raw: dict) -> EdgeSentinelConfig:
         actions=_parse_actions(raw.get("actions", [])),
         cameras=_parse_cameras(raw.get("cameras", [])),
         yolo=_parse_yolo(raw.get("yolo", {})),
+        event_store=_parse_event_store(raw.get("event_store", {})),
     )
 
 
@@ -141,6 +143,25 @@ def _parse_cameras(raw: list[dict]) -> list[CameraConfig]:
             simulated_mode=item.get("simulated_mode", "noise"),
         ))
     return result
+
+
+def _parse_event_store(raw: dict) -> EventStoreConfig:
+    defaults  = EventStoreConfig()
+    retention = float(raw.get("retention_days", defaults.retention_days))
+
+    # o start() do store poda tudo fora da janela — retenção zero apagaria
+    # o histórico inteiro a cada inicialização
+    if retention <= 0:
+        raise ValueError(
+            f"event_store.retention_days precisa ser maior que zero, "
+            f"recebido: {retention:g}"
+        )
+
+    return EventStoreConfig(
+        enabled=bool(raw.get("enabled", defaults.enabled)),
+        path=str(raw.get("path", defaults.path)),
+        retention_days=retention,
+    )
 
 
 def _parse_yolo(raw: dict) -> YOLOConfig:

@@ -2,8 +2,8 @@ import time
 import logging
 
 from core.rules import Rule
-from core.entities import SensorReading, AnomalyScore, ActionContext
-from core.ports import ActionPort
+from core.entities import SensorReading, AnomalyScore, ActionContext, Event
+from core.ports import ActionPort, EventPort
 
 logger = logging.getLogger("edgesentinel.engine")
 
@@ -12,15 +12,18 @@ class RuleEngine:
     """
     Avalia regras contra uma leitura e executa as ações correspondentes.
     Respeita o cooldown de cada regra para evitar spam de alertas.
+    Com um EventPort, cada disparo também vira um registro no histórico.
     """
 
     def __init__(
         self,
         rules: list[Rule],
         actions: dict[str, ActionPort],
+        events: EventPort | None = None,
     ) -> None:
         self._rules = rules
         self._actions = actions
+        self._events = events
 
     def evaluate(
         self,
@@ -76,9 +79,39 @@ class RuleEngine:
             f"para sensor '{reading.sensor_id}'."
         )
 
+        self._record(rule, reading, score)
+
         for action_id in rule.action_ids:
             action = self._actions.get(action_id)
             if action is None:
                 logger.warning(f"Action '{action_id}' não encontrada, ignorando.")
                 continue
             action.execute(context)
+
+    def _record(
+        self,
+        rule: Rule,
+        reading: SensorReading,
+        score: AnomalyScore | None,
+    ) -> None:
+        """
+        Registra o disparo no histórico. Uma falha aqui é logada e engolida:
+        o alerta é o que importa, e as ações ainda precisam rodar.
+        """
+        if self._events is None:
+            return
+
+        try:
+            self._events.append(Event(
+                rule_name=rule.name,
+                sensor_id=reading.sensor_id,
+                value=reading.value,
+                unit=reading.unit,
+                # .value, nunca str(): no 3.10 str(Severity.X) é 'Severity.X'
+                severity=rule.severity.value,
+                # o evento aconteceu na leitura, não no fim da avaliação
+                timestamp=reading.timestamp,
+                anomaly_score=score.score if score is not None else None,
+            ))
+        except Exception as e:
+            logger.error(f"Falha ao registrar evento da regra '{rule.name}': {e}")

@@ -8,6 +8,7 @@ from adapters.actions.registry import build_actions
 from application.engine import RuleEngine
 from application.pipeline import Pipeline
 from application.monitor import MonitorLoop
+from core.ports import EventPort
 
 logger = logging.getLogger("edgesentinel.builder")
 
@@ -20,8 +21,9 @@ def build_monitor(config: EdgeSentinelConfig) -> MonitorLoop:
     actions   = build_actions(config.actions)
     rules     = to_rules(config)
     exporter  = _build_exporter(config)
+    events    = build_event_store(config)
 
-    engine = RuleEngine(rules=rules, actions=actions)
+    engine = RuleEngine(rules=rules, actions=actions, events=events)
 
     sensor_pipelines = [
         Pipeline(sensor=s, engine=engine, inference=inference, exporter=exporter)
@@ -45,6 +47,23 @@ def build_monitor(config: EdgeSentinelConfig) -> MonitorLoop:
         pipelines=all_pipelines,
         poll_interval_seconds=config.poll_interval_seconds,
         exporter=exporter,
+        event_store=events,
+    )
+
+
+def build_event_store(config: EdgeSentinelConfig) -> EventPort | None:
+    """
+    Só constrói — não abre nada. Quem decide quando o banco é criado é o
+    MonitorLoop (ou o simulate), junto com o resto do ciclo de vida.
+    """
+    if not config.event_store.enabled:
+        logger.info("Event Store desabilitado no config.")
+        return None
+
+    from adapters.store.sqlite import SQLiteEventStore
+    return SQLiteEventStore(
+        path=config.event_store.path,
+        retention_days=config.event_store.retention_days,
     )
 
 
