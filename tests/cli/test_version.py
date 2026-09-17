@@ -51,9 +51,20 @@ def test_pyproject_resolves_to_the_package_version():
     read_configuration = pytest.importorskip("setuptools.config.pyprojecttoml").read_configuration
     from cli import __version__
 
-    config = read_configuration(ROOT / "pyproject.toml", expand=True, root_dir=ROOT)
+    # a raiz para resolver attr= vem do diretório do próprio pyproject.toml
+    config = read_configuration(ROOT / "pyproject.toml", expand=True)
 
     assert config["project"]["version"] == __version__
+
+
+@pytest.mark.parametrize("readme", ["README.md", "README-BR.md"])
+def test_readmes_state_the_current_version(readme):
+    """A versão escrita no README não pode ficar para trás na próxima release."""
+    from cli import __version__
+
+    text = (ROOT / readme).read_text(encoding="utf-8")
+
+    assert f"**{__version__}**" in text
 
 
 def test_changelog_has_an_entry_for_the_current_version():
