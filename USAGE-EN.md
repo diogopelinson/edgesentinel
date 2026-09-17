@@ -365,6 +365,8 @@ curl http://localhost:8080/models
 # [..., {"id":"fire_detector","type":"yolo","status":"loaded"}]
 ```
 
+The `weights/` paths resolve to the repository's `models/` directory, which Docker Compose mounts at `/app/weights`. So `weights/fire.pt` means the file `models/fire.pt` on the host. Weight files are never committed: `.gitignore` excludes `models/*.pt`, `models/*.onnx` and `ai-inference-service/weights/`, and [`models/README.md`](models/README.md) says how to obtain the ones the project uses.
+
 ---
 
 ## 5. Configuring Prometheus and Grafana

@@ -216,8 +216,10 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-.coveragemodels/*.pt
+# model weights: generated or downloaded locally, never versioned (see models/README.md)
+models/*.pt
 models/*.onnx
+ai-inference-service/weights/
 
 # edgesentinel runtime state (Event Store)
 data/

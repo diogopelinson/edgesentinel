@@ -367,6 +367,8 @@ curl http://localhost:8080/models
 # [..., {"id":"fire_detector","type":"yolo","status":"loaded"}]
 ```
 
+Os caminhos `weights/` apontam para a pasta `models/` do repositório, que o Docker Compose monta em `/app/weights`. Ou seja, `weights/fire.pt` é o arquivo `models/fire.pt` na máquina. Arquivos de peso nunca são commitados: o `.gitignore` exclui `models/*.pt`, `models/*.onnx` e `ai-inference-service/weights/`, e o [`models/README.md`](models/README.md) explica como obter os que o projeto usa.
+
 ---
 
 ## 5. Configurando Prometheus e Grafana

@@ -8,6 +8,18 @@ Release numbers track the roadmap milestone being closed: `0.3.0` ships when
 milestone v0.3 is complete. Features from other milestones land in whichever
 release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap.json).
 
+## [Unreleased]
+
+### Changed
+
+- Model weights are no longer versioned. `models/anomaly.onnx`,
+  `models/scaler.onnx`, `models/yolov8n.pt` and
+  `ai-inference-service/weights/yolov8n.pt` were removed from the index, and
+  `.gitignore` now excludes `models/*.pt`, `models/*.onnx` and
+  `ai-inference-service/weights/`. `models/README.md` explains how to obtain
+  each file. Existing local copies are untouched; earlier commits still
+  contain them.
+
 ## [0.3.0] - 2026-09-17
 
 Closes milestone **v0.3 — events and severity**. Milestone v0.2 (sensor
