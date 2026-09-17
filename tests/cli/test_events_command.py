@@ -119,6 +119,19 @@ class TestTableOutput:
 
         assert "0.93" in capsys.readouterr().out
 
+    def test_aligns_numbers_when_units_differ(self, workspace, capsys):
+        """'%' e '°C' têm larguras diferentes — os números precisam alinhar mesmo assim."""
+        cfg, db = workspace
+        now = time.time()
+        seed(db,
+             make_event(sensor_id="cpu_usage", value=91.54, unit="%",  timestamp=now - 10),
+             make_event(sensor_id="cpu_temp",  value=85.66, unit="°C", timestamp=now - 20))
+
+        run_events(cfg)
+
+        first, second = stdout_lines(capsys)[1:3]
+        assert first.index("91.54") == second.index("85.66")
+
     def test_footer_counts_the_events(self, workspace, capsys):
         cfg, db = workspace
         seed(db, make_event(), make_event())
