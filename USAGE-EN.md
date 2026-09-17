@@ -167,6 +167,26 @@ monitor.start()
 
 `events` is optional in both places: without it nothing is recorded and everything else works the same. The same object must go to `RuleEngine`, which writes, and to `MonitorLoop`, which owns the lifecycle.
 
+`default_actions` is a `config.yaml` feature, resolved by `config.mapper.to_rules` before rules reach the engine. Rules assembled by hand, as above, carry `action_ids` already resolved — `RuleEngine` only ever sees the final list. To use severity routing without YAML, build an `EdgeSentinelConfig` and pass it through `to_rules`:
+
+```python
+from config.mapper import to_rules
+from config.schema import ConditionConfig, EdgeSentinelConfig, RuleConfig
+
+config = EdgeSentinelConfig(
+    sensors=[], actions=[],
+    default_actions={"warning": ["log"], "critical": ["log", "webhook"]},
+    rules=[
+        RuleConfig(
+            name="critical_temperature",
+            condition=ConditionConfig(sensor_id="cpu_temp", operator=">", threshold=85.0),
+            severity="critical",
+        ),
+    ],
+)
+rules = to_rules(config)   # rules[0].action_ids == ["log", "webhook"]
+```
+
 ### Querying the history
 
 ```python
@@ -674,6 +694,17 @@ class Severity(str, Enum):
 | `info` | INFO | expected event worth recording |
 | `warning` | WARNING | out of the ordinary, needs attention — **default** |
 | `critical` | CRITICAL | requires immediate action |
+
+### Action resolution (`default_actions`)
+
+| The rule declares | `default_actions` has the rule's severity | Actions dispatched |
+|---|---|---|
+| `actions: [log]` | either way | `[log]` — the rule's list, not added to the default |
+| `actions: []` | either way | none — the event still goes to the history |
+| nothing | yes | the `default_actions` list for that severity |
+| nothing | no | none |
+
+Rules with no actions at all are logged at `DEBUG` on the `edgesentinel.config` logger. In `config.yaml`, an unknown severity in `default_actions`, the same severity written twice (`warning` and `Warning`), a list that is not made of ids, and a rule's `actions` written as a mapping all fail at load time.
 
 ### Available operators
 
