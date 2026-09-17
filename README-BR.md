@@ -444,6 +444,8 @@ models:
 docker compose restart ai-inference-service
 ```
 
+`weights/` dentro do container é a pasta `models/` do repositório, montada pelo Docker Compose. Arquivo de peso novo vai em `models/`.
+
 ---
 
 ## Modelo de anomalia ONNX
@@ -453,6 +455,8 @@ pip install scikit-learn skl2onnx
 python scripts/train_model.py
 # gera: models/anomaly.onnx + models/scaler.onnx
 ```
+
+Os arquivos de modelo não são versionados — um clone novo não tem nenhum. O [`models/README.md`](models/README.md) lista cada arquivo, como obtê-lo e quem o usa (em inglês).
 
 ---
 
