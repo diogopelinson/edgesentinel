@@ -95,6 +95,16 @@ Both edgesentinel and the AI Service export metrics via OTel to the same Collect
 - **`webhook`** — HTTP POST with full JSON payload
 - **`gpio_write`** — triggers GPIO pin (LED, relay, buzzer)
 
+Which actions a rule triggers can be set on the rule itself or once per severity:
+
+```yaml
+default_actions:            # for rules that do not declare `actions`
+  warning:  [log, webhook]
+  critical: [log, webhook, buzzer]
+```
+
+A rule's own `actions` list replaces the default rather than adding to it, and `actions: []` dispatches nothing while the event is still recorded in the history. Unknown severities and malformed lists fail when the config is loaded.
+
 ---
 
 ## Architecture
@@ -228,32 +238,35 @@ edgesentinel:
     path: data/events.db
     retention_days: 30          # must be > 0
 
+  # actions per severity, for rules that do not declare `actions`
+  default_actions:
+    warning:  [log, webhook]
+    critical: [log, webhook, buzzer]
+
   # severity: info | warning | critical  (default: warning)
   rules:
-    - name: high_temperature
+    - name: high_temperature          # → log, webhook
       condition:
         sensor_id: cpu_temp
         operator: ">"
         threshold: 75.0
       severity: warning
-      actions: [log, webhook]
       cooldown_seconds: 60
 
-    - name: critical_temperature
+    - name: critical_temperature      # → log, webhook, buzzer
       condition:
         sensor_id: cpu_temp
         operator: ">"
         threshold: 85.0
       severity: critical
-      actions: [log, webhook]
       cooldown_seconds: 30
 
-    - name: person_detected
+    - name: person_detected           # → log only: its own list wins
       condition:
         sensor_id: camera_01
         operator: anomaly
       severity: info
-      actions: [log, webhook]
+      actions: [log]
       cooldown_seconds: 30
 
   actions:
@@ -262,6 +275,8 @@ edgesentinel:
     - id: webhook
       type: webhook
       url: "https://hooks.example.com/alert"
+    - id: buzzer
+      type: gpio_write              # GPIO pin 17
 ```
 
 ---
@@ -473,7 +488,7 @@ pytest tests/ -v
 pytest tests/ --cov=. --cov-report=term-missing
 ```
 
-**193 tests, zero failures.**
+**217 tests, zero failures.**
 
 | Layer | Coverage |
 |---|---|
@@ -482,9 +497,10 @@ pytest tests/ --cov=. --cov-report=term-missing
 | `application/pipeline` | 100% |
 | `adapters/actions/log` | 100% |
 | `adapters/inference/dummy` | 100% |
+| `config/mapper` | 100% |
 | `cli/events` | 99% |
+| `config/loader` | 95% |
 | `adapters/store/sqlite` | 92% |
-| `config/loader` | 92% |
 
 ---
 
@@ -507,7 +523,7 @@ edgesentinel/
 ├── infra/docker/               # docker-compose, MediaMTX, OTel, Prometheus, Grafana
 ├── dashboards/                 # edgesentinel.json for Grafana
 ├── data/                       # events.db — created at runtime, not tracked
-└── tests/                      # unit + integration (193 tests)
+└── tests/                      # unit + integration (217 tests)
 ```
 
 ---
