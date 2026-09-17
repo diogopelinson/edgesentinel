@@ -5,22 +5,25 @@ import numpy as np
 from adapters.inference.base import BaseInferenceAdapter
 from core.entities import SensorReading
 
+SCORE_OUTPUT = "anomaly_score"
+
 
 class ONNXInferenceAdapter(BaseInferenceAdapter):
     """
-    Backend ONNX Runtime com pipeline scaler + IsolationForest.
+    Backend ONNX Runtime para modelos de anomalia com este contrato:
 
-    Espera dois arquivos na mesma pasta:
-      - anomaly.onnx  → modelo IsolationForest
-      - scaler.onnx   → MinMaxScaler para normalização
+      entrada          : valor bruto do sensor, float32 [N, 1]
+      saída 'anomaly_score' : float32 [N, 1], em [0, 1]
+
+    Normalização e regra de score moram no artefato, gerado por
+    scripts/train_model.py — o adapter só lê a saída. Assim o agente e o
+    AI Inference Service não têm como calcular o score de jeitos diferentes.
     """
 
     def __init__(self, threshold: float = 0.6) -> None:
         super().__init__(model_id="onnx", threshold=threshold)
-        self._model_session  = None
-        self._scaler_session = None
-        self._score_min: float | None = None
-        self._score_max: float | None = None
+        self._session = None
+        self._input_name: str | None = None
 
     def load(self, model_path: str) -> None:
         try:
@@ -28,62 +31,30 @@ class ONNXInferenceAdapter(BaseInferenceAdapter):
         except ImportError:
             raise ImportError("Execute: pip install onnxruntime")
 
-        model_p  = Path(model_path)
-        scaler_p = model_p.parent / "scaler.onnx"
+        path = Path(model_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Modelo não encontrado: {path}")
 
-        if not model_p.exists():
-            raise FileNotFoundError(f"Modelo não encontrado: {model_p}")
-        if not scaler_p.exists():
-            raise FileNotFoundError(f"Scaler não encontrado: {scaler_p}")
+        session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
 
-        self._model_session  = ort.InferenceSession(str(model_p),  providers=["CPUExecutionProvider"])
-        self._scaler_session = ort.InferenceSession(str(scaler_p), providers=["CPUExecutionProvider"])
+        outputs = [o.name for o in session.get_outputs()]
+        if SCORE_OUTPUT not in outputs:
+            # formato antigo: carregar e seguir reproduziria o score errado
+            raise ValueError(
+                f"{path} não tem a saída '{SCORE_OUTPUT}' "
+                f"(saídas: {', '.join(outputs)}). Modelos gerados por versões "
+                f"anteriores precisam ser treinados de novo: "
+                f"python scripts/train_model.py"
+            )
 
-        # calibra o range de scores com valores de referência
-        self._calibrate()
-
-    def _calibrate(self) -> None:
-        """
-        Roda inferência em valores de referência para descobrir
-        o range de scores — usado para normalizar para [0, 1].
-        """
-        # valores claramente normais e claramente anômalos
-        normal_values  = np.array([[50.0],[55.0],[60.0],[65.0]], dtype=np.float32)
-        anomaly_values = np.array([[85.0],[90.0],[95.0]],        dtype=np.float32)
-
-        normal_scores  = [self._raw_score(v) for v in normal_values]
-        anomaly_scores = [self._raw_score(v) for v in anomaly_values]
-
-        all_scores = normal_scores + anomaly_scores
-        self._score_min = min(all_scores)
-        self._score_max = max(all_scores)
-
-    def _raw_score(self, value: np.ndarray) -> float:
-        """Roda scaler → modelo e retorna o score bruto."""
-        # garante shape (1, 1) — ONNX exige rank 2
-        input_data = np.array(value, dtype=np.float32).reshape(1, 1)
-
-        input_name = self._scaler_session.get_inputs()[0].name
-        scaled = self._scaler_session.run(None, {input_name: input_data})[0]
-
-        model_input = self._model_session.get_inputs()[0].name
-        output = self._model_session.run(None, {model_input: scaled})
-
-        # IsolationForest ONNX retorna [labels, scores]
-        raw = float(np.array(output[1]).flatten()[0])
-        return raw
+        self._session    = session
+        self._input_name = session.get_inputs()[0].name
 
     def _compute_score(self, reading: SensorReading) -> float:
-        if self._model_session is None:
+        if self._session is None:
             raise RuntimeError("Modelo não carregado. Chame load() antes de predict().")
 
-        value = np.array([[reading.value]], dtype=np.float32)  # shape (1, 1) explícito
-        raw   = self._raw_score(value)
+        value = np.array([[reading.value]], dtype=np.float32)
+        (scores,) = self._session.run([SCORE_OUTPUT], {self._input_name: value})
 
-        if self._score_max == self._score_min:
-            return 0.0
-
-        normalized = (raw - self._score_min) / (self._score_max - self._score_min)
-        inverted   = 1.0 - normalized
-
-        return float(max(0.0, min(1.0, inverted)))
+        return float(np.clip(scores.ravel()[0], 0.0, 1.0))

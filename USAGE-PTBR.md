@@ -64,7 +64,7 @@ edgesentinel events --config /etc/edgesentinel/config.yaml -n 100
 Com `--json`, cada linha é um objeto completo:
 
 ```json
-{"event_id": 1159, "time": "2026-09-16T23:18:10-03:00", "timestamp": 1789611490.73, "severity": "warning", "rule_name": "uso_alto_cpu", "sensor_id": "cpu_usage", "value": 91.54, "unit": "%", "anomaly_score": 0.9366}
+{"event_id": 1162, "time": "2026-09-17T00:35:10-03:00", "timestamp": 1789616110.68, "severity": "warning", "rule_name": "uso_alto_cpu", "sensor_id": "cpu_usage", "value": 92.36, "unit": "%", "anomaly_score": 0.9769}
 ```
 
 Isso deixa o histórico fácil de usar em script (Linux / macOS):
@@ -368,6 +368,19 @@ curl http://localhost:8080/models
 ```
 
 Os caminhos `weights/` apontam para a pasta `models/` do repositório, que o Docker Compose monta em `/app/weights`. Ou seja, `weights/fire.pt` é o arquivo `models/fire.pt` na máquina. Arquivos de peso nunca são commitados: o `.gitignore` exclui `models/*.pt`, `models/*.onnx` e `ai-inference-service/weights/`, e o [`models/README.md`](models/README.md) explica como obter os que o projeto usa.
+
+### Modelos de anomalia ONNX
+
+Modelos `type: onnx`, no AI Service e no agente (`inference.backend: onnx`), seguem um contrato só:
+
+| | Nome | Tipo | Significado |
+|---|---|---|---|
+| entrada | qualquer | `float32 [N, 1]` | o valor bruto do sensor, sem normalizar |
+| saída | `anomaly_score` | `float32 [N, 1]` | 0 = normal, 1 = anomalia máxima |
+
+O `scripts/train_model.py` gera um modelo assim, com a normalização e a regra de score dentro do grafo. Qualquer outro arquivo ONNX com essa entrada e essa saída também funciona. Um arquivo sem a saída `anomaly_score` é recusado no carregamento — o AI Service registra o erro e continua servindo os outros modelos. Um `scaler_path` que tenha ficado no `models.yaml` de versões anteriores é ignorado com um aviso.
+
+Para o `anomaly_onnx`, a resposta do `/predict` traz uma detecção `anomaly` cuja `confidence` é o `anomaly_score`, ou nenhuma detecção quando o score fica abaixo do `confidence_threshold`.
 
 ---
 

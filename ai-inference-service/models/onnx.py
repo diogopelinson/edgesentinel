@@ -6,46 +6,56 @@ from core.base import BaseModel, Detection
 
 logger = logging.getLogger("ai_service.models.onnx")
 
+SCORE_OUTPUT = "anomaly_score"
+
 
 class ONNXModel(BaseModel):
     """
-    Wrapper ONNX — suporta qualquer modelo exportado para ONNX.
-    Especificamente calibrado para o IsolationForest do edgesentinel.
+    Modelo de anomalia ONNX com o contrato do edgesentinel:
+
+      entrada               : valor bruto do sensor, float32 [N, 1]
+      saída 'anomaly_score' : float32 [N, 1], em [0, 1]
+
+    A regra de score mora no artefato (scripts/train_model.py no repositório
+    do edgesentinel). O serviço só lê a saída — o mesmo que o agente faz —,
+    então os dois não têm como divergir.
     """
 
     def __init__(self, model_id: str, confidence_threshold: float = 0.6) -> None:
         super().__init__(model_id, confidence_threshold)
-        self._model_session  = None
-        self._scaler_session = None
-        self._score_min: float = 0.0
-        self._score_max: float = 1.0
+        self._session = None
+        self._input_name: str | None = None
 
     def load(self, config: dict) -> None:
         import onnxruntime as ort  # type: ignore[import]
-        from pathlib import Path
 
-        model_path  = config["path"]
-        scaler_path = config.get("scaler_path")
+        model_path = config["path"]
 
-        self._model_session = ort.InferenceSession(
-            model_path,
-            providers=["CPUExecutionProvider"],
-        )
-
-        if scaler_path and Path(scaler_path).exists():
-            self._scaler_session = ort.InferenceSession(
-                scaler_path,
-                providers=["CPUExecutionProvider"],
+        if config.get("scaler_path"):
+            logger.warning(
+                f"'{self.model_id}': scaler_path ignorado — a normalização "
+                f"já faz parte do modelo."
             )
 
-        self._calibrate()
-        self._loaded = True
+        session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
+
+        outputs = [o.name for o in session.get_outputs()]
+        if SCORE_OUTPUT not in outputs:
+            raise ValueError(
+                f"{model_path} não tem a saída '{SCORE_OUTPUT}' "
+                f"(saídas: {', '.join(outputs)}). Treine o modelo de novo com "
+                f"scripts/train_model.py do edgesentinel."
+            )
+
+        self._session    = session
+        self._input_name = session.get_inputs()[0].name
+        self._loaded     = True
         logger.info(f"ONNX '{self.model_id}' pronto.")
 
     def predict(self, frame: np.ndarray) -> list[Detection]:
         """
-        Para modelos ONNX de anomalia, o frame pode ser um array 1D
-        com o valor do sensor em metadata — ou um valor escalar.
+        Para modelos ONNX de anomalia, o frame é o valor do sensor —
+        um escalar ou um array cuja média é o valor.
         """
         if not self._loaded:
             raise RuntimeError(f"Modelo '{self.model_id}' não carregado.")
@@ -63,40 +73,6 @@ class ONNXModel(BaseModel):
         )]
 
     def _compute_score(self, value: float) -> float:
-        input_data = np.array([[value]], dtype=np.float32)
-
-        if self._scaler_session:
-            name   = self._scaler_session.get_inputs()[0].name
-            scaled = self._scaler_session.run(None, {name: input_data})[0]
-        else:
-            scaled = input_data
-
-        name   = self._model_session.get_inputs()[0].name
-        output = self._model_session.run(None, {name: scaled})
-        raw    = float(np.array(output[1]).flatten()[0])
-
-        span = self._score_max - self._score_min
-        if span == 0:
-            return 0.0
-
-        normalized = (raw - self._score_min) / span
-        return float(max(0.0, min(1.0, 1.0 - normalized)))
-
-    def _calibrate(self) -> None:
-        normal_vals  = [50.0, 55.0, 60.0, 65.0]
-        anomaly_vals = [85.0, 90.0, 95.0]
-
-        scores = [self._raw_score(v) for v in normal_vals + anomaly_vals]
-        self._score_min = min(scores)
-        self._score_max = max(scores)
-
-    def _raw_score(self, value: float) -> float:
-        input_data = np.array([[value]], dtype=np.float32)
-        if self._scaler_session:
-            name   = self._scaler_session.get_inputs()[0].name
-            scaled = self._scaler_session.run(None, {name: input_data})[0]
-        else:
-            scaled = input_data
-        name   = self._model_session.get_inputs()[0].name
-        output = self._model_session.run(None, {name: scaled})
-        return float(np.array(output[1]).flatten()[0])
+        data = np.array([[value]], dtype=np.float32)
+        (scores,) = self._session.run([SCORE_OUTPUT], {self._input_name: data})
+        return float(np.clip(scores.ravel()[0], 0.0, 1.0))

@@ -63,7 +63,7 @@ Isso resolve um problema real: câmeras IP baratas aceitam apenas 1-2 conexões 
 Um microserviço FastAPI que expõe modelos de ML via HTTP. O edgesentinel envia um frame e recebe as detecções. Qualquer sistema pode usar o mesmo endpoint.
 
 - **YOLO** para detecção de objetos em frames de câmera
-- **ONNX** para qualquer modelo exportado (IsolationForest, classificadores, etc.)
+- **ONNX** para modelos de anomalia que seguem o contrato do edgesentinel — valor bruto do sensor na entrada, `anomaly_score` na saída (veja [Modelo de anomalia ONNX](#modelo-de-anomalia-onnx))
 - **Plug-and-play** — novo modelo é uma linha no `models.yaml`, sem código
 
 ### Rule Engine
@@ -322,10 +322,10 @@ edgesentinel events --sensor cpu_temp --json | jq .value
 
 ```
 QUANDO               SEVERIDADE  REGRA                SENSOR        VALOR  SCORE
-2026-09-16 23:18:10  WARNING     uso_alto_cpu         cpu_usage  91.54 %    0.94
-2026-09-16 23:18:10  CRITICAL    temperatura_critica  cpu_temp   85.66 °C   0.94
-2026-09-16 23:18:10  WARNING     alta_temperatura     cpu_temp   85.66 °C   0.94
-2026-09-16 23:18:10  WARNING     uso_alto_cpu         cpu_usage  91.98 %    0.94
+2026-09-17 00:35:10  WARNING     uso_alto_cpu         cpu_usage  92.36 %    0.98
+2026-09-17 00:35:10  CRITICAL    temperatura_critica  cpu_temp   85.93 °C   0.96
+2026-09-17 00:35:10  WARNING     alta_temperatura     cpu_temp   85.93 °C   0.96
+2026-09-17 00:35:10  WARNING     uso_alto_cpu         cpu_usage  93.04 %    0.98
 
 4 evento(s) — mostrando os 4 mais recentes; use --limit para ver mais
 ```
@@ -452,9 +452,18 @@ docker compose restart ai-inference-service
 
 ```bash
 pip install scikit-learn skl2onnx
-python scripts/train_model.py
-# gera: models/anomaly.onnx + models/scaler.onnx
+python scripts/train_model.py            # --seed N para outro conjunto de treino
+# gera: models/anomaly.onnx
 ```
+
+O modelo é um arquivo único e autossuficiente, com contrato fixo: entra o valor bruto do sensor, sai um `anomaly_score` em [0, 1]. A normalização e a regra de score moram dentro dele, então o agente e o AI Inference Service só leem essa saída e não têm como discordar.
+
+| Leitura | Score |
+|---|---|
+| dentro da faixa de treino (~51–65 °C) | IsolationForest, reescalado para 0 – 0.8 |
+| fora da faixa de treino | de 0.8 em direção a 1, crescendo com a distância até a faixa |
+
+As duas partes existem porque o IsolationForest sozinho não distingue 75 °C de 95 °C: as árvores só fazem cortes dentro da faixa em que foram treinadas, então todo valor além da borda cai na mesma folha e recebe o mesmo score. Com a regra acima, o modelo de referência dá 0.91 a 75 °C, 0.96 a 85 °C e 0.98 a 95 °C, enquanto 58 °C fica em 0.12. Modelos exportados por versões anteriores do script não têm a saída `anomaly_score` e são recusados no carregamento; treine de novo.
 
 Os arquivos de modelo não são versionados — um clone novo não tem nenhum. O [`models/README.md`](models/README.md) lista cada arquivo, como obtê-lo e quem o usa (em inglês).
 
@@ -492,7 +501,7 @@ pytest tests/ -v
 pytest tests/ --cov=. --cov-report=term-missing
 ```
 
-**217 testes, zero falhas.**
+**249 testes, zero falhas.**
 
 | Camada | Cobertura |
 |---|---|
@@ -527,7 +536,7 @@ edgesentinel/
 ├── infra/docker/               # docker-compose, MediaMTX, OTel, Prometheus, Grafana
 ├── dashboards/                 # edgesentinel.json para Grafana
 ├── data/                       # events.db — gerado em execução, fora do git
-└── tests/                      # unitários + integração (217 testes)
+└── tests/                      # unitários + integração (249 testes)
 ```
 
 ---
@@ -545,6 +554,8 @@ edgesentinel/
 **`time.monotonic()` para cooldowns** — o relógio de parede pode andar para trás em NTP. O monotônico só avança.
 
 **AI Service separado** — isolamento de falha. Se o YOLO travar, o monitoramento de sensores continua.
+
+**Regra de score dentro do arquivo do modelo** — o agente e o AI Service são construídos e implantados separadamente e não compartilham código. Com a normalização e o score dentro do grafo ONNX, os dois só precisam ler `anomaly_score`: existe um único lugar onde o score é definido e um único lugar para corrigi-lo.
 
 **Histórico com fila e thread de escrita** — os pipelines rodam num pool de threads limitado, e num cartão SD um `fsync` pode travar por centenas de milissegundos. Gravar direto seguraria a thread que lê sensores; enfileirar não. Pelo mesmo motivo, falha no histórico é logada e engolida: o alerta sempre sai.
 

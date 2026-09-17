@@ -10,8 +10,32 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
 
 ## [Unreleased]
 
+### Fixed
+
+- **The ONNX anomaly score no longer saturates.** IsolationForest only splits
+  inside the range it was trained on, so every reading beyond that range got
+  the same score — 0.9366 for anything above ~65 °C and 1.0 for anything
+  below ~50 °C — exactly where rules fire. Inside the training range the
+  score still comes from IsolationForest, now rescaled to 0–0.8; outside it
+  the score starts at 0.8 and rises with the distance to the range. The
+  reference model now gives 0.91 at 75 °C, 0.96 at 85 °C and 0.98 at 95 °C.
+  A 55-second `simulate --scenario stress` run recorded 265 distinct scores
+  for `cpu_temp` events, where it used to record one.
+- The AI Inference Service's ONNX model carried the same calibration code and
+  the same defect; it is fixed the same way.
+
 ### Changed
 
+- **Anomaly models have a new format — retrain them** with
+  `python scripts/train_model.py`. The export is now one self-contained
+  `anomaly.onnx` whose single output, `anomaly_score`, already includes
+  normalisation and the scoring rule, so the agent and the AI service only
+  read it. `scaler.onnx` is no longer produced or read. A model in the old
+  format is refused at load time with a message pointing to the script, and
+  a `scaler_path` in `models.yaml` is ignored with a warning.
+- `scripts/train_model.py` takes `--seed`; training data is reproducible.
+- ONNX tests train their own model instead of reading `models/`, and the AI
+  service's ONNX model has tests of its own.
 - Model weights are no longer versioned. `models/anomaly.onnx`,
   `models/scaler.onnx`, `models/yolov8n.pt` and
   `ai-inference-service/weights/yolov8n.pt` were removed from the index, and
@@ -20,15 +44,16 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
   each file. Earlier commits still contain them.
 
   **Pulling this change deletes your local copies of those four files** —
-  git removes files that an incoming commit stops tracking. Copy them
-  elsewhere before pulling, or bring them back afterwards from the last
-  release that tracked them:
+  git removes files that an incoming commit stops tracking. The YOLO weights
+  can be brought back from the last release that tracked them; they stay out
+  of git because they now match the ignore rules:
 
   ```bash
-  git restore --source=v0.3.0 --worktree -- models/anomaly.onnx models/scaler.onnx models/yolov8n.pt ai-inference-service/weights/yolov8n.pt
+  git restore --source=v0.3.0 --worktree -- models/yolov8n.pt ai-inference-service/weights/yolov8n.pt
   ```
 
-  The restored files stay out of git, since they now match the ignore rules.
+  Do not restore `anomaly.onnx` or `scaler.onnx` the same way: they are in the
+  old model format. Generate a new `anomaly.onnx` with the training script.
 
 ## [0.3.0] - 2026-09-17
 
