@@ -501,7 +501,7 @@ pytest tests/ -v
 pytest tests/ --cov=. --cov-report=term-missing
 ```
 
-**249 testes, zero falhas.**
+**263 testes, zero falhas.**
 
 | Camada | Cobertura |
 |---|---|
@@ -536,7 +536,7 @@ edgesentinel/
 ├── infra/docker/               # docker-compose, MediaMTX, OTel, Prometheus, Grafana
 ├── dashboards/                 # edgesentinel_dashboard_v2.json para Grafana
 ├── data/                       # events.db — gerado em execução, fora do git
-└── tests/                      # unitários + integração (249 testes)
+└── tests/                      # unitários + integração (263 testes)
 ```
 
 ---
