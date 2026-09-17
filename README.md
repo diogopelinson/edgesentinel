@@ -1,29 +1,29 @@
 # edgesentinel
 
-> Observabilidade inteligente para dispositivos Linux embarcados — lê sensores de hardware, processa streams de câmera com YOLO, detecta anomalias com ML e envia tudo para o Grafana em tempo real.
+> Intelligent observability for Linux embedded devices — reads hardware sensors, processes camera streams with YOLO, detects anomalies with ML, and streams everything to Grafana in real time.
 
 ---
 
-## O que é o edgesentinel?
+## What is edgesentinel?
 
-O edgesentinel é uma **plataforma de monitoramento para dispositivos embarcados** (Raspberry Pi, Orange Pi, SBCs em geral) que resolve um problema comum: as ferramentas de monitoramento de hardware e as ferramentas de ML vivem em mundos separados.
+edgesentinel is a **monitoring platform for embedded devices** (Raspberry Pi, Orange Pi, SBCs in general) that solves a common problem: hardware monitoring tools and ML tools live in separate worlds.
 
-- Ferramentas de hardware (`psutil`, `gpiozero`) leem sensores mas não entendem de ML
-- Ferramentas de ML (`tflite`, `onnxruntime`) rodam modelos mas não monitoram hardware
+- Hardware tools (`psutil`, `gpiozero`) read sensors but don't understand ML
+- ML tools (`tflite`, `onnxruntime`) run models but don't monitor hardware
 
-O edgesentinel une os dois em um sistema coeso, observável e extensível.
+edgesentinel brings both together in a cohesive, observable, and extensible system.
 
 ---
 
-## Por que usar?
+## Why use it?
 
-**Sem o edgesentinel**, monitorar um Raspberry Pi com câmera exige colar várias ferramentas com scripts bash, lidar com múltiplas dependências e reinventar a roda a cada projeto.
+**Without edgesentinel**, monitoring a Raspberry Pi with a camera means gluing multiple tools with bash scripts, managing conflicting dependencies, and reinventing the wheel each project.
 
-**Com o edgesentinel**, você declara o que quer monitorar em um `config.yaml`:
+**With edgesentinel**, you declare what you want to monitor in a `config.yaml`:
 
 ```yaml
 rules:
-  - name: servidor_superaquecendo
+  - name: server_overheating
     condition:
       sensor_id: cpu_temp
       operator: ">"
@@ -32,104 +32,104 @@ rules:
     cooldown_seconds: 60
 ```
 
-Temperatura acima de 80°C → alerta disparado → webhook enviado → dado no Grafana. Sem código, sem scripts.
+Temperature above 80°C → alert fires → webhook sent → data in Grafana. No code, no scripts.
 
 ---
 
-## O que o sistema faz
+## What it does
 
-### Leitura de sensores de hardware
+### Hardware sensor reading
 
-Lê diretamente dos pseudo-filesystems do Linux — sem dependências pesadas:
+Reads directly from Linux pseudo-filesystems — no heavy dependencies:
 
-- **Temperatura da CPU** via `/sys/class/thermal` ou `vcgencmd` (Raspberry Pi)
-- **Uso de CPU** calculado pela diferença de ticks do `/proc/stat`
-- **Uso de memória** via `MemAvailable` do `/proc/meminfo`
+- **CPU temperature** via `/sys/class/thermal` or `vcgencmd` (Raspberry Pi)
+- **CPU usage** calculated from `/proc/stat` tick differences
+- **Memory usage** via `MemAvailable` from `/proc/meminfo`
 
-### Streams de câmera com MediaMTX
+### Camera streams with MediaMTX
 
-O **MediaMTX** é um hub de streams RTSP. A câmera se conecta uma vez e o hub distribui para quantos consumidores quiser — edgesentinel, VLC, browser, outros sistemas — sem limitar a câmera.
+**MediaMTX** is an RTSP stream hub. The camera connects once and the hub distributes to as many consumers as needed — edgesentinel, VLC, browser, other systems — without limiting the camera.
 
 ```
-Câmera IP ──▶ MediaMTX ──▶ edgesentinel (YOLO 1fps)
-                      ├──▶ VLC (você assistindo ao vivo)
-                      └──▶ Smart Incident Management
+IP Camera ──▶ MediaMTX ──▶ edgesentinel (YOLO 1fps)
+                     ├──▶ VLC (live viewing)
+                     └──▶ Smart Incident Management
 ```
 
-Isso resolve um problema real: câmeras IP baratas aceitam apenas 1-2 conexões simultâneas.
+This solves a real problem: cheap IP cameras accept only 1-2 simultaneous connections.
 
-### AI Inference Service containerizado
+### Containerized AI Inference Service
 
-Um microserviço FastAPI que expõe modelos de ML via HTTP. O edgesentinel envia um frame e recebe as detecções. Qualquer sistema pode usar o mesmo endpoint.
+A FastAPI microservice that exposes ML models via HTTP. edgesentinel sends a frame and receives detections back. Any system can use the same endpoint.
 
-- **YOLO** para detecção de objetos em frames de câmera
-- **ONNX** para qualquer modelo exportado (IsolationForest, classificadores, etc.)
-- **Plug-and-play** — novo modelo é uma linha no `models.yaml`, sem código
+- **YOLO** for object detection in camera frames
+- **ONNX** for any exported model (IsolationForest, classifiers, etc.)
+- **Plug-and-play** — new model is one block in `models.yaml`, no code changes
 
 ### Rule Engine
 
-Avalia regras a cada leitura de sensor com operadores configuráveis:
+Evaluates rules on every sensor reading with configurable operators:
 
-| Operador | Quando dispara |
+| Operator | When it fires |
 |---|---|
-| `>` `<` `>=` `<=` `==` | comparação numérica simples |
-| `anomaly` | score do modelo ML acima do threshold |
+| `>` `<` `>=` `<=` `==` | simple numeric comparison |
+| `anomaly` | ML model score above threshold |
 
-Cada regra tem uma **severidade** — `info`, `warning` (padrão) ou `critical`. Ela define o nível do log e chega a todas as ações da regra, então o mesmo sensor pode ter um aviso aos 75 °C e um alerta crítico aos 85 °C. Severidade inválida no YAML falha na hora de carregar o config, não no primeiro disparo.
+Every rule has a **severity** — `info`, `warning` (default) or `critical`. It sets the log level and reaches every action of the rule, so the same sensor can have a warning at 75 °C and a critical alert at 85 °C. An invalid severity in the YAML fails when the config is loaded, not on the first firing.
 
-### Histórico de eventos
+### Event history
 
-Toda regra que dispara vira uma linha num SQLite local (`data/events.db`): regra, sensor, valor, severidade, horário da leitura e score de anomalia. Sem servidor e sem dependência nova — só a biblioteca padrão.
+Every rule that fires becomes a row in a local SQLite file (`data/events.db`): rule, sensor, value, severity, reading time and anomaly score. No server and no new dependency — standard library only.
 
-A gravação nunca atrasa o monitoramento. A leitura do sensor só enfileira o evento, e uma thread dedicada grava em lote; se o disco travar e a fila encher, o evento é descartado com aviso, porque perder uma linha do histórico é melhor que atrasar o próximo alerta. No encerramento, inclusive por Ctrl+C, o que está na fila é gravado antes de sair. Eventos mais velhos que a retenção configurada são removidos ao iniciar.
+Recording never delays monitoring. Reading a sensor only enqueues the event, and a dedicated thread writes in batches; if the disk stalls and the queue fills up, the event is dropped with a warning, because losing one history row is better than delaying the next alert. On shutdown, Ctrl+C included, whatever is queued is written before exiting. Events older than the configured retention are removed at startup.
 
-### Observabilidade com OpenTelemetry
+### OpenTelemetry observability
 
-O edgesentinel e o AI Service exportam métricas via OTel para o mesmo Collector. O Prometheus coleta e o Grafana plota tudo em tempo real — dois serviços, um dashboard.
+Both edgesentinel and the AI Service export metrics via OTel to the same Collector. Prometheus scrapes and Grafana plots everything in real time — two services, one dashboard.
 
-### Ações configuráveis
+### Configurable actions
 
-- **`log`** — log estruturado no nível da severidade da regra (`info` → INFO, `warning` → WARNING, `critical` → CRITICAL)
-- **`webhook`** — HTTP POST com payload JSON completo
-- **`gpio_write`** — aciona pino GPIO (LED, relé, buzzer)
+- **`log`** — structured log at the rule's severity level (`info` → INFO, `warning` → WARNING, `critical` → CRITICAL)
+- **`webhook`** — HTTP POST with full JSON payload
+- **`gpio_write`** — triggers GPIO pin (LED, relay, buzzer)
 
 ---
 
-## Arquitetura
+## Architecture
 
-O edgesentinel usa **Arquitetura Hexagonal (Ports & Adapters)**. O domínio central não conhece Prometheus, GPIO nem YOLO — só contratos abstratos.
+edgesentinel uses **Hexagonal Architecture (Ports & Adapters)**. The core domain doesn't know about Prometheus, GPIO, or YOLO — only abstract contracts.
 
 ```
 ┌─────────────────────────────────────────────────┐
 │                    core/                         │
-│  ports.py     → contratos abstratos              │
-│  entities.py  → dataclasses imutáveis            │
-│  rules.py     → Rule, Condition, Severity        │
+│  ports.py     → abstract contracts              │
+│  entities.py  → immutable dataclasses           │
+│  rules.py     → Rule, Condition, Severity       │
 └───────────────────────┬─────────────────────────┘
-                        │ tudo depende do core
+                        │ everything depends on core
 ┌───────────────────────▼─────────────────────────┐
 │                 application/                     │
-│  engine.py    → avalia regras, despacha ações   │
-│  pipeline.py  → sense → infer → act por sensor  │
-│  monitor.py   → loop async com shutdown gracioso │
+│  engine.py    → evaluates rules, dispatches     │
+│  pipeline.py  → sense → infer → act per sensor  │
+│  monitor.py   → async loop with graceful shutdown│
 └───────────────────────┬─────────────────────────┘
                         │
 ┌───────────────────────▼─────────────────────────┐
 │                  adapters/                       │
-│  sensors/     → hardware, câmera, simulado       │
+│  sensors/     → hardware, camera, simulated      │
 │  inference/   → dummy, onnx, tflite, remote      │
 │  actions/     → log, webhook, gpio               │
-│  exporter/    → Prometheus legacy + OTel         │
-│  store/       → histórico de eventos (SQLite)    │
+│  exporter/    → legacy Prometheus + OTel         │
+│  store/       → event history (SQLite)           │
 └─────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Stack completa
+## Full stack
 
 ```
-Câmera RTSP
+RTSP Camera
       │
       ▼
 MediaMTX  :8554 :8888 :8889
@@ -151,30 +151,30 @@ Prometheus  :9090  ──▶  Grafana  :3000
 
 ---
 
-## Instalação
+## Installation
 
-### Requisitos
+### Requirements
 
-| Item | Mínimo | Recomendado |
+| Item | Minimum | Recommended |
 |---|---|---|
 | Python | 3.10+ | 3.11+ |
-| Sistema | Linux (SBC) | Raspberry Pi 4 2GB+ |
+| OS | Linux (SBC) | Raspberry Pi 4 2GB+ |
 | Docker | 24+ | 28+ |
 
-> **Windows / Mac**: use o modo simulação para desenvolvimento sem hardware.
+> **Windows / Mac**: use simulation mode for development without hardware.
 
-### Instala o pacote
+### Install the package
 
 ```bash
 pip install edgesentinel            # base
-pip install edgesentinel[onnx]      # + modelo ONNX
-pip install edgesentinel[camera]    # + câmera e YOLO local
+pip install edgesentinel[onnx]      # + ONNX model
+pip install edgesentinel[camera]    # + camera and local YOLO
 pip install edgesentinel[gpio]      # + GPIO (Raspberry Pi)
 pip install edgesentinel[otel]      # + OpenTelemetry
-pip install edgesentinel[all]       # tudo
+pip install edgesentinel[all]       # everything
 ```
 
-### Verifica o ambiente
+### Check your environment
 
 ```bash
 edgesentinel doctor
@@ -182,7 +182,7 @@ edgesentinel doctor
 
 ---
 
-## Configuração
+## Configuration
 
 ```yaml
 edgesentinel:
@@ -199,7 +199,7 @@ edgesentinel:
   cameras:
     - sensor_id: camera_01
       source: "rtsp://localhost:8554/camera_01"
-      name: "Camera Entrada"
+      name: "Entrance Camera"
       fps_limit: 1.0
       simulated: false
 
@@ -208,27 +208,27 @@ edgesentinel:
     backend: onnx
     model_path: models/anomaly.onnx
 
-  # modo simples: Prometheus coleta direto em :8000/metrics
+  # simple mode: Prometheus scrapes directly from :8000/metrics
   exporter:
     port: 8000
     use_otel: false
 
-  # modo avançado: manda pro OTel Collector, exporta para qualquer backend
+  # advanced mode: send to OTel Collector, export to any backend
   # exporter:
   #   use_otel: true
   #   backend: otlp
   #   endpoint: "http://localhost:4317"
   #   service_name: "edgesentinel"
 
-  # histórico local — habilitado por padrão, mesmo sem este bloco
+  # local history — enabled by default, even without this block
   event_store:
     enabled: true
     path: data/events.db
-    retention_days: 30          # precisa ser > 0
+    retention_days: 30          # must be > 0
 
-  # severity: info | warning | critical  (padrão: warning)
+  # severity: info | warning | critical  (default: warning)
   rules:
-    - name: alta_temperatura
+    - name: high_temperature
       condition:
         sensor_id: cpu_temp
         operator: ">"
@@ -237,7 +237,7 @@ edgesentinel:
       actions: [log, webhook]
       cooldown_seconds: 60
 
-    - name: temperatura_critica
+    - name: critical_temperature
       condition:
         sensor_id: cpu_temp
         operator: ">"
@@ -246,7 +246,7 @@ edgesentinel:
       actions: [log, webhook]
       cooldown_seconds: 30
 
-    - name: pessoa_detectada
+    - name: person_detected
       condition:
         sensor_id: camera_01
         operator: anomaly
@@ -259,14 +259,14 @@ edgesentinel:
       type: log
     - id: webhook
       type: webhook
-      url: "https://hooks.exemplo.com/alerta"
+      url: "https://hooks.example.com/alert"
 ```
 
 ---
 
-## Executando
+## Running
 
-### Sobe a infraestrutura
+### Start the infrastructure
 
 ```bash
 cd infra/docker
@@ -274,27 +274,27 @@ docker compose up -d
 docker compose ps
 ```
 
-| Serviço | Porta | Função |
+| Service | Port | Role |
 |---|---|---|
-| MediaMTX | 8554 / 8888 | Hub de streams de câmera |
-| AI Inference Service | 8080 | YOLO e ONNX via HTTP |
-| OTel Collector | 4317 | Coleta métricas de todos |
-| Prometheus | 9090 | Armazena séries temporais |
-| Grafana | 3000 | Dashboard em tempo real |
+| MediaMTX | 8554 / 8888 | Camera stream hub |
+| AI Inference Service | 8080 | YOLO and ONNX via HTTP |
+| OTel Collector | 4317 | Receives metrics from all services |
+| Prometheus | 9090 | Stores time series |
+| Grafana | 3000 | Real-time dashboard |
 
-### Roda o edgesentinel
+### Run edgesentinel
 
 ```bash
-# hardware real
+# real hardware
 edgesentinel run --config config.yaml
 
-# simulação (Windows / Mac)
+# simulation (Windows / Mac)
 edgesentinel simulate --scenario stress --interval 1
 edgesentinel simulate --scenario normal
 edgesentinel simulate --scenario spike
 ```
 
-### Diagnostica o ambiente
+### Diagnose your environment
 
 ```bash
 edgesentinel doctor
@@ -302,42 +302,42 @@ edgesentinel doctor
 
 ---
 
-## Configurando o Grafana do zero
+## Setting up Grafana from scratch
 
-### 1. Abre o Grafana
+### 1. Open Grafana
 
-Acessa `http://localhost:3000` — login `admin` / `edgesentinel`.
+Go to `http://localhost:3000` — login `admin` / `edgesentinel`.
 
-### 2. Adiciona o Prometheus como datasource
+### 2. Add Prometheus as a datasource
 
-1. Menu lateral → **Connections** → **Data sources** → **Add data source**
-2. Seleciona **Prometheus**
+1. Side menu → **Connections** → **Data sources** → **Add data source**
+2. Select **Prometheus**
 3. URL: `http://prometheus:9090`
-4. Clica **Save & test** — deve aparecer "Successfully queried the Prometheus API"
+4. Click **Save & test** — should show "Successfully queried the Prometheus API"
 
-### 3. Importa o dashboard
+### 3. Import the dashboard
 
-1. Menu lateral → **Dashboards** → **Import**
-2. Clica **Upload dashboard JSON file**
-3. Seleciona `dashboards/edgesentinel.json`
-4. Em **Prometheus**, seleciona o datasource criado no passo anterior
-5. Clica **Import**
+1. Side menu → **Dashboards** → **Import**
+2. Click **Upload dashboard JSON file**
+3. Select `dashboards/edgesentinel.json`
+4. Under **Prometheus**, select the datasource created in the previous step
+5. Click **Import**
 
-### 4. Verifica os dados
+### 4. Verify data
 
-Deixa o edgesentinel rodando e clica **Refresh** no dashboard. Os painéis mostram dados em até 10 segundos.
+Leave edgesentinel running and click **Refresh** on the dashboard. Panels should show data within 10 seconds.
 
-> **Dica**: após qualquer customização, exporte o dashboard em **Export → Save to file** e commita no repositório — assim nunca perde ao recriar os containers.
+> **Tip**: after any customization, export the dashboard via **Export → Save to file** and commit it to the repository — this way you never lose it when recreating containers.
 
 ---
 
-## Modo simulação
+## Simulation mode
 
-| Cenário | O que acontece |
+| Scenario | What happens |
 |---|---|
-| `normal` | Valores estáveis, nenhuma regra dispara |
-| `stress` | Temperatura sobe progressivamente até disparar alertas |
-| `spike` | Picos repentinos a cada ~20 segundos |
+| `normal` | Stable values, no rules fire |
+| `stress` | Temperature ramps up until alerts fire |
+| `spike` | Sudden spikes every ~20 seconds |
 
 ```
 [tick 023]
@@ -345,25 +345,25 @@ Deixa o edgesentinel rodando e clica **Refresh** no dashboard. Os painéis mostr
   CPU Usage         90.68 %
   Memory Usage      64.50 %
 
-[WARNING] Regra 'alta_temperatura' disparada | sensor=cpu_temp value=75.92°C | anomaly_score=0.9366
+[WARNING] Rule 'high_temperature' fired | sensor=cpu_temp value=75.92°C | anomaly_score=0.9366
 
 [tick 051]
   CPU Temperature   86.12 °C
   CPU Usage         97.40 %
   Memory Usage      63.10 %
 
-[CRITICAL] Regra 'temperatura_critica' disparada | sensor=cpu_temp value=86.12°C | anomaly_score=0.9366
+[CRITICAL] Rule 'critical_temperature' fired | sensor=cpu_temp value=86.12°C | anomaly_score=0.9366
 ```
 
-No cenário `stress`, a temperatura passa de 85 °C perto dos 50 segundos e a regra `critical` do config de exemplo dispara. A `alta_temperatura` não se repete ali porque ainda está no cooldown de 60 s.
+In the `stress` scenario the temperature crosses 85 °C around the 50-second mark and the `critical` rule from the example config fires. `high_temperature` does not repeat there because it is still inside its 60 s cooldown.
 
-A simulação grava o histórico como o modo `run`; o caminho do banco aparece no início da saída, na linha `Eventos :`.
+Simulation records history just like `run` mode; the database path is printed at the start of the output, on the `Eventos :` line.
 
 ---
 
 ## AI Inference Service
 
-### Verificando
+### Checking
 
 ```bash
 curl http://localhost:8080/health
@@ -373,9 +373,9 @@ curl http://localhost:8080/models
 # [{"id":"yolo_v8n","type":"yolo","status":"loaded"}]
 ```
 
-### Adicionando modelos
+### Adding models
 
-Edita `ai-inference-service/models.yaml` e reinicia:
+Edit `ai-inference-service/models.yaml` and restart:
 
 ```yaml
 models:
@@ -398,41 +398,41 @@ docker compose restart ai-inference-service
 
 ---
 
-## Modelo de anomalia ONNX
+## ONNX anomaly model
 
 ```bash
 pip install scikit-learn skl2onnx
 python scripts/train_model.py
-# gera: models/anomaly.onnx + models/scaler.onnx
+# generates: models/anomaly.onnx + models/scaler.onnx
 ```
 
 ---
 
-## Métricas expostas
+## Exposed metrics
 
 ### edgesentinel
 
-| Métrica Prometheus | Tipo | Descrição |
+| Prometheus metric | Type | Description |
 |---|---|---|
-| `edgesentinel_sensor_value` | Gauge | Valor atual do sensor |
-| `edgesentinel_anomaly_score` | Gauge | Score do modelo (0.0 – 1.0) |
-| `edgesentinel_anomaly_total` | Counter | Total de anomalias |
-| `edgesentinel_pipeline_latency_seconds` | Histogram | Tempo do ciclo por sensor |
-| `edgesentinel_inference_latency_seconds` | Histogram | Tempo de inferência ML |
+| `edgesentinel_sensor_value` | Gauge | Current sensor value |
+| `edgesentinel_anomaly_score` | Gauge | Model score (0.0 – 1.0) |
+| `edgesentinel_anomaly_total` | Counter | Total anomalies detected |
+| `edgesentinel_pipeline_latency_seconds` | Histogram | Full cycle time per sensor |
+| `edgesentinel_inference_latency_seconds` | Histogram | ML inference time |
 
 ### AI Inference Service
 
-| Métrica Prometheus | Tipo | Descrição |
+| Prometheus metric | Type | Description |
 |---|---|---|
-| `ai_service_inference_total` | Counter | Total de inferências |
-| `ai_service_inference_latency_ms_milliseconds` | Histogram | Latência por inferência |
-| `ai_service_detections_total` | Counter | Total de detecções |
+| `ai_service_inference_total` | Counter | Total inferences |
+| `ai_service_inference_latency_ms_milliseconds` | Histogram | Latency per inference |
+| `ai_service_detections_total` | Counter | Total detections |
 
-> Os nomes acima são os que aparecem no Prometheus e no Grafana. Use-os exatamente assim nas queries PromQL.
+> These are the exact names as they appear in Prometheus and Grafana. Use them verbatim in PromQL queries.
 
 ---
 
-## Testes
+## Tests
 
 ```bash
 pip install pytest pytest-mock pytest-cov
@@ -440,9 +440,9 @@ pytest tests/ -v
 pytest tests/ --cov=. --cov-report=term-missing
 ```
 
-**149 testes, zero falhas.**
+**149 tests, zero failures.**
 
-| Camada | Cobertura |
+| Layer | Coverage |
 |---|---|
 | `core/` | 100% |
 | `application/engine` | 100% |
@@ -454,61 +454,61 @@ pytest tests/ --cov=. --cov-report=term-missing
 
 ---
 
-## Estrutura do projeto
+## Project structure
 
 ```
 edgesentinel/
-├── core/                       # domínio puro — zero dependências externas
-├── config/                     # loader e schema do YAML
+├── core/                       # pure domain — zero external dependencies
+├── config/                     # YAML loader and schema
 ├── adapters/
 │   ├── sensors/                # cpu_temp, cpu_usage, memory, camera, simulated
 │   ├── inference/              # dummy, onnx, tflite, remote (AI Service)
 │   ├── actions/                # log, webhook, gpio
-│   ├── exporter/               # Prometheus legacy + OpenTelemetry
-│   └── store/                  # Event Store em SQLite
+│   ├── exporter/               # legacy Prometheus + OpenTelemetry
+│   └── store/                  # SQLite Event Store
 ├── application/                # RuleEngine, Pipeline, MonitorLoop
 ├── cli/                        # run / simulate / doctor
-├── ai-inference-service/       # FastAPI com YOLO/ONNX containerizado
+├── ai-inference-service/       # FastAPI with containerized YOLO/ONNX
 ├── scripts/                    # train_model.py
 ├── infra/docker/               # docker-compose, MediaMTX, OTel, Prometheus, Grafana
-├── dashboards/                 # edgesentinel.json para Grafana
-├── data/                       # events.db — gerado em execução, fora do git
-└── tests/                      # unitários + integração (149 testes)
+├── dashboards/                 # edgesentinel.json for Grafana
+├── data/                       # events.db — created at runtime, not tracked
+└── tests/                      # unit + integration (149 tests)
 ```
 
 ---
 
-## Decisões de design
+## Design decisions
 
-**Arquitetura Hexagonal** — o core não conhece infraestrutura. Trocar Prometheus por Datadog é um novo adapter. Trocar ONNX por TFLite é uma linha no config.
+**Hexagonal Architecture** — the core doesn't know about infrastructure. Swapping Prometheus for Datadog is a new adapter. Swapping ONNX for TFLite is one config line.
 
-**Leitura direta do `/proc`** — sem `psutil`. Mais leve, mais explícito, sem dependência C compilada.
+**Direct `/proc` reading** — no `psutil`. Lighter, more explicit, no compiled C dependency.
 
-**Descoberta de hardware preguiçosa** — nenhum sensor toca o hardware no construtor. A ausência do dispositivo é informada por `is_available()`, nunca por exceção. O mesmo `config.yaml` sobe num Raspberry Pi e num notebook: sensores indisponíveis são ignorados com aviso, e o resto do monitoramento segue.
+**Lazy hardware discovery** — no sensor touches hardware in its constructor. A missing device is reported through `is_available()`, never by raising. The same `config.yaml` starts on a Raspberry Pi and on a laptop: unavailable sensors are skipped with a warning, and the rest of the monitoring carries on.
 
-**`frozen=True` nas entidades** — o loop é async. Imutabilidade elimina bugs de concorrência.
+**`frozen=True` on entities** — the loop is async. Immutability eliminates concurrency bugs.
 
-**`time.monotonic()` para cooldowns** — o relógio de parede pode andar para trás em NTP. O monotônico só avança.
+**`time.monotonic()` for cooldowns** — wall clock can go backwards under NTP. Monotonic only moves forward.
 
-**AI Service separado** — isolamento de falha. Se o YOLO travar, o monitoramento de sensores continua.
+**Separate AI Service** — fault isolation. If YOLO crashes, sensor monitoring keeps running.
 
-**Histórico com fila e thread de escrita** — os pipelines rodam num pool de threads limitado, e num cartão SD um `fsync` pode travar por centenas de milissegundos. Gravar direto seguraria a thread que lê sensores; enfileirar não. Pelo mesmo motivo, falha no histórico é logada e engolida: o alerta sempre sai.
+**History behind a queue and a writer thread** — pipelines run on a bounded thread pool, and on an SD card a single `fsync` can stall for hundreds of milliseconds. Writing directly would hold the thread that reads sensors; enqueueing does not. For the same reason, a history failure is logged and swallowed: the alert always goes out.
 
-**MediaMTX** — câmeras IP baratas aceitam 1-2 conexões. O hub distribui para N consumidores sem limitar a câmera.
+**MediaMTX** — cheap IP cameras accept 1-2 connections. The hub distributes to N consumers without limiting the camera.
 
-**OpenTelemetry** — instrumenta uma vez, exporta para qualquer backend. Sem acoplamento ao Prometheus.
+**OpenTelemetry** — instrument once, export anywhere. No coupling to Prometheus.
 
 ---
 
 ## Roadmap
 
-- [ ] Redis para estado distribuído em deployments multi-dispositivo
-- [ ] gRPC no AI Service como alternativa ao HTTP
-- [ ] Sensores adicionais: GPIO input, I2C, SPI, BME280
-- [ ] Terraform para cloud-assisted deployments
+- [ ] Redis for distributed state in multi-device deployments
+- [ ] gRPC in the AI Service as an alternative to HTTP
+- [ ] Additional sensors: GPIO input, I2C, SPI, BME280
+- [ ] Terraform for cloud-assisted deployments
 
 ---
 
-## Licença
+## License
 
 MIT
