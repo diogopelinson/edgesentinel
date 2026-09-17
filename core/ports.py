@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from core.entities import SensorReading, AnomalyScore, ActionContext
+from core.entities import SensorReading, AnomalyScore, ActionContext, Event
 
 
 class SensorPort(ABC):
@@ -38,6 +38,44 @@ class ActionPort(ABC):
     @abstractmethod
     def execute(self, context: ActionContext) -> None:
         """Executa a ação. Context carrega a leitura + score que a disparou."""
+        ...
+
+
+class EventPort(ABC):
+    """Contrato para qualquer armazenamento do histórico de regras disparadas."""
+
+    @abstractmethod
+    def start(self) -> None:
+        """Abre o armazenamento. Construir não pode tocar o disco."""
+        ...
+
+    @abstractmethod
+    def append(self, event: Event) -> None:
+        """Registra um evento. Não pode bloquear quem chama."""
+        ...
+
+    @abstractmethod
+    def query(
+        self,
+        *,
+        severity: str | None = None,
+        sensor_id: str | None = None,
+        rule_name: str | None = None,
+        since: float | None = None,
+        until: float | None = None,
+        limit: int = 100,
+    ) -> list[Event]:
+        """Eventos mais recentes primeiro. since e until são inclusivos."""
+        ...
+
+    @abstractmethod
+    def prune(self, before: float) -> int:
+        """Remove eventos anteriores a before e devolve quantos saíram."""
+        ...
+
+    @abstractmethod
+    def close(self) -> None:
+        """Grava o que ainda estiver pendente e libera o armazenamento."""
         ...
 
 
