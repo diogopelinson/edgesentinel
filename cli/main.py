@@ -19,6 +19,8 @@ def main() -> None:
         _cmd_simulate(args)
     elif args.command == "doctor":
         _cmd_doctor(args)
+    elif args.command == "events":
+        _cmd_events(args)
 
 
 def _cmd_run(args) -> None:
@@ -52,6 +54,38 @@ def _cmd_doctor(args) -> None:
     run_doctor(config_path=str(args.config))
 
 
+def _cmd_events(args) -> None:
+    from cli.events import run_events
+    sys.exit(run_events(
+        config_path=args.config,
+        severity=args.severity,
+        sensor=args.sensor,
+        rule=args.rule,
+        window_seconds=args.last,
+        limit=args.limit,
+        as_json=args.json,
+    ))
+
+
+def _duration_arg(text: str) -> float:
+    """--last validado no parse: erro de argumento, não exceção no meio da execução."""
+    from cli.events import parse_duration
+    try:
+        return parse_duration(text)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(str(e)) from None
+
+
+def _positive_int(text: str) -> int:
+    try:
+        value = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"precisa ser um inteiro: '{text}'") from None
+    if value <= 0:
+        raise argparse.ArgumentTypeError(f"precisa ser maior que zero: {value}")
+    return value
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="edgesentinel",
@@ -82,6 +116,32 @@ def _parse_args() -> argparse.Namespace:
     doc_p = sub.add_parser("doctor", help="Inspeciona o ambiente e reporta problemas")
     doc_p.add_argument("--config", "-c", type=Path, default=Path("config.yaml"))
     doc_p.add_argument("--log-level", "-l", choices=["DEBUG","INFO","WARNING","ERROR"], default="WARNING")
+
+    # --- subcomando: events ---
+    ev_p = sub.add_parser("events", help="Lista o histórico de regras disparadas")
+    ev_p.add_argument("--config", "-c", type=Path, default=Path("config.yaml"))
+    ev_p.add_argument(
+        "--severity", "-s",
+        type=str.lower,
+        choices=["info", "warning", "critical"],
+        help="Só eventos desse nível",
+    )
+    ev_p.add_argument("--sensor", help="Só eventos desse sensor_id")
+    ev_p.add_argument("--rule", "-r", help="Só eventos dessa regra")
+    ev_p.add_argument(
+        "--last",
+        type=_duration_arg,
+        metavar="DURAÇÃO",
+        help="Janela até agora: 30m, 24h, 7d",
+    )
+    ev_p.add_argument(
+        "--limit", "-n",
+        type=_positive_int,
+        default=20,
+        help="Máximo de eventos, mais recentes primeiro (padrão: 20)",
+    )
+    ev_p.add_argument("--json", action="store_true", help="Uma linha JSON por evento")
+    ev_p.add_argument("--log-level", "-l", choices=["DEBUG","INFO","WARNING","ERROR"], default="WARNING")
 
     return parser.parse_args()
 
