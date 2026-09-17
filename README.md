@@ -63,7 +63,7 @@ This solves a real problem: cheap IP cameras accept only 1-2 simultaneous connec
 A FastAPI microservice that exposes ML models via HTTP. edgesentinel sends a frame and receives detections back. Any system can use the same endpoint.
 
 - **YOLO** for object detection in camera frames
-- **ONNX** for any exported model (IsolationForest, classifiers, etc.)
+- **ONNX** for anomaly models that follow the edgesentinel contract — raw sensor value in, `anomaly_score` out (see [ONNX anomaly model](#onnx-anomaly-model))
 - **Plug-and-play** — new model is one block in `models.yaml`, no code changes
 
 ### Rule Engine
@@ -322,10 +322,10 @@ edgesentinel events --sensor cpu_temp --json | jq .value
 
 ```
 QUANDO               SEVERIDADE  REGRA                SENSOR        VALOR  SCORE
-2026-09-16 23:18:10  WARNING     uso_alto_cpu         cpu_usage  91.54 %    0.94
-2026-09-16 23:18:10  CRITICAL    temperatura_critica  cpu_temp   85.66 °C   0.94
-2026-09-16 23:18:10  WARNING     alta_temperatura     cpu_temp   85.66 °C   0.94
-2026-09-16 23:18:10  WARNING     uso_alto_cpu         cpu_usage  91.98 %    0.94
+2026-09-17 00:35:10  WARNING     uso_alto_cpu         cpu_usage  92.36 %    0.98
+2026-09-17 00:35:10  CRITICAL    temperatura_critica  cpu_temp   85.93 °C   0.96
+2026-09-17 00:35:10  WARNING     alta_temperatura     cpu_temp   85.93 °C   0.96
+2026-09-17 00:35:10  WARNING     uso_alto_cpu         cpu_usage  93.04 %    0.98
 
 4 evento(s) — mostrando os 4 mais recentes; use --limit para ver mais
 ```
@@ -452,9 +452,18 @@ docker compose restart ai-inference-service
 
 ```bash
 pip install scikit-learn skl2onnx
-python scripts/train_model.py
-# generates: models/anomaly.onnx + models/scaler.onnx
+python scripts/train_model.py            # --seed N for a different training set
+# generates: models/anomaly.onnx
 ```
+
+The model is a single self-contained file with a fixed contract: the raw sensor value goes in, and an `anomaly_score` in [0, 1] comes out. Normalisation and the scoring rule live inside it, so the agent and the AI Inference Service only read that output and cannot disagree.
+
+| Reading | Score |
+|---|---|
+| inside the training range (~51–65 °C) | IsolationForest, rescaled to 0 – 0.8 |
+| outside the training range | from 0.8 towards 1, rising with the distance to the range |
+
+The two parts exist because IsolationForest alone cannot tell 75 °C from 95 °C: its trees only split inside the range they were trained on, so every value past the edge ends in the same leaf and gets the same score. With the rule above the reference model gives 0.91 at 75 °C, 0.96 at 85 °C and 0.98 at 95 °C, while 58 °C scores 0.12. Models exported by earlier versions of the script lack the `anomaly_score` output and are rejected at load time; train them again.
 
 Model files are not versioned — a fresh clone has none. [`models/README.md`](models/README.md) lists each file, how to get it and what uses it.
 
@@ -492,7 +501,7 @@ pytest tests/ -v
 pytest tests/ --cov=. --cov-report=term-missing
 ```
 
-**217 tests, zero failures.**
+**249 tests, zero failures.**
 
 | Layer | Coverage |
 |---|---|
@@ -527,7 +536,7 @@ edgesentinel/
 ├── infra/docker/               # docker-compose, MediaMTX, OTel, Prometheus, Grafana
 ├── dashboards/                 # edgesentinel.json for Grafana
 ├── data/                       # events.db — created at runtime, not tracked
-└── tests/                      # unit + integration (217 tests)
+└── tests/                      # unit + integration (249 tests)
 ```
 
 ---
@@ -545,6 +554,8 @@ edgesentinel/
 **`time.monotonic()` for cooldowns** — wall clock can go backwards under NTP. Monotonic only moves forward.
 
 **Separate AI Service** — fault isolation. If YOLO crashes, sensor monitoring keeps running.
+
+**Scoring rule inside the model file** — the agent and the AI Service are built and deployed separately and cannot share code. Putting normalisation and scoring into the ONNX graph leaves both with one job, reading `anomaly_score`, so there is a single place where the score is defined and a single place to fix it.
 
 **History behind a queue and a writer thread** — pipelines run on a bounded thread pool, and on an SD card a single `fsync` can stall for hundreds of milliseconds. Writing directly would hold the thread that reads sensors; enqueueing does not. For the same reason, a history failure is logged and swallowed: the alert always goes out.
 
