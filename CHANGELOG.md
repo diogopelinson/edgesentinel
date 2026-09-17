@@ -23,6 +23,9 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
   for `cpu_temp` events, where it used to record one.
 - The AI Inference Service's ONNX model carried the same calibration code and
   the same defect; it is fixed the same way.
+- The Grafana setup steps pointed to `dashboards/edgesentinel.json`, which does
+  not exist; they now name `dashboards/edgesentinel_dashboard_v2.json`. A test
+  now checks that relative links and dashboard paths in the docs exist.
 
 ### Changed
 
