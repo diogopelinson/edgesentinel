@@ -43,7 +43,8 @@ class ActionConfig:
 class RuleConfig:
     name: str
     condition: ConditionConfig
-    actions: list[str]
+    # None = não declarado, usa default_actions; [] = nenhuma ação, só histórico
+    actions: list[str] | None = None
     severity: str = "warning"
     cooldown_seconds: float = 0.0
     enabled: bool = True
@@ -85,3 +86,5 @@ class EdgeSentinelConfig:
     cameras: list[CameraConfig] = field(default_factory=list)
     yolo: YOLOConfig = field(default_factory=YOLOConfig)
     event_store: EventStoreConfig = field(default_factory=EventStoreConfig)
+    # severidade → ações, para regras que não declaram `actions`
+    default_actions: dict[str, list[str]] = field(default_factory=dict)
