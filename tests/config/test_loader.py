@@ -194,3 +194,136 @@ def test_rejects_non_positive_retention(tmp_path, retention):
 
     with pytest.raises(ValueError, match="retention_days"):
         load(config_file)
+
+
+# --- default_actions e o campo actions das regras ---
+
+def _config_with(tmp_path, rules_yaml: str, extra_yaml: str = "") -> Path:
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(f"""
+edgesentinel:
+  sensors:
+    - id: cpu_temp
+      type: cpu_temperature
+{extra_yaml}
+  rules:
+{rules_yaml}
+  actions:
+    - id: log
+      type: log
+    - id: webhook
+      type: webhook
+      url: https://hooks.exemplo.com/alerta
+""", encoding="utf-8")
+    return config_file
+
+
+_RULE_HEAD = """    - name: alta_temp
+      condition:
+        sensor_id: cpu_temp
+        operator: ">"
+        threshold: 75.0
+"""
+
+
+def test_rule_without_actions_is_left_undeclared(tmp_path):
+    """None, não lista vazia: é o que permite ao mapper aplicar default_actions."""
+    config = load(_config_with(tmp_path, _RULE_HEAD))
+
+    assert config.rules[0].actions is None
+
+
+def test_explicit_empty_actions_are_kept_as_empty(tmp_path):
+    """`actions: []` é uma escolha — só registrar no histórico — e não pode virar 'usar o padrão'."""
+    config = load(_config_with(tmp_path, _RULE_HEAD + "      actions: []\n"))
+
+    assert config.rules[0].actions == []
+
+
+def test_default_actions_are_absent_by_default(tmp_path):
+    config = load(_config_with(tmp_path, _RULE_HEAD + "      actions: [log]\n"))
+
+    assert config.default_actions == {}
+
+
+def test_parses_default_actions_by_severity(tmp_path):
+    config = load(_config_with(tmp_path, _RULE_HEAD, """
+  default_actions:
+    warning:  [log]
+    CRITICAL: [log, webhook]
+"""))
+
+    assert config.default_actions == {
+        "warning":  ["log"],
+        "critical": ["log", "webhook"],
+    }
+
+
+def test_rejects_an_unknown_severity_in_default_actions(tmp_path):
+    config_file = _config_with(tmp_path, _RULE_HEAD, """
+  default_actions:
+    critcal: [log]
+""")
+
+    with pytest.raises(ValueError) as exc:
+        load(config_file)
+
+    message = str(exc.value)
+    assert "default_actions" in message
+    assert "critcal" in message
+
+
+def test_rejects_default_actions_that_are_not_a_list(tmp_path):
+    config_file = _config_with(tmp_path, _RULE_HEAD, """
+  default_actions:
+    warning: log
+""")
+
+    with pytest.raises(ValueError, match="default_actions"):
+        load(config_file)
+
+
+def test_rejects_default_actions_that_are_not_a_mapping(tmp_path):
+    config_file = _config_with(tmp_path, _RULE_HEAD, """
+  default_actions: [log, webhook]
+""")
+
+    with pytest.raises(ValueError, match="default_actions"):
+        load(config_file)
+
+
+def test_rejects_the_same_severity_twice_in_default_actions(tmp_path):
+    """'warning' e 'Warning' viram a mesma chave — um dos dois seria descartado em silêncio."""
+    config_file = _config_with(tmp_path, _RULE_HEAD, """
+  default_actions:
+    warning: [log]
+    Warning: [webhook]
+""")
+
+    with pytest.raises(ValueError, match="warning"):
+        load(config_file)
+
+
+def test_rejects_rule_actions_written_as_a_severity_map(tmp_path):
+    """
+    Uma regra tem uma severidade só — um mapa por severidade dentro dela não
+    faz sentido. O erro precisa apontar para onde esse mapa vai.
+    """
+    config_file = _config_with(tmp_path, _RULE_HEAD + """      actions:
+        critical: [log]
+""")
+
+    with pytest.raises(ValueError) as exc:
+        load(config_file)
+
+    message = str(exc.value)
+    assert "alta_temp" in message
+    assert "default_actions" in message
+
+
+def test_rejects_rule_actions_written_as_a_string(tmp_path):
+    """Sem essa checagem, 'log' seria iterado letra por letra: 'l', 'o', 'g'."""
+    config_file = _config_with(tmp_path, _RULE_HEAD + "      actions: log\n")
+
+    with pytest.raises(ValueError, match="alta_temp"):
+        load(config_file)

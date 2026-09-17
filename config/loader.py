@@ -47,6 +47,7 @@ def _parse(raw: dict) -> EdgeSentinelConfig:
         cameras=_parse_cameras(raw.get("cameras", [])),
         yolo=_parse_yolo(raw.get("yolo", {})),
         event_store=_parse_event_store(raw.get("event_store", {})),
+        default_actions=_parse_default_actions(raw.get("default_actions")),
     )
 
 
@@ -95,7 +96,7 @@ def _parse_rules(raw: list[dict]) -> list[RuleConfig]:
         result.append(RuleConfig(
             name=item["name"],
             condition=condition,
-            actions=item.get("actions", []),
+            actions=_parse_rule_actions(item.get("actions"), rule_name=item["name"]),
             severity=_parse_severity(item, rule_name=item["name"]),
             cooldown_seconds=float(item.get("cooldown_seconds", 0.0)),
             enabled=item.get("enabled", True),
@@ -114,6 +115,67 @@ def _parse_severity(item: dict, rule_name: str) -> str:
         return Severity.from_name(str(raw)).value
     except ValueError as e:
         raise ValueError(f"Regra '{rule_name}': {e}") from None
+
+
+def _parse_rule_actions(raw, rule_name: str) -> list[str] | None:
+    """
+    None quando a regra não declara `actions` — o mapper aplica
+    default_actions. Uma lista vazia declarada continua vazia.
+    """
+    if raw is None:
+        return None
+
+    if isinstance(raw, dict):
+        raise ValueError(
+            f"Regra '{rule_name}': 'actions' precisa ser uma lista de ids. "
+            f"Uma regra tem uma severidade só — ações por severidade vão no "
+            f"bloco 'default_actions', no nível do edgesentinel."
+        )
+
+    if not _is_list_of_ids(raw):
+        raise ValueError(
+            f"Regra '{rule_name}': 'actions' precisa ser uma lista de ids, "
+            f"recebido: {raw!r}"
+        )
+
+    return list(raw)
+
+
+def _parse_default_actions(raw) -> dict[str, list[str]]:
+    if raw is None:
+        return {}
+
+    if not isinstance(raw, dict):
+        raise ValueError(
+            "default_actions precisa ser um mapa severidade → lista de ids, "
+            "por exemplo  critical: [log, webhook]"
+        )
+
+    result: dict[str, list[str]] = {}
+    for key, ids in raw.items():
+        try:
+            severity = Severity.from_name(str(key)).value
+        except ValueError as e:
+            raise ValueError(f"default_actions: {e}") from None
+
+        # 'warning' e 'Warning' viram a mesma chave — uma das listas sumiria
+        if severity in result:
+            raise ValueError(
+                f"default_actions: a severidade '{severity}' aparece mais de uma vez"
+            )
+
+        if not _is_list_of_ids(ids):
+            raise ValueError(
+                f"default_actions.{key} precisa ser uma lista de ids, recebido: {ids!r}"
+            )
+
+        result[severity] = list(ids)
+
+    return result
+
+
+def _is_list_of_ids(value) -> bool:
+    return isinstance(value, list) and all(isinstance(i, str) for i in value)
 
 
 def _parse_actions(raw: list[dict]) -> list[ActionConfig]:
