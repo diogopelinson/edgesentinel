@@ -6,9 +6,9 @@ models:
     target_classes: [person, car, truck, bicycle]
     confidence_threshold: 0.5
 
+  # gerado por scripts/train_model.py — a normalização já vem dentro do modelo
   - id: anomaly_onnx
     type: onnx
     path: weights/anomaly.onnx
-    scaler_path: weights/scaler.onnx
-    description: "IsolationForest — anomalia de sensor"
+    description: "IsolationForest + distância à faixa de treino — anomalia de sensor"
     confidence_threshold: 0.6
