@@ -367,7 +367,7 @@ Acessa `http://localhost:3000` — login `admin` / `edgesentinel`.
 
 1. Menu lateral → **Dashboards** → **Import**
 2. Clica **Upload dashboard JSON file**
-3. Seleciona `dashboards/edgesentinel.json`
+3. Seleciona `dashboards/edgesentinel_dashboard_v2.json`
 4. Em **Prometheus**, seleciona o datasource criado no passo anterior
 5. Clica **Import**
 
@@ -534,7 +534,7 @@ edgesentinel/
 ├── ai-inference-service/       # FastAPI com YOLO/ONNX containerizado
 ├── scripts/                    # train_model.py
 ├── infra/docker/               # docker-compose, MediaMTX, OTel, Prometheus, Grafana
-├── dashboards/                 # edgesentinel.json para Grafana
+├── dashboards/                 # edgesentinel_dashboard_v2.json para Grafana
 ├── data/                       # events.db — gerado em execução, fora do git
 └── tests/                      # unitários + integração (249 testes)
 ```
