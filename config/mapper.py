@@ -1,5 +1,5 @@
 from config.schema import EdgeSentinelConfig, RuleConfig, ConditionConfig
-from core.rules import Rule, Condition
+from core.rules import Rule, Condition, Severity
 
 
 def to_rules(config: EdgeSentinelConfig) -> list[Rule]:
@@ -12,6 +12,7 @@ def _to_rule(config: RuleConfig) -> Rule:
         name=config.name,
         condition=_to_condition(config.condition),
         action_ids=config.actions,
+        severity=Severity.from_name(config.severity),
         cooldown_seconds=config.cooldown_seconds,
         enabled=config.enabled,
     )

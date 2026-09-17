@@ -1,6 +1,7 @@
 from pathlib import Path
 import yaml
 
+from core.rules import Severity
 from config.schema import (
     EdgeSentinelConfig,
     SensorConfig,
@@ -93,10 +94,24 @@ def _parse_rules(raw: list[dict]) -> list[RuleConfig]:
             name=item["name"],
             condition=condition,
             actions=item.get("actions", []),
+            severity=_parse_severity(item, rule_name=item["name"]),
             cooldown_seconds=float(item.get("cooldown_seconds", 0.0)),
             enabled=item.get("enabled", True),
         ))
     return result
+
+
+def _parse_severity(item: dict, rule_name: str) -> str:
+    """
+    Valida a severidade no carregamento, não no primeiro disparo da regra —
+    uma regra pode ficar sem casar por dias antes de disparar pela primeira
+    vez, e até lá o erro de digitação já foi para campo.
+    """
+    raw = item.get("severity", Severity.WARNING.value)
+    try:
+        return Severity.from_name(str(raw)).value
+    except ValueError as e:
+        raise ValueError(f"Regra '{rule_name}': {e}") from None
 
 
 def _parse_actions(raw: list[dict]) -> list[ActionConfig]:

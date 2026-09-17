@@ -44,6 +44,7 @@ class RuleConfig:
     name: str
     condition: ConditionConfig
     actions: list[str]
+    severity: str = "warning"
     cooldown_seconds: float = 0.0
     enabled: bool = True
 

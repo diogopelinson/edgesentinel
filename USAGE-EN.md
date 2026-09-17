@@ -69,7 +69,7 @@ from adapters.exporter.prometheus import PrometheusExporter
 from application.engine import RuleEngine
 from application.pipeline import Pipeline
 from application.monitor import MonitorLoop
-from core.rules import Rule, Condition
+from core.rules import Rule, Condition, Severity
 
 sensors = [
     CpuTemperatureSensor(sensor_id="cpu_temp"),
@@ -95,6 +95,14 @@ rules = [
         condition=Condition(sensor_id="cpu_temp", operator=">", threshold=75.0),
         action_ids=["log", "webhook"],
         cooldown_seconds=60.0,
+        # no severity: Severity.WARNING
+    ),
+    Rule(
+        name="critical_temperature",
+        condition=Condition(sensor_id="cpu_temp", operator=">", threshold=85.0),
+        action_ids=["log", "webhook"],
+        severity=Severity.CRITICAL,
+        cooldown_seconds=30.0,
     ),
 ]
 
@@ -429,7 +437,15 @@ Inheriting from `adapters.sensors.base.BaseSensor` instead of `SensorPort` gives
 ```python
 from core.ports import ActionPort
 from core.entities import ActionContext
+from core.rules import Severity
 import requests
+
+
+ICONS = {
+    Severity.INFO:     "ℹ️",
+    Severity.WARNING:  "⚠️",
+    Severity.CRITICAL: "🚨",
+}
 
 
 class TelegramAction(ActionPort):
@@ -441,11 +457,12 @@ class TelegramAction(ActionPort):
         self._chat_id  = chat_id
 
     def execute(self, context: ActionContext) -> None:
-        reading = context.reading
-        score   = context.score
+        reading  = context.reading
+        score    = context.score
+        severity = context.extras.get("severity", Severity.WARNING)
 
         text = (
-            f"🚨 *{context.rule_name}*\n"
+            f"{ICONS[severity]} *{context.rule_name}* [{severity.value}]\n"
             f"Sensor: `{reading.sensor_id}`\n"
             f"Value: `{reading.value}{reading.unit}`"
         )
@@ -459,6 +476,8 @@ class TelegramAction(ActionPort):
             timeout=5,
         )
 ```
+
+The severity of the rule that fired arrives in `context.extras["severity"]` as a `Severity`. For text, use `.value` — on Python 3.10, `str(Severity.CRITICAL)` returns `'Severity.CRITICAL'`, not `'critical'`. The `.get` default covers the action being called outside the `RuleEngine`.
 
 ---
 
@@ -520,8 +539,39 @@ class ActionContext:
     rule_name: str
     reading: SensorReading
     score: AnomalyScore | None
-    extras: dict
+    extras: dict            # extras["severity"] carries the rule's Severity
 ```
+
+### `Rule`
+
+```python
+@dataclass
+class Rule:
+    name: str
+    condition: Condition
+    action_ids: list[str]
+    severity: Severity = Severity.WARNING
+    enabled: bool = True
+    cooldown_seconds: float = 0.0
+```
+
+### `Severity`
+
+```python
+class Severity(str, Enum):
+    INFO     = "info"
+    WARNING  = "warning"     # default
+    CRITICAL = "critical"
+
+    @classmethod
+    def from_name(cls, name: str) -> "Severity": ...   # case-insensitive
+```
+
+| Severity | `log` level | Typical use |
+|---|---|---|
+| `info` | INFO | expected event worth recording |
+| `warning` | WARNING | out of the ordinary, needs attention — **default** |
+| `critical` | CRITICAL | requires immediate action |
 
 ### Available operators
 

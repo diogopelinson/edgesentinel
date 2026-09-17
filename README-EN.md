@@ -75,13 +75,15 @@ Evaluates rules on every sensor reading with configurable operators:
 | `>` `<` `>=` `<=` `==` | simple numeric comparison |
 | `anomaly` | ML model score above threshold |
 
+Every rule has a **severity** — `info`, `warning` (default) or `critical`. It sets the log level and reaches every action of the rule, so the same sensor can have a warning at 75 °C and a critical alert at 85 °C. An invalid severity in the YAML fails when the config is loaded, not on the first firing.
+
 ### OpenTelemetry observability
 
 Both edgesentinel and the AI Service export metrics via OTel to the same Collector. Prometheus scrapes and Grafana plots everything in real time — two services, one dashboard.
 
 ### Configurable actions
 
-- **`log`** — structured log with configurable level
+- **`log`** — structured log at the rule's severity level (`info` → INFO, `warning` → WARNING, `critical` → CRITICAL)
 - **`webhook`** — HTTP POST with full JSON payload
 - **`gpio_write`** — triggers GPIO pin (LED, relay, buzzer)
 
@@ -96,7 +98,7 @@ edgesentinel uses **Hexagonal Architecture (Ports & Adapters)**. The core domain
 │                    core/                         │
 │  ports.py     → abstract contracts              │
 │  entities.py  → immutable dataclasses           │
-│  rules.py     → Rule, Condition, cooldown       │
+│  rules.py     → Rule, Condition, Severity       │
 └───────────────────────┬─────────────────────────┘
                         │ everything depends on core
 ┌───────────────────────▼─────────────────────────┐
@@ -211,19 +213,31 @@ edgesentinel:
   #   endpoint: "http://localhost:4317"
   #   service_name: "edgesentinel"
 
+  # severity: info | warning | critical  (default: warning)
   rules:
     - name: high_temperature
       condition:
         sensor_id: cpu_temp
         operator: ">"
         threshold: 75.0
+      severity: warning
       actions: [log, webhook]
       cooldown_seconds: 60
+
+    - name: critical_temperature
+      condition:
+        sensor_id: cpu_temp
+        operator: ">"
+        threshold: 85.0
+      severity: critical
+      actions: [log, webhook]
+      cooldown_seconds: 30
 
     - name: person_detected
       condition:
         sensor_id: camera_01
         operator: anomaly
+      severity: info
       actions: [log, webhook]
       cooldown_seconds: 30
 
@@ -319,7 +333,16 @@ Leave edgesentinel running and click **Refresh** on the dashboard. Panels should
   Memory Usage      64.50 %
 
 [WARNING] Rule 'high_temperature' fired | sensor=cpu_temp value=75.92°C | anomaly_score=0.9366
+
+[tick 051]
+  CPU Temperature   86.12 °C
+  CPU Usage         97.40 %
+  Memory Usage      63.10 %
+
+[CRITICAL] Rule 'critical_temperature' fired | sensor=cpu_temp value=86.12°C | anomaly_score=0.9366
 ```
+
+In the `stress` scenario the temperature crosses 85 °C around the 50-second mark and the `critical` rule from the example config fires. `high_temperature` does not repeat there because it is still inside its 60 s cooldown.
 
 ---
 
@@ -402,15 +425,16 @@ pytest tests/ -v
 pytest tests/ --cov=. --cov-report=term-missing
 ```
 
-**90 tests, zero failures.**
+**108 tests, zero failures.**
 
 | Layer | Coverage |
 |---|---|
 | `core/` | 100% |
 | `application/engine` | 100% |
 | `application/pipeline` | 100% |
+| `adapters/actions/log` | 100% |
 | `adapters/inference/dummy` | 100% |
-| `config/loader` | 91% |
+| `config/loader` | 92% |
 
 ---
 
@@ -431,7 +455,7 @@ edgesentinel/
 ├── scripts/                    # train_model.py
 ├── infra/docker/               # docker-compose, MediaMTX, OTel, Prometheus, Grafana
 ├── dashboards/                 # edgesentinel.json for Grafana
-└── tests/                      # unit + integration (90 tests)
+└── tests/                      # unit + integration (108 tests)
 ```
 
 ---
