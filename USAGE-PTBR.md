@@ -48,6 +48,43 @@ edgesentinel simulate --scenario spike
 
 Tanto `run` quanto `simulate` gravam cada regra disparada em `data/events.db` (SQLite), com retenção de 30 dias. O caminho e a retenção mudam no bloco `event_store` do `config.yaml`, e `enabled: false` desliga o histórico. Para consultar pelo Python, veja [Consultando o histórico](#consultando-o-histórico).
 
+### Consultar o histórico
+
+```bash
+# o que disparou na última hora
+edgesentinel events --last 1h
+
+# só críticos de um sensor
+edgesentinel events --severity critical --sensor cpu_temp
+
+# outro config (e portanto outro banco)
+edgesentinel events --config /etc/edgesentinel/config.yaml -n 100
+```
+
+Com `--json`, cada linha é um objeto completo:
+
+```json
+{"event_id": 1159, "time": "2026-09-16T23:18:10-03:00", "timestamp": 1789611490.73, "severity": "warning", "rule_name": "uso_alto_cpu", "sensor_id": "cpu_usage", "value": 91.54, "unit": "%", "anomaly_score": 0.9366}
+```
+
+Isso deixa o histórico fácil de usar em script (Linux / macOS):
+
+```bash
+# disparos por regra nas últimas 24 horas
+edgesentinel events --last 24h --limit 100000 --json | jq -r .rule_name | sort | uniq -c
+
+# alerta externo se houve algum crítico nos últimos 5 minutos
+if edgesentinel events --severity critical --last 5m --json | grep -q .; then
+    echo "crítico recente"
+fi
+```
+
+Três garantias sustentam esses usos:
+
+- **stdout só tem dados.** "Nenhum evento encontrado" e erros vão para o stderr, então o `grep -q .` acima só casa com eventos de verdade.
+- **Consultar não altera nada.** O comando não aplica a retenção e não cria o banco se ele não existir.
+- **O código de saída distingue os casos.** `0` para resultado, nenhum resultado ou histórico ainda vazio; `1` para config inválido, store desabilitado ou arquivo ilegível; `2` para opção inválida, como `--last ontem`.
+
 ---
 
 ## 2. Uso como biblioteca Python
