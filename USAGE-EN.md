@@ -472,7 +472,7 @@ If you see "Successfully queried the Prometheus API", it's working.
 
 1. Side menu → **Dashboards** → **Import**
 2. Click **Upload dashboard JSON file**
-3. Select `dashboards/edgesentinel.json`
+3. Select `dashboards/edgesentinel_dashboard_v2.json`
 4. Under **Prometheus**, select the datasource from the previous step
 5. Click **Import**
 
