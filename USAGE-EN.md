@@ -62,7 +62,7 @@ edgesentinel events --config /etc/edgesentinel/config.yaml -n 100
 With `--json`, each line is a complete object:
 
 ```json
-{"event_id": 1159, "time": "2026-09-16T23:18:10-03:00", "timestamp": 1789611490.73, "severity": "warning", "rule_name": "uso_alto_cpu", "sensor_id": "cpu_usage", "value": 91.54, "unit": "%", "anomaly_score": 0.9366}
+{"event_id": 1162, "time": "2026-09-17T00:35:10-03:00", "timestamp": 1789616110.68, "severity": "warning", "rule_name": "uso_alto_cpu", "sensor_id": "cpu_usage", "value": 92.36, "unit": "%", "anomaly_score": 0.9769}
 ```
 
 That makes the history easy to script (Linux / macOS):
@@ -366,6 +366,19 @@ curl http://localhost:8080/models
 ```
 
 The `weights/` paths resolve to the repository's `models/` directory, which Docker Compose mounts at `/app/weights`. So `weights/fire.pt` means the file `models/fire.pt` on the host. Weight files are never committed: `.gitignore` excludes `models/*.pt`, `models/*.onnx` and `ai-inference-service/weights/`, and [`models/README.md`](models/README.md) says how to obtain the ones the project uses.
+
+### ONNX anomaly models
+
+`type: onnx` models, in the AI service and in the agent (`inference.backend: onnx`), follow one contract:
+
+| | Name | Type | Meaning |
+|---|---|---|---|
+| input | any | `float32 [N, 1]` | the raw sensor value, unscaled |
+| output | `anomaly_score` | `float32 [N, 1]` | 0 = normal, 1 = maximally anomalous |
+
+`scripts/train_model.py` produces such a model, with normalisation and the scoring rule built into the graph. Any other ONNX file exposing that input and output works as well. A file without an `anomaly_score` output is refused when it loads — the AI service logs the error and keeps serving the other models. A `scaler_path` left in `models.yaml` from earlier versions is ignored with a warning.
+
+For `anomaly_onnx`, the `/predict` response carries one `anomaly` detection whose `confidence` is the `anomaly_score`, or no detection when the score is below `confidence_threshold`.
 
 ---
 
