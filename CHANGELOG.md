@@ -17,8 +17,18 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
   `ai-inference-service/weights/yolov8n.pt` were removed from the index, and
   `.gitignore` now excludes `models/*.pt`, `models/*.onnx` and
   `ai-inference-service/weights/`. `models/README.md` explains how to obtain
-  each file. Existing local copies are untouched; earlier commits still
-  contain them.
+  each file. Earlier commits still contain them.
+
+  **Pulling this change deletes your local copies of those four files** —
+  git removes files that an incoming commit stops tracking. Copy them
+  elsewhere before pulling, or bring them back afterwards from the last
+  release that tracked them:
+
+  ```bash
+  git restore --source=v0.3.0 --worktree -- models/anomaly.onnx models/scaler.onnx models/yolov8n.pt ai-inference-service/weights/yolov8n.pt
+  ```
+
+  The restored files stay out of git, since they now match the ignore rules.
 
 ## [0.3.0] - 2026-09-17
 
