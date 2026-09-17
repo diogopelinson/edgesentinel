@@ -3,8 +3,7 @@ import logging
 import argparse
 from pathlib import Path
 
-__version__ = "0.1.0"
-
+from cli import __version__
 from config.loader import load
 from cli.builder import build_monitor
 
