@@ -414,6 +414,16 @@ class SensorTemperaturaMotor(SensorPort):
         return os.path.exists(self.device_path)
 ```
 
+### Contrato de disponibilidade
+
+Todo sensor segue três regras, e o exemplo acima já cumpre as três:
+
+1. **O `__init__` não toca o hardware** — só guarda a configuração. Nada de abrir arquivo, procurar dispositivo ou chamar comando no construtor.
+2. **A ausência é informada por `is_available()`**, nunca por exceção. No boot, o `edgesentinel run` ignora sensores indisponíveis com um `WARNING` e segue com os demais; o `edgesentinel doctor` os lista como indisponíveis. Um construtor que levanta exceção desvia os dois para o caminho de erro.
+3. **Quando `read()` falhar, a mensagem diz onde procurou.** `"Nenhuma fonte encontrada. Caminhos tentados: /sys/..., /usr/bin/..."` transforma o diagnóstico numa consulta.
+
+Herdando de `adapters.sensors.base.BaseSensor` em vez de `SensorPort`, o `is_available()` já vem pronto: ele tenta um `read()` e devolve `False` se a leitura levantar exceção.
+
 ---
 
 ## 7. Criando sua própria ação
