@@ -39,6 +39,9 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
 - `scripts/train_model.py` takes `--seed`; training data is reproducible.
 - ONNX tests train their own model instead of reading `models/`, and the AI
   service's ONNX model has tests of its own.
+- The package description is now in English — "Intelligent observability for
+  Linux embedded devices" — matching `README.md`, which the package
+  publishes as its long description. A test keeps the two aligned.
 - Model weights are no longer versioned. `models/anomaly.onnx`,
   `models/scaler.onnx`, `models/yolov8n.pt` and
   `ai-inference-service/weights/yolov8n.pt` were removed from the index, and

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "edgesentinel"
 dynamic = ["version"]
-description = "Observabilidade inteligente para dispositivos Linux embarcados"
+description = "Intelligent observability for Linux embedded devices"
 readme = "README.md"
 requires-python = ">=3.10"
 
