@@ -1,4 +1,3 @@
-import time
 import pytest
 
 from core.rules import Condition, Rule
@@ -52,8 +51,12 @@ class TestRuleCooldown:
         """Sem cooldown configurado, deve sempre disparar."""
         assert simple_rule.condition.evaluate(high_cpu_reading) is True
 
-    def test_rule_respects_cooldown(self, high_cpu_reading):
-        """Regra com cooldown de 60s não deve disparar duas vezes seguidas."""
+    def test_cooldown_is_only_a_declaration(self, high_cpu_reading):
+        """
+        A Rule declara o cooldown; quem o aplica é o engine, pelo StatePort
+        (ver tests/application/test_engine.py e tests/adapters/
+        test_state_contract.py). Aqui só o valor declarado importa.
+        """
         rule = Rule(
             name="teste_cooldown",
             condition=Condition(sensor_id="cpu_temp", operator=">", threshold=75.0),
@@ -61,24 +64,5 @@ class TestRuleCooldown:
             cooldown_seconds=60.0,
         )
 
-        # simula primeiro disparo
-        rule._last_triggered = time.monotonic()
-
-        # calcula tempo desde o disparo — deve ser menor que o cooldown
-        elapsed = time.monotonic() - rule._last_triggered
-        assert elapsed < rule.cooldown_seconds
-
-    def test_rule_fires_after_cooldown_expires(self, high_cpu_reading):
-        """Regra deve disparar quando o cooldown já passou."""
-        rule = Rule(
-            name="teste_cooldown_expirado",
-            condition=Condition(sensor_id="cpu_temp", operator=">", threshold=75.0),
-            action_ids=["log"],
-            cooldown_seconds=1.0,
-        )
-
-        # simula disparo há 2 segundos
-        rule._last_triggered = time.monotonic() - 2.0
-
-        elapsed = time.monotonic() - rule._last_triggered
-        assert elapsed >= rule.cooldown_seconds
+        assert rule.cooldown_seconds == 60.0
+        assert rule.condition.evaluate(high_cpu_reading) is True
