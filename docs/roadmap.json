@@ -396,7 +396,8 @@
       "id": "state-port",
       "title": "StatePort e adapter InMemoryState",
       "milestone": "v0.4",
-      "status": "ready",
+      "status": "done",
+      "delivered_in": "f62635b",
       "effort": "M",
       "portfolio_value": "medium",
       "testable_now": true,
@@ -406,28 +407,31 @@
       "touches": [
         "core/ports.py",
         "adapters/state/memory.py",
-        "application/engine.py:52-57",
-        "cli/builder.py"
+        "core/rules.py",
+        "application/engine.py"
       ],
       "design_notes": "Ponto crítico de design: application/engine.py:56 compara time.monotonic(), cujo epoch é por processo e não tem significado entre máquinas. O StatePort não deve expor timestamps. A interface correta é intencional — try_acquire(key, ttl_seconds) -> bool e get/set de estado de incidente. O InMemoryState implementa try_acquire com o time.monotonic() atual, preservando a decisão de projeto documentada; o RedisState implementa com SET NX EX, onde a expiração é server-side e nenhum relógio é comparado entre máquinas. O conflito entre monotonic e estado distribuído desaparece por construção em vez de virar dívida.",
       "acceptance": [
         "StatePort definido em core/ports.py com try_acquire e get/set de estado",
         "InMemoryState reproduz exatamente o comportamento de cooldown atual",
         "RuleEngine não referencia time.monotonic() diretamente",
-        "nenhum teste existente de cooldown precisa mudar"
+        "nenhum teste existente de cooldown precisa mudar",
+        "tomar o cooldown é atômico: em 20 chamadores simultâneos, só um passa"
       ],
       "tests": [
         "try_acquire devolve True na primeira chamada e False dentro do TTL",
         "try_acquire volta a devolver True depois do TTL",
         "suíte existente de cooldown em tests/application/test_engine.py passa sem alteração",
-        "contrato do StatePort verificado por um conjunto de testes reaproveitável pelo RedisState"
-      ]
+        "contrato do StatePort verificado por um conjunto de testes reaproveitável pelo RedisState",
+        "Rule não tem mais _last_triggered e application/engine.py não menciona monotonic"
+      ],
+      "delivery_notes": "cli/builder.py não precisou mudar: o engine cai no InMemoryState quando nenhum state é passado, e o RedisState entra pelo builder na v0.6, junto com a config dele. Além do previsto, a mudança corrigiu uma corrida: comparar e escrever rule._last_triggered eram passos separados, e os pipelines compartilham o engine entre threads do executor, então duas threads podiam disparar a mesma regra."
     },
     {
       "id": "incident-lifecycle",
       "title": "máquina de estados de incidente",
       "milestone": "v0.4",
-      "status": "planned",
+      "status": "ready",
       "effort": "L",
       "portfolio_value": "high",
       "testable_now": true,
