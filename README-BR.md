@@ -133,6 +133,7 @@ O edgesentinel usa **Arquitetura Hexagonal (Ports & Adapters)**. O domínio cent
 │  actions/     → log, webhook, gpio               │
 │  exporter/    → Prometheus legacy + OTel         │
 │  store/       → histórico de eventos (SQLite)    │
+│  state/       → cooldown, estado de incidente    │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -501,7 +502,7 @@ pytest tests/ -v
 pytest tests/ --cov=. --cov-report=term-missing
 ```
 
-**263 testes, zero falhas.**
+**278 testes, zero falhas.**
 
 | Camada | Cobertura |
 |---|---|
@@ -528,7 +529,8 @@ edgesentinel/
 │   ├── inference/              # dummy, onnx, tflite, remote (AI Service)
 │   ├── actions/                # log, webhook, gpio
 │   ├── exporter/               # Prometheus legacy + OpenTelemetry
-│   └── store/                  # Event Store em SQLite
+│   ├── store/                  # Event Store em SQLite
+│   └── state/                  # cooldown e, depois, estado de incidente
 ├── application/                # RuleEngine, Pipeline, MonitorLoop
 ├── cli/                        # run / simulate / doctor / events
 ├── ai-inference-service/       # FastAPI com YOLO/ONNX containerizado
@@ -536,7 +538,7 @@ edgesentinel/
 ├── infra/docker/               # docker-compose, MediaMTX, OTel, Prometheus, Grafana
 ├── dashboards/                 # edgesentinel_dashboard_v2.json para Grafana
 ├── data/                       # events.db — gerado em execução, fora do git
-└── tests/                      # unitários + integração (263 testes)
+└── tests/                      # unitários + integração (278 testes)
 ```
 
 ---
@@ -551,7 +553,7 @@ edgesentinel/
 
 **`frozen=True` nas entidades** — o loop é async. Imutabilidade elimina bugs de concorrência.
 
-**`time.monotonic()` para cooldowns** — o relógio de parede pode andar para trás em NTP. O monotônico só avança.
+**Cooldown atrás de uma porta** — o engine não lê relógio. Ele pede ao `StatePort` para tomar uma chave por N segundos, e tomar é a mesma operação que verificar, então duas threads de pipeline não conseguem disparar a mesma regra ao mesmo tempo. O `InMemoryState` faz isso com `time.monotonic()`, porque o relógio de parede pode andar para trás em NTP; o adapter de Redis vai deixar o servidor expirar a chave. É esse o motivo da porta: o epoch do monotônico é por processo, então um engine que compara timestamps nunca teria como ter cooldown distribuído.
 
 **AI Service separado** — isolamento de falha. Se o YOLO travar, o monitoramento de sensores continua.
 
