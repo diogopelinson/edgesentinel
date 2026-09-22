@@ -28,8 +28,8 @@ class Severity(str, Enum):
             ) from None
 
 
-_UPPER_BOUND = {">", ">="}
-_LOWER_BOUND = {"<", "<="}
+UPPER_BOUND = {">", ">="}
+LOWER_BOUND = {"<", "<="}
 
 # margem de histerese: fração de |threshold| que a leitura precisa recuar
 _HYSTERESIS = 0.1
@@ -83,14 +83,14 @@ class Condition:
         0.9 daria -9, que está do lado do alarme, e o incidente fecharia
         sozinho na leitura seguinte.
         """
-        if self.operator not in _UPPER_BOUND | _LOWER_BOUND:
+        if self.operator not in UPPER_BOUND | LOWER_BOUND:
             return None
 
         if self.resolve_threshold is not None:
             return self.resolve_threshold
 
         margin = abs(self.threshold) * _HYSTERESIS
-        return self.threshold - margin if self.operator in _UPPER_BOUND else self.threshold + margin
+        return self.threshold - margin if self.operator in UPPER_BOUND else self.threshold + margin
 
     def resolves(self, reading: SensorReading, score: AnomalyScore | None = None) -> bool:
         """
@@ -113,7 +113,7 @@ class Condition:
         if point is None:
             return False
 
-        if self.operator in _UPPER_BOUND:
+        if self.operator in UPPER_BOUND:
             return reading.value <= point
         return reading.value >= point
 
