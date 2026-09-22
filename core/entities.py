@@ -40,6 +40,7 @@ class Event:
     timestamp: float = field(default_factory=time.time)
     anomaly_score: float | None = None
     event_id: int | None = None       # atribuído pelo store ao persistir
+    incident_id: int | None = None    # incidente que agrupa este disparo
 
 
 @dataclass

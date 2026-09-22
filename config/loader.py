@@ -1,7 +1,7 @@
 from pathlib import Path
 import yaml
 
-from core.rules import Severity
+from core.rules import Severity, LOWER_BOUND, UPPER_BOUND
 from config.schema import (
     EdgeSentinelConfig,
     SensorConfig,
@@ -91,6 +91,7 @@ def _parse_rules(raw: list[dict]) -> list[RuleConfig]:
             sensor_id=cond_raw["sensor_id"],
             operator=cond_raw["operator"],
             threshold=float(cond_raw.get("threshold", 0.0)),
+            resolve_threshold=_parse_resolve_threshold(cond_raw, rule_name=item["name"]),
         )
 
         result.append(RuleConfig(
@@ -102,6 +103,49 @@ def _parse_rules(raw: list[dict]) -> list[RuleConfig]:
             enabled=item.get("enabled", True),
         ))
     return result
+
+
+def _parse_resolve_threshold(cond_raw: dict, rule_name: str) -> float | None:
+    """
+    Valida o ponto em que o incidente fecha. Um valor do lado do alarme
+    fecharia o incidente com o sensor ainda fora do limite, e a leitura
+    seguinte abriria outro — o oposto do que a histerese existe para fazer.
+    """
+    if "resolve_threshold" not in cond_raw:
+        return None
+
+    raw      = cond_raw["resolve_threshold"]
+    operator = cond_raw.get("operator")
+
+    try:
+        resolve_threshold = float(raw)
+    except (TypeError, ValueError):
+        raise ValueError(
+            f"Regra '{rule_name}': resolve_threshold precisa ser um número, "
+            f"recebido: {raw!r}"
+        ) from None
+
+    if operator not in UPPER_BOUND | LOWER_BOUND:
+        raise ValueError(
+            f"Regra '{rule_name}': resolve_threshold não se aplica ao operador "
+            f"'{operator}', que não tem borda numérica."
+        )
+
+    threshold = float(cond_raw.get("threshold", 0.0))
+    if operator in UPPER_BOUND and resolve_threshold > threshold:
+        raise ValueError(
+            f"Regra '{rule_name}': resolve_threshold ({resolve_threshold:g}) precisa "
+            f"ser menor ou igual ao threshold ({threshold:g}) para o operador "
+            f"'{operator}' — acima dele o incidente fecharia ainda em alarme."
+        )
+    if operator in LOWER_BOUND and resolve_threshold < threshold:
+        raise ValueError(
+            f"Regra '{rule_name}': resolve_threshold ({resolve_threshold:g}) precisa "
+            f"ser maior ou igual ao threshold ({threshold:g}) para o operador "
+            f"'{operator}' — abaixo dele o incidente fecharia ainda em alarme."
+        )
+
+    return resolve_threshold
 
 
 def _parse_severity(item: dict, rule_name: str) -> str:

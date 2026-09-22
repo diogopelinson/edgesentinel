@@ -101,6 +101,20 @@ class TestActionResolution:
 
 class TestExistingMapping:
 
+    def test_resolve_threshold_reaches_the_condition(self):
+        """Quem usa o ponto de resolução é o Condition do core."""
+        rule = make_rule(
+            actions=["log"],
+            condition=ConditionConfig(
+                sensor_id="cpu_temp", operator=">", threshold=80.0, resolve_threshold=70.0
+            ),
+        )
+
+        rules = to_rules(make_config(rule))
+
+        assert rules[0].condition.resolve_threshold == 70.0
+        assert rules[0].condition.resolution_point() == 70.0
+
     def test_severity_becomes_the_enum(self):
         rules = to_rules(make_config(make_rule(severity="critical", actions=["log"])))
 

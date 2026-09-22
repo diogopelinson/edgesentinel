@@ -30,6 +30,8 @@ class ConditionConfig:
     sensor_id: str
     operator: str
     threshold: float = 0.0
+    # onde o incidente fecha; None usa a margem padrão de histerese
+    resolve_threshold: float | None = None
 
 
 @dataclass

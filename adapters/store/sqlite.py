@@ -7,12 +7,15 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
+from dataclasses import replace
+
 from core.entities import Event
-from core.ports import EventPort
+from core.incidents import Incident, IncidentState
+from core.ports import EventPort, IncidentPort
 
 logger = logging.getLogger("edgesentinel.store")
 
-_SCHEMA_VERSION  = 1
+_SCHEMA_VERSION  = 2
 _SECONDS_PER_DAY = 86_400
 
 _SCHEMA = """
@@ -24,28 +27,60 @@ CREATE TABLE IF NOT EXISTS events (
     value         REAL    NOT NULL,
     unit          TEXT    NOT NULL,
     severity      TEXT    NOT NULL,
-    anomaly_score REAL
+    anomaly_score REAL,
+    incident_id   INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events (timestamp);
 CREATE INDEX IF NOT EXISTS idx_events_severity  ON events (severity, timestamp);
 CREATE INDEX IF NOT EXISTS idx_events_sensor    ON events (sensor_id, timestamp);
 CREATE INDEX IF NOT EXISTS idx_events_rule      ON events (rule_name, timestamp);
+
+CREATE TABLE IF NOT EXISTS incidents (
+    incident_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    rule_name       TEXT    NOT NULL,
+    sensor_id       TEXT    NOT NULL,
+    severity        TEXT    NOT NULL,
+    state           TEXT    NOT NULL,
+    opened_at       REAL    NOT NULL,
+    acknowledged_at REAL,
+    resolved_at     REAL
+);
+CREATE INDEX IF NOT EXISTS idx_incidents_state ON incidents (state, opened_at);
+
+-- uma regra tem no máximo um incidente aberto: é o banco que garante o
+-- agrupamento dos disparos, não o engine
+CREATE UNIQUE INDEX IF NOT EXISTS idx_incidents_one_open_per_rule
+    ON incidents (rule_name) WHERE state != 'resolved';
 """
 
-_COLUMNS = "event_id, timestamp, rule_name, sensor_id, value, unit, severity, anomaly_score"
+_COLUMNS = (
+    "event_id, timestamp, rule_name, sensor_id, value, unit, severity, "
+    "anomaly_score, incident_id"
+)
 
 _INSERT = (
-    "INSERT INTO events (timestamp, rule_name, sensor_id, value, unit, severity, anomaly_score) "
-    "VALUES (?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO events (timestamp, rule_name, sensor_id, value, unit, severity, "
+    "anomaly_score, incident_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+)
+
+_INCIDENT_COLUMNS = (
+    "incident_id, rule_name, sensor_id, severity, state, opened_at, "
+    "acknowledged_at, resolved_at"
+)
+
+_INSERT_INCIDENT = (
+    "INSERT INTO incidents (rule_name, sensor_id, severity, state, opened_at, "
+    "acknowledged_at, resolved_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
 )
 
 # sinaliza para a thread de escrita que não virá mais nada
 _STOP = object()
 
 
-class SQLiteEventStore(EventPort):
+class SQLiteEventStore(EventPort, IncidentPort):
     """
-    Histórico de regras disparadas num arquivo SQLite local.
+    Histórico de regras disparadas e ciclo de vida dos incidentes, no mesmo
+    arquivo SQLite local.
 
     append() só enfileira; uma thread dedicada grava em lote. O pipeline roda
     em run_in_executor, num pool limitado — num cartão SD, um fsync pode
@@ -54,6 +89,11 @@ class SQLiteEventStore(EventPort):
 
     Com a fila cheia o evento é descartado com aviso: perder um registro do
     histórico é preferível a atrasar o próximo alerta.
+
+    Incidentes vão pelo caminho síncrono, sem fila: são raros (uma abertura
+    e um fechamento por episódio, não um por leitura) e a decisão seguinte
+    depende de ler o que acabou de ser escrito — inclusive um reconhecimento
+    feito por outro processo.
     """
 
     def __init__(
@@ -80,6 +120,7 @@ class SQLiteEventStore(EventPort):
             # WAL deixa query() ler enquanto a thread de escrita grava
             conn.execute("PRAGMA journal_mode=WAL")
             conn.executescript(_SCHEMA)
+            self._migrate(conn)
             conn.execute(f"PRAGMA user_version = {_SCHEMA_VERSION}")
 
         cutoff  = time.time() - self._retention_days * _SECONDS_PER_DAY
@@ -172,7 +213,7 @@ class SQLiteEventStore(EventPort):
     def _write(conn: sqlite3.Connection, events: list[Event]) -> None:
         conn.executemany(_INSERT, [
             (e.timestamp, e.rule_name, e.sensor_id, e.value,
-             e.unit, e.severity, e.anomaly_score)
+             e.unit, e.severity, e.anomaly_score, e.incident_id)
             for e in events
         ])
         conn.commit()
@@ -222,9 +263,66 @@ class SQLiteEventStore(EventPort):
         return [self._to_event(row) for row in rows]
 
     def prune(self, before: float) -> int:
+        """
+        Remove eventos antigos e incidentes já resolvidos. Incidente aberto
+        nunca é removido, por velho que seja: é justamente o que se quer ver.
+        """
         with self._connection() as conn:
-            cursor = conn.execute("DELETE FROM events WHERE timestamp < ?", (before,))
-            return cursor.rowcount
+            events = conn.execute(
+                "DELETE FROM events WHERE timestamp < ?", (before,)
+            ).rowcount
+            incidents = conn.execute(
+                "DELETE FROM incidents WHERE state = ? AND resolved_at < ?",
+                (IncidentState.RESOLVED.value, before),
+            ).rowcount
+            return events + incidents
+
+    # --- incidentes (IncidentPort) ---
+
+    def open_incident(self, incident: Incident) -> Incident:
+        with self._connection() as conn:
+            cursor = conn.execute(_INSERT_INCIDENT, (
+                incident.rule_name,
+                incident.sensor_id,
+                incident.severity,
+                incident.state.value,
+                incident.opened_at,
+                incident.acknowledged_at,
+                incident.resolved_at,
+            ))
+            return replace(incident, incident_id=cursor.lastrowid)
+
+    def acknowledge_incident(self, incident_id: int, at: float) -> None:
+        self._set_state(incident_id, IncidentState.ACKNOWLEDGED, acknowledged_at=at)
+
+    def resolve_incident(self, incident_id: int, at: float) -> None:
+        self._set_state(incident_id, IncidentState.RESOLVED, resolved_at=at)
+
+    def open_incidents(self) -> list[Incident]:
+        sql = (
+            f"SELECT {_INCIDENT_COLUMNS} FROM incidents WHERE state != ? "
+            f"ORDER BY opened_at, incident_id"
+        )
+        with self._connection() as conn:
+            rows = conn.execute(sql, (IncidentState.RESOLVED.value,)).fetchall()
+
+        return [self._to_incident(row) for row in rows]
+
+    def _set_state(
+        self,
+        incident_id: int,
+        state: IncidentState,
+        acknowledged_at: float | None = None,
+        resolved_at: float | None = None,
+    ) -> None:
+        column = "acknowledged_at" if acknowledged_at is not None else "resolved_at"
+        stamp  = acknowledged_at if acknowledged_at is not None else resolved_at
+
+        with self._connection() as conn:
+            conn.execute(
+                f"UPDATE incidents SET state = ?, {column} = ? WHERE incident_id = ?",
+                (state.value, stamp, incident_id),
+            )
 
     # --- auxiliares ---
 
@@ -243,8 +341,21 @@ class SQLiteEventStore(EventPort):
             conn.close()
 
     @staticmethod
+    def _migrate(conn: sqlite3.Connection) -> None:
+        """
+        Acerta bancos criados por versões anteriores. O _SCHEMA cria o que
+        falta, mas não altera tabela que já existe: um banco da 0.3.0 tem a
+        tabela events sem a coluna incident_id.
+        """
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(events)")}
+        if "incident_id" not in columns:
+            conn.execute("ALTER TABLE events ADD COLUMN incident_id INTEGER")
+            logger.info("Banco migrado: events.incident_id adicionada.")
+
+    @staticmethod
     def _to_event(row: tuple) -> Event:
-        event_id, timestamp, rule_name, sensor_id, value, unit, severity, score = row
+        (event_id, timestamp, rule_name, sensor_id, value,
+         unit, severity, score, incident_id) = row
         return Event(
             event_id=event_id,
             timestamp=timestamp,
@@ -254,4 +365,20 @@ class SQLiteEventStore(EventPort):
             unit=unit,
             severity=severity,
             anomaly_score=score,
+            incident_id=incident_id,
+        )
+
+    @staticmethod
+    def _to_incident(row: tuple) -> Incident:
+        (incident_id, rule_name, sensor_id, severity, state,
+         opened_at, acknowledged_at, resolved_at) = row
+        return Incident(
+            incident_id=incident_id,
+            rule_name=rule_name,
+            sensor_id=sensor_id,
+            severity=severity,
+            state=IncidentState(state),
+            opened_at=opened_at,
+            acknowledged_at=acknowledged_at,
+            resolved_at=resolved_at,
         )

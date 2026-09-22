@@ -74,7 +74,7 @@ def run_simulate(scenario: str, config_path: str, interval: float) -> None:
         events.start()
         print(f"Eventos : {config.event_store.path}\n")
 
-    engine = RuleEngine(rules=rules, actions=actions, events=events)
+    engine = RuleEngine(rules=rules, actions=actions, events=events, incidents=events)
     pipelines = [
         Pipeline(sensor=sensor, engine=engine, inference=inference, exporter=exporter)
         for sensor in s["sensors"]

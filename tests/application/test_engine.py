@@ -1,3 +1,5 @@
+import dataclasses
+import sqlite3
 import logging
 import time
 from pathlib import Path
@@ -8,7 +10,8 @@ from unittest.mock import MagicMock, call
 import application.engine
 from core.rules import Rule, Condition, Severity
 from core.entities import SensorReading, AnomalyScore, ActionContext
-from core.ports import ActionPort, EventPort, StatePort
+from core.incidents import Incident, IncidentState
+from core.ports import ActionPort, EventPort, IncidentPort, StatePort
 from application.engine import RuleEngine
 
 
@@ -391,6 +394,188 @@ class TestRuleEngineEventRecording:
         assert "disco cheio" in caplog.text
 
 
+class FakeIncidents(IncidentPort):
+    """
+    Fake em memória com o mesmo invariante do banco: uma regra tem no
+    máximo um incidente aberto. Se o engine tentar abrir dois, o teste
+    quebra aqui em vez de passar silenciosamente.
+    """
+
+    def __init__(self) -> None:
+        self.by_id: dict[int, Incident] = {}
+        self.opened: list[Incident] = []
+        self._next_id = 1
+
+    def open_incident(self, incident: Incident) -> Incident:
+        if any(i.rule_name == incident.rule_name and i.is_open for i in self.by_id.values()):
+            raise AssertionError(f"dois incidentes abertos para '{incident.rule_name}'")
+
+        stored = dataclasses.replace(incident, incident_id=self._next_id)
+        self._next_id += 1
+        self.by_id[stored.incident_id] = stored
+        self.opened.append(stored)
+        return stored
+
+    def acknowledge_incident(self, incident_id: int, at: float) -> None:
+        self.by_id[incident_id] = self.by_id[incident_id].acknowledge(at)
+
+    def resolve_incident(self, incident_id: int, at: float) -> None:
+        self.by_id[incident_id] = self.by_id[incident_id].resolve(at)
+
+    def open_incidents(self) -> list[Incident]:
+        return [i for i in self.by_id.values() if i.is_open]
+
+
+class TestRuleEngineIncidents:
+    """
+    Disparos repetidos da mesma regra formam um incidente, que fecha quando
+    a leitura recua além da margem de histerese.
+    """
+
+    @pytest.fixture
+    def incidents(self) -> FakeIncidents:
+        return FakeIncidents()
+
+    @pytest.fixture
+    def rule(self) -> Rule:
+        # resolve em 72.0 (80 menos 10%)
+        return Rule(
+            name="alta_temp",
+            condition=Condition(sensor_id="cpu_temp", operator=">", threshold=80.0),
+            action_ids=["log"],
+            severity=Severity.CRITICAL,
+        )
+
+    def engine_for(self, rule, incidents, actions=None, events=None) -> RuleEngine:
+        return RuleEngine(
+            rules=[rule],
+            actions=actions or {},
+            events=events,
+            incidents=incidents,
+        )
+
+    def reading(self, value: float, sensor_id: str = "cpu_temp") -> SensorReading:
+        return SensorReading(sensor_id, "CPU Temperature", value, "°C")
+
+    def test_the_first_firing_opens_an_incident(self, rule, incidents):
+        engine = self.engine_for(rule, incidents)
+
+        engine.evaluate(self.reading(85.0))
+
+        (incident,) = incidents.open_incidents()
+        assert incident.rule_name == "alta_temp"
+        assert incident.sensor_id == "cpu_temp"
+        assert incident.severity == "critical"
+        assert incident.state is IncidentState.TRIGGERED
+
+    def test_repeated_firings_stay_in_one_incident(self, rule, incidents):
+        engine = self.engine_for(rule, incidents)
+
+        engine.evaluate(self.reading(85.0))
+        engine.evaluate(self.reading(90.0))
+        engine.evaluate(self.reading(95.0))
+
+        assert len(incidents.opened) == 1
+
+    def test_events_point_at_the_incident(self, rule, incidents):
+        store = MagicMock(spec=EventPort)
+        engine = self.engine_for(rule, incidents, events=store)
+
+        engine.evaluate(self.reading(85.0))
+        engine.evaluate(self.reading(90.0))
+
+        (incident,) = incidents.open_incidents()
+        recorded = [call.args[0].incident_id for call in store.append.call_args_list]
+        assert recorded == [incident.incident_id, incident.incident_id]
+
+    def test_a_reading_past_the_margin_resolves_it(self, rule, incidents):
+        engine = self.engine_for(rule, incidents)
+        engine.evaluate(self.reading(85.0))
+
+        engine.evaluate(self.reading(70.0))
+
+        assert incidents.open_incidents() == []
+
+    def test_a_reading_inside_the_margin_keeps_it_open(self, rule, incidents):
+        engine = self.engine_for(rule, incidents)
+        engine.evaluate(self.reading(85.0))
+
+        engine.evaluate(self.reading(79.0))
+
+        assert len(incidents.open_incidents()) == 1
+
+    def test_an_oscillating_series_produces_a_single_incident(self, rule, incidents):
+        """O caso que a histerese existe para evitar: flapping na borda."""
+        engine = self.engine_for(rule, incidents)
+
+        for value in (85.0, 79.0, 81.0, 78.0, 83.0, 79.5):
+            engine.evaluate(self.reading(value))
+
+        assert len(incidents.opened) == 1
+        assert len(incidents.open_incidents()) == 1
+
+    def test_resolving_lets_a_later_episode_open_a_new_incident(self, rule, incidents):
+        engine = self.engine_for(rule, incidents)
+
+        engine.evaluate(self.reading(85.0))
+        engine.evaluate(self.reading(60.0))
+        engine.evaluate(self.reading(85.0))
+
+        assert len(incidents.opened) == 2
+
+    def test_another_sensor_does_not_resolve_the_incident(self, rule, incidents):
+        engine = self.engine_for(rule, incidents)
+        engine.evaluate(self.reading(85.0))
+
+        engine.evaluate(self.reading(10.0, sensor_id="memory_usage"))
+
+        assert len(incidents.open_incidents()) == 1
+
+    def test_an_acknowledged_incident_stops_dispatching_actions(self, rule, incidents):
+        """Reconhecer é dizer 'já sei' — o alerta para de repetir."""
+        log_action = make_action()
+        engine = self.engine_for(rule, incidents, actions={"log": log_action})
+        engine.evaluate(self.reading(85.0))
+        (incident,) = incidents.open_incidents()
+        incidents.acknowledge_incident(incident.incident_id, at=time.time())
+
+        engine.evaluate(self.reading(90.0))
+
+        log_action.execute.assert_called_once()   # só o disparo anterior ao ack
+
+    def test_an_acknowledged_incident_still_records_events(self, rule, incidents):
+        """O problema continua acontecendo; o histórico tem de mostrar isso."""
+        store = MagicMock(spec=EventPort)
+        engine = self.engine_for(rule, incidents, events=store)
+        engine.evaluate(self.reading(85.0))
+        (incident,) = incidents.open_incidents()
+        incidents.acknowledge_incident(incident.incident_id, at=time.time())
+
+        engine.evaluate(self.reading(90.0))
+
+        assert store.append.call_count == 2
+
+    def test_an_acknowledged_incident_still_resolves(self, rule, incidents):
+        engine = self.engine_for(rule, incidents)
+        engine.evaluate(self.reading(85.0))
+        (incident,) = incidents.open_incidents()
+        incidents.acknowledge_incident(incident.incident_id, at=time.time())
+
+        engine.evaluate(self.reading(60.0))
+
+        assert incidents.open_incidents() == []
+
+    def test_without_an_incident_port_nothing_changes(self, rule):
+        """Incidentes são opcionais: sem a porta, o engine age como antes."""
+        log_action = make_action()
+        engine = RuleEngine(rules=[rule], actions={"log": log_action})
+
+        engine.evaluate(self.reading(85.0))
+        engine.evaluate(self.reading(60.0))
+
+        log_action.execute.assert_called_once()
+
+
 class TestRuleEngineCooldownState:
     """
     O cooldown deixa de ser um campo da Rule e passa pelo StatePort. É o que
@@ -463,3 +648,125 @@ class TestRuleEngineCooldownState:
         source = Path(application.engine.__file__).read_text(encoding="utf-8")
 
         assert "monotonic" not in source
+
+class BrokenIncidents(FakeIncidents):
+    """
+    Loja de incidentes que falha em uma operação e funciona no resto —
+    banco travado, disco cheio, Redis fora do ar. `failing` pode ser
+    limpado no meio do teste para simular a volta do serviço.
+    """
+
+    def __init__(self, failing: str) -> None:
+        super().__init__()
+        self.failing: str | None = failing
+        self.attempts = 0
+
+    def _maybe_fail(self, operation: str) -> None:
+        if operation == self.failing:
+            self.attempts += 1
+            raise sqlite3.OperationalError("database is locked")
+
+    def open_incident(self, incident: Incident) -> Incident:
+        self._maybe_fail("open_incident")
+        return super().open_incident(incident)
+
+    def resolve_incident(self, incident_id: int, at: float) -> None:
+        self._maybe_fail("resolve_incident")
+        super().resolve_incident(incident_id, at)
+
+    def open_incidents(self) -> list[Incident]:
+        self._maybe_fail("open_incidents")
+        return super().open_incidents()
+
+
+class TestRuleEngineSurvivesAnIncidentStoreFailure:
+    """
+    O incidente é contexto do alarme, não o alarme. Se a loja de incidentes
+    cair, o disparo continua saindo e o histórico continua sendo escrito:
+    o contrário deixaria um disco cheio silenciar a temperatura crítica.
+    """
+
+    @pytest.fixture
+    def rule(self) -> Rule:
+        # resolve em 72.0 (80 menos 10%)
+        return Rule(
+            name="alta_temp",
+            condition=Condition(sensor_id="cpu_temp", operator=">", threshold=80.0),
+            action_ids=["log"],
+            severity=Severity.CRITICAL,
+        )
+
+    def engine_for(self, rule, incidents, actions=None, events=None) -> RuleEngine:
+        return RuleEngine(
+            rules=[rule],
+            actions=actions or {},
+            events=events,
+            incidents=incidents,
+        )
+
+    def reading(self, value: float) -> SensorReading:
+        return SensorReading("cpu_temp", "CPU Temperature", value, "°C")
+
+    def test_a_failing_open_still_alerts_and_records(self, rule, caplog):
+        """Sem incidente, o evento vai para o histórico sem incident_id."""
+        incidents = BrokenIncidents("open_incident")
+        log_action = make_action()
+        store = MagicMock(spec=EventPort)
+        engine = self.engine_for(rule, incidents, actions={"log": log_action}, events=store)
+
+        with caplog.at_level(logging.ERROR):
+            engine.evaluate(self.reading(85.0))
+
+        log_action.execute.assert_called_once()
+        assert store.append.call_args.args[0].incident_id is None
+        assert "alta_temp" in caplog.text
+
+    def test_a_failing_read_of_the_open_incidents_still_alerts(self, rule, caplog):
+        incidents = BrokenIncidents("open_incidents")
+        log_action = make_action()
+        engine = self.engine_for(rule, incidents, actions={"log": log_action})
+
+        with caplog.at_level(logging.ERROR):
+            engine.evaluate(self.reading(85.0))
+
+        log_action.execute.assert_called_once()
+        assert caplog.records, "a falha foi engolida sem registro"
+
+    def test_a_blind_engine_cannot_duplicate_the_incident(self, rule, caplog):
+        """
+        Sem conseguir ler os abertos, o engine tenta abrir outro a cada
+        disparo. Quem recusa é o índice único do banco — aqui, o mesmo
+        invariante no fake — e a recusa não pode parar o alerta.
+        """
+        incidents = BrokenIncidents("open_incidents")
+        log_action = make_action()
+        engine = self.engine_for(rule, incidents, actions={"log": log_action})
+
+        with caplog.at_level(logging.ERROR):
+            engine.evaluate(self.reading(85.0))
+            engine.evaluate(self.reading(90.0))
+
+        assert len(incidents.opened) == 1
+        assert log_action.execute.call_count == 2
+
+    def test_a_failing_resolve_keeps_the_incident_open_for_the_next_reading(self, rule, caplog):
+        """
+        Falhar ao fechar não pode deixar o incidente meio fechado: ele
+        continua aberto e a próxima leitura tenta de novo, porque o engine
+        relê o estado a cada avaliação em vez de guardar em memória.
+        """
+        incidents = BrokenIncidents("resolve_incident")
+        engine = self.engine_for(rule, incidents)
+        engine.evaluate(self.reading(85.0))
+
+        with caplog.at_level(logging.ERROR):
+            engine.evaluate(self.reading(70.0))
+
+        assert len(incidents.open_incidents()) == 1
+        assert incidents.attempts == 1
+        assert "alta_temp" in caplog.text
+
+        incidents.failing = None
+        engine.evaluate(self.reading(69.0))
+
+        assert incidents.open_incidents() == []

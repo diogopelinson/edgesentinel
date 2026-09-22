@@ -85,6 +85,20 @@ A gravação nunca atrasa o monitoramento. A leitura do sensor só enfileira o e
 
 O histórico é consultado pelo terminal com `edgesentinel events` — veja [Consulta o histórico de eventos](#consulta-o-histórico-de-eventos).
 
+### Ciclo de vida de incidentes
+
+Uma regra em alarme por uma hora é um problema, não um alerta por leitura. O primeiro disparo abre um **incidente**, cada disparo seguinte da mesma regra entra nele, e o incidente fecha sozinho quando o sensor volta.
+
+| Estado | O que significa |
+|---|---|
+| `triggered` | aberto, alertando a cada disparo |
+| `acknowledged` | alguém está cuidando: o histórico continua, as ações param de repetir |
+| `resolved` | o sensor voltou além da margem; o próximo disparo abre um incidente novo |
+
+O fechamento não acontece no mesmo threshold que abriu. Uma regra que dispara acima de 80 °C resolve em 72 °C — o threshold menos uma **margem de histerese de 10%** — então um valor oscilando na borda não abre e fecha incidente a cada leitura. Qualquer regra pode dizer onde fecha com `resolve_threshold`, e um valor do lado do alarme falha ao carregar o config, porque fecharia o incidente com o sensor ainda acima do limite.
+
+Os incidentes ficam no mesmo arquivo SQLite dos eventos, e todo evento carrega o `incident_id` do episódio a que pertence. Duas coisas vêm de guardá-los ali em vez de na memória: o ciclo sobrevive a um restart sem etapa de carga, porque o engine lê os incidentes abertos a cada avaliação; e um reconhecimento feito por outro processo aparece no ciclo seguinte.
+
 ### Observabilidade com OpenTelemetry
 
 O edgesentinel e o AI Service exportam métricas via OTel para o mesmo Collector. O Prometheus coleta e o Grafana plota tudo em tempo real — dois serviços, um dashboard.
@@ -117,6 +131,7 @@ O edgesentinel usa **Arquitetura Hexagonal (Ports & Adapters)**. O domínio cent
 │  ports.py     → contratos abstratos              │
 │  entities.py  → dataclasses imutáveis            │
 │  rules.py     → Rule, Condition, Severity        │
+│  incidents.py → Incident, IncidentState          │
 └───────────────────────┬─────────────────────────┘
                         │ tudo depende do core
 ┌───────────────────────▼─────────────────────────┐
@@ -132,8 +147,8 @@ O edgesentinel usa **Arquitetura Hexagonal (Ports & Adapters)**. O domínio cent
 │  inference/   → dummy, onnx, tflite, remote      │
 │  actions/     → log, webhook, gpio               │
 │  exporter/    → Prometheus legacy + OTel         │
-│  store/       → histórico de eventos (SQLite)    │
-│  state/       → cooldown, estado de incidente    │
+│  store/       → eventos e incidentes (SQLite)    │
+│  state/       → cooldown (Redis depois)          │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -259,6 +274,7 @@ edgesentinel:
         sensor_id: cpu_temp
         operator: ">"
         threshold: 85.0
+        resolve_threshold: 80.0     # onde o incidente fecha; padrão é 10% abaixo
       severity: critical
       cooldown_seconds: 30
 
@@ -502,7 +518,7 @@ pytest tests/ -v
 pytest tests/ --cov=. --cov-report=term-missing
 ```
 
-**278 testes, zero falhas.**
+**353 testes, zero falhas.**
 
 | Camada | Cobertura |
 |---|---|
@@ -512,9 +528,10 @@ pytest tests/ --cov=. --cov-report=term-missing
 | `adapters/actions/log` | 100% |
 | `adapters/inference/dummy` | 100% |
 | `config/mapper` | 100% |
+| `adapters/state/memory` | 100% |
 | `cli/events` | 99% |
 | `config/loader` | 95% |
-| `adapters/store/sqlite` | 92% |
+| `adapters/store/sqlite` | 94% |
 
 ---
 
@@ -529,8 +546,8 @@ edgesentinel/
 │   ├── inference/              # dummy, onnx, tflite, remote (AI Service)
 │   ├── actions/                # log, webhook, gpio
 │   ├── exporter/               # Prometheus legacy + OpenTelemetry
-│   ├── store/                  # Event Store em SQLite
-│   └── state/                  # cooldown e, depois, estado de incidente
+│   ├── store/                  # SQLite: eventos e incidentes
+│   └── state/                  # cooldown (em memória; Redis depois)
 ├── application/                # RuleEngine, Pipeline, MonitorLoop
 ├── cli/                        # run / simulate / doctor / events
 ├── ai-inference-service/       # FastAPI com YOLO/ONNX containerizado
@@ -538,7 +555,7 @@ edgesentinel/
 ├── infra/docker/               # docker-compose, MediaMTX, OTel, Prometheus, Grafana
 ├── dashboards/                 # edgesentinel_dashboard_v2.json para Grafana
 ├── data/                       # events.db — gerado em execução, fora do git
-└── tests/                      # unitários + integração (278 testes)
+└── tests/                      # unitários + integração (353 testes)
 ```
 
 ---
@@ -554,6 +571,10 @@ edgesentinel/
 **`frozen=True` nas entidades** — o loop é async. Imutabilidade elimina bugs de concorrência.
 
 **Cooldown atrás de uma porta** — o engine não lê relógio. Ele pede ao `StatePort` para tomar uma chave por N segundos, e tomar é a mesma operação que verificar, então duas threads de pipeline não conseguem disparar a mesma regra ao mesmo tempo. O `InMemoryState` faz isso com `time.monotonic()`, porque o relógio de parede pode andar para trás em NTP; o adapter de Redis vai deixar o servidor expirar a chave. É esse o motivo da porta: o epoch do monotônico é por processo, então um engine que compara timestamps nunca teria como ter cooldown distribuído.
+
+**Incidente com margem de resolução** — agrupar disparos é metade do problema; um incidente que nunca fecha teria de ser fechado à mão, e um que fecha no mesmo threshold em que abriu oscilaria junto com o sensor. Resolver 10% além do threshold, para o lado oposto ao alarme, é o que torna o agrupamento utilizável sem operador, e `resolve_threshold` dá a cada regra o seu ponto quando 10% é a distância errada.
+
+**Um incidente aberto por regra, garantido pelo banco** — quem garante é um índice único parcial (`WHERE state != 'resolved'`), não o engine. O engine não guarda incidente em memória: lê os abertos a cada avaliação, então um restart não precisa de etapa de carga e um reconhecimento feito pela CLI chega no ciclo seguinte. Duas threads de pipeline correndo para abrir o mesmo incidente são recusadas pelo índice, e a recusa é logada e engolida — como a falha do histórico, não pode silenciar o alerta.
 
 **AI Service separado** — isolamento de falha. Se o YOLO travar, o monitoramento de sensores continua.
 

@@ -14,13 +14,37 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
 
 - **`StatePort`** — the contract for state that outlives a single
   evaluation, with `try_acquire(key, ttl)` for cooldowns and `get`/`set` for
-  the incident state coming in v0.4. It exposes no timestamps on purpose: a
-  monotonic epoch means nothing in another process, so a distributed
-  implementation can expire keys server-side instead of comparing clocks.
+  values that have to outlive one reading. It exposes no timestamps on
+  purpose: a monotonic epoch means nothing in another process, so a
+  distributed implementation can expire keys server-side instead of
+  comparing clocks.
 - **`InMemoryState`** — the default implementation, per-process and backed by
   `time.monotonic()`, guarded by a lock. `tests/adapters/test_state_contract.py`
   is parametrized by implementation, so the Redis adapter planned for v0.6
   has to pass the same suite.
+- **Incidents group the firings of a rule.** The first firing opens an
+  incident, every later firing of the same rule joins it, and the incident
+  closes on its own when the reading comes back past a resolution margin —
+  the threshold minus 10% of its absolute value, away from the alarm — so a
+  value oscillating on the edge no longer produces an episode per reading.
+  The states are `triggered`, `acknowledged` and `resolved`: acknowledging
+  keeps the history recording and stops the actions repeating, which is how
+  a rule stays audited while someone is already working on it.
+- **`resolve_threshold`** on a rule's condition names the closing point when
+  the default margin is the wrong distance. A value on the alarm side of the
+  threshold fails when the config is loaded — `> 85` resolving at 90 would
+  close the incident with the sensor still over the limit — and so does the
+  field on `==` or `anomaly`, which have no numeric edge.
+- **`IncidentPort`, `Incident` and `IncidentState`** — the contract and the
+  domain entity, immutable like the rest of `core/`. `SQLiteEventStore`
+  implements the port alongside `EventPort`, so events and incidents share
+  one file and one `close()`. One open incident per rule is guaranteed by a
+  partial unique index (`WHERE state != 'resolved'`), not by a lock in the
+  engine, and the engine keeps no incident in memory: it reads the open ones
+  on every evaluation, so the lifecycle survives a restart with no loading
+  step and an acknowledgement made by another process lands on the next
+  cycle. A store that raises is logged and swallowed, as a history failure
+  is — the alert still goes out, with `incident_id` left empty.
 
 ### Fixed
 
@@ -46,6 +70,10 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
 
 ### Changed
 
+- **The event database migrates to schema 2 when it is first opened** — an
+  `incidents` table and an `incident_id` column on `events`. An existing
+  `data/events.db` is migrated in place and keeps its events; nothing to do
+  by hand. Events written before the migration keep `incident_id` empty.
 - Cooldown state left the `Rule` entity: the `_last_triggered` field is gone
   and the engine asks the state for `cooldown:<rule name>`. `Rule` is now
   only the declaration of a rule. Behaviour is unchanged, and the existing

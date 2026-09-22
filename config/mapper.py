@@ -58,4 +58,5 @@ def _to_condition(config: ConditionConfig) -> Condition:
         sensor_id=config.sensor_id,
         operator=config.operator,
         threshold=config.threshold,
+        resolve_threshold=config.resolve_threshold,
     )

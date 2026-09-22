@@ -58,11 +58,14 @@ edgesentinel:
       severity: warning
       cooldown_seconds: 60
 
+    # resolve_threshold: onde o incidente fecha. Sem ele, a margem padrão
+    # é 10% do threshold (aqui fecharia em 76.5); com ele, 80.0
     - name: temperatura_critica
       condition:
         sensor_id: cpu_temp
         operator: ">"
         threshold: 85.0
+        resolve_threshold: 80.0
       severity: critical
       cooldown_seconds: 30
 

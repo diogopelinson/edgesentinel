@@ -85,6 +85,20 @@ Recording never delays monitoring. Reading a sensor only enqueues the event, and
 
 The history is queried from the terminal with `edgesentinel events` — see [Query the event history](#query-the-event-history).
 
+### Incident lifecycle
+
+A rule in alarm for an hour is one problem, not one alert per reading. The first firing opens an **incident**, every later firing of the same rule joins it, and the incident closes on its own when the sensor comes back.
+
+| State | What it means |
+|---|---|
+| `triggered` | open and alerting on every firing |
+| `acknowledged` | someone is on it: the history keeps recording, the actions stop repeating |
+| `resolved` | the sensor came back past the margin; the next firing opens a new incident |
+
+Closing does not happen at the threshold that opened it. A rule firing above 80 °C resolves at 72 °C — the threshold minus a **10% hysteresis margin** — so a value oscillating on the edge does not open and close an incident on every reading. Any rule can name its own closing point with `resolve_threshold`, and a value on the alarm side of the threshold fails when the config is loaded, because it would close the incident with the sensor still over the limit.
+
+Incidents live in the same SQLite file as the events, and every event carries the `incident_id` of the episode it belongs to. Two things follow from keeping them there instead of in memory: the lifecycle survives a restart with no loading step, since the engine reads the open incidents on every evaluation; and an acknowledgement made by another process is seen on the next cycle.
+
 ### OpenTelemetry observability
 
 Both edgesentinel and the AI Service export metrics via OTel to the same Collector. Prometheus scrapes and Grafana plots everything in real time — two services, one dashboard.
@@ -117,6 +131,7 @@ edgesentinel uses **Hexagonal Architecture (Ports & Adapters)**. The core domain
 │  ports.py     → abstract contracts              │
 │  entities.py  → immutable dataclasses           │
 │  rules.py     → Rule, Condition, Severity       │
+│  incidents.py → Incident, IncidentState         │
 └───────────────────────┬─────────────────────────┘
                         │ everything depends on core
 ┌───────────────────────▼─────────────────────────┐
@@ -132,8 +147,8 @@ edgesentinel uses **Hexagonal Architecture (Ports & Adapters)**. The core domain
 │  inference/   → dummy, onnx, tflite, remote      │
 │  actions/     → log, webhook, gpio               │
 │  exporter/    → legacy Prometheus + OTel         │
-│  store/       → event history (SQLite)           │
-│  state/       → cooldowns, incident state        │
+│  store/       → events and incidents (SQLite)    │
+│  state/       → cooldowns (Redis later)          │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -259,6 +274,7 @@ edgesentinel:
         sensor_id: cpu_temp
         operator: ">"
         threshold: 85.0
+        resolve_threshold: 80.0     # incident closes here; default is 10% below
       severity: critical
       cooldown_seconds: 30
 
@@ -502,7 +518,7 @@ pytest tests/ -v
 pytest tests/ --cov=. --cov-report=term-missing
 ```
 
-**278 tests, zero failures.**
+**353 tests, zero failures.**
 
 | Layer | Coverage |
 |---|---|
@@ -512,9 +528,10 @@ pytest tests/ --cov=. --cov-report=term-missing
 | `adapters/actions/log` | 100% |
 | `adapters/inference/dummy` | 100% |
 | `config/mapper` | 100% |
+| `adapters/state/memory` | 100% |
 | `cli/events` | 99% |
 | `config/loader` | 95% |
-| `adapters/store/sqlite` | 92% |
+| `adapters/store/sqlite` | 94% |
 
 ---
 
@@ -529,8 +546,8 @@ edgesentinel/
 │   ├── inference/              # dummy, onnx, tflite, remote (AI Service)
 │   ├── actions/                # log, webhook, gpio
 │   ├── exporter/               # legacy Prometheus + OpenTelemetry
-│   ├── store/                  # SQLite Event Store
-│   └── state/                  # cooldowns and, later, incident state
+│   ├── store/                  # SQLite: events and incidents
+│   └── state/                  # cooldowns (in-memory; Redis later)
 ├── application/                # RuleEngine, Pipeline, MonitorLoop
 ├── cli/                        # run / simulate / doctor / events
 ├── ai-inference-service/       # FastAPI with containerized YOLO/ONNX
@@ -538,7 +555,7 @@ edgesentinel/
 ├── infra/docker/               # docker-compose, MediaMTX, OTel, Prometheus, Grafana
 ├── dashboards/                 # edgesentinel_dashboard_v2.json for Grafana
 ├── data/                       # events.db — created at runtime, not tracked
-└── tests/                      # unit + integration (278 tests)
+└── tests/                      # unit + integration (353 tests)
 ```
 
 ---
@@ -554,6 +571,10 @@ edgesentinel/
 **`frozen=True` on entities** — the loop is async. Immutability eliminates concurrency bugs.
 
 **Cooldowns behind a port** — the engine never reads a clock. It asks the `StatePort` to take a key for N seconds, and taking it is the same operation as checking it, so two pipeline threads cannot fire the same rule at once. `InMemoryState` implements that with `time.monotonic()`, because the wall clock can go backwards under NTP; the Redis adapter will let the server expire the key instead. That is the point of the port: a monotonic clock's epoch is per process, so an engine comparing timestamps could never have its cooldowns made distributed.
+
+**Incidents with a resolution margin** — grouping firings is only half of it; an incident that never closes would have to be closed by hand, and one that closes at the threshold it opened at would flap with the sensor. Resolving 10% past the threshold, away from the alarm, is what makes the grouping usable without an operator, and `resolve_threshold` gives any rule its own point when 10% is the wrong distance.
+
+**One open incident per rule, enforced by the database** — a partial unique index (`WHERE state != 'resolved'`) guarantees it, not the engine. The engine holds no incident in memory: it reads the open ones on every evaluation, so a restart needs no loading step and an acknowledgement from the CLI lands on the next cycle. Two pipeline threads racing to open the same incident are refused by the index, and the refusal is logged and swallowed — like a history failure, it must not silence the alert.
 
 **Separate AI Service** — fault isolation. If YOLO crashes, sensor monitoring keeps running.
 

@@ -46,6 +46,30 @@ edgesentinel simulate --scenario spike
 
 Both `run` and `simulate` record every fired rule in `data/events.db` (SQLite), with a 30-day retention. The path and retention are set in the `event_store` block of `config.yaml`, and `enabled: false` turns history off. To query it from Python, see [Querying the history](#querying-the-history).
 
+### Incidents
+
+The same run also records incidents. The first firing of a rule opens one, every later firing joins it, and it closes when the sensor comes back past the resolution margin — the threshold minus 10%, or `resolve_threshold` when the rule names its own point. Events and incidents share the database, and each event carries the `incident_id` of the episode it belongs to.
+
+There is no `edgesentinel incidents` command yet — listing and acknowledging from the terminal is its own entry in [docs/roadmap.json](docs/roadmap.json). Until then SQLite answers directly:
+
+```bash
+# what is open right now
+sqlite3 data/events.db "SELECT incident_id, rule_name, state, \
+    datetime(opened_at, 'unixepoch', 'localtime') AS opened \
+    FROM incidents WHERE state != 'resolved' ORDER BY opened_at;"
+
+# how many firings each episode grouped
+sqlite3 data/events.db "SELECT i.incident_id, i.rule_name, COUNT(e.event_id) AS firings \
+    FROM incidents i LEFT JOIN events e ON e.incident_id = i.incident_id \
+    GROUP BY i.incident_id ORDER BY firings DESC;"
+
+# acknowledge one by hand: the history keeps recording, the actions stop repeating
+sqlite3 data/events.db "UPDATE incidents SET state = 'acknowledged', \
+    acknowledged_at = strftime('%s', 'now') WHERE incident_id = 7;"
+```
+
+The agent picks that acknowledgement up on the next evaluation — it reads the open incidents from the database every time instead of keeping them in memory, which is also why the lifecycle survives a restart with no loading step.
+
 ### Query the history
 
 ```bash
@@ -642,6 +666,23 @@ class StatePort(ABC):
 
 `RuleEngine` uses it for rule cooldowns, under the key `cooldown:<rule name>`, and defaults to `adapters.state.memory.InMemoryState` — per-process state, backed by `time.monotonic()`. Pass your own with `RuleEngine(..., state=my_state)`; the Redis adapter that makes cooldowns hold across devices will plug in the same way. Any implementation must pass `tests/adapters/test_state_contract.py`.
 
+### `IncidentPort`
+
+```python
+class IncidentPort(ABC):
+    # returns the incident with the incident_id assigned by the store
+    def open_incident(self, incident: Incident) -> Incident: ...
+    def acknowledge_incident(self, incident_id: int, at: float) -> None: ...
+    def resolve_incident(self, incident_id: int, at: float) -> None: ...
+    def open_incidents(self) -> list[Incident]: ...   # oldest first
+```
+
+`SQLiteEventStore` implements this port alongside `EventPort`, so events and incidents land in the same file and a single `close()` flushes both. Unlike `StatePort`, this state has to be durable and queryable: an operator lists what is open and acknowledges it from another process.
+
+Two rules any implementation has to keep, both covered by `tests/adapters/test_sqlite_incidents.py`: a rule has at most one open incident — in SQLite that is a partial unique index, `UNIQUE (rule_name) WHERE state != 'resolved'`, so a concurrent open is refused by the storage rather than by a lock in the engine — and `open_incidents()` returns acknowledged incidents too, because being acknowledged does not close anything.
+
+Pass an implementation with `RuleEngine(..., incidents=my_store)`. With none, the engine still evaluates, alerts and records: events are written with `incident_id` empty. It treats a raising store the same way, since an incident is context around an alarm and must not be able to silence it.
+
 ### `SensorReading`
 
 ```python
@@ -691,7 +732,41 @@ class Event:
     timestamp: float                # time of the reading, not of evaluation
     anomaly_score: float | None     # None for rules without inference
     event_id: int | None            # assigned by the store on write
+    incident_id: int | None         # the episode this firing belongs to
 ```
+
+### `Incident`
+
+```python
+@dataclass(frozen=True)
+class Incident:
+    rule_name: str
+    sensor_id: str
+    severity: str                       # plain text, like Event.severity
+    state: IncidentState = IncidentState.TRIGGERED
+    opened_at: float = field(default_factory=time.time)
+    acknowledged_at: float | None = None
+    resolved_at: float | None = None
+    incident_id: int | None = None      # assigned by the store on open
+
+    @property
+    def is_open(self) -> bool: ...              # acknowledged still counts as open
+    def acknowledge(self, at: float) -> "Incident": ...
+    def resolve(self, at: float) -> "Incident": ...
+```
+
+Frozen like the other entities: the transitions return a new incident instead of mutating one.
+
+### `IncidentState`
+
+```python
+class IncidentState(str, Enum):
+    TRIGGERED    = "triggered"      # open, alerting on every firing
+    ACKNOWLEDGED = "acknowledged"   # the history keeps recording, the actions stop
+    RESOLVED     = "resolved"       # closed; the next firing opens a new incident
+```
+
+There is no `normal` state. Normal is the absence of an open incident — storing it would mean a row for every rule that has never fired.
 
 ### `Rule`
 
@@ -744,4 +819,17 @@ Rules with no actions at all are logged at `DEBUG` on the `edgesentinel.config` 
 | `>=` | greater or equal | `cpu_usage >= 90` |
 | `<=` | less or equal | `memory_usage <= 20` |
 | `==` | equal | `cpu_temp == 0` (dead sensor) |
+
+A condition with an upper or lower bound also takes `resolve_threshold`, the value where the incident closes:
+
+```yaml
+condition:
+  sensor_id: cpu_temp
+  operator: ">"
+  threshold: 85.0
+  resolve_threshold: 80.0     # default would be 76.5
+```
+
+Without it the closing point is the threshold minus 10% of its absolute value, moved away from the alarm: `> 80` closes at 72, `< 10` closes at 11, and a threshold of 0 has no margin. The loader refuses a value on the alarm side of the threshold — `> 85` resolving at 90 would close the incident with the sensor still over the limit — and refuses the field on the two operators with no numeric edge: `==` closes as soon as the value changes, and `anomaly` closes when the score comes back under its own threshold. With inference down there is no score, and no score means no resolution: the incident stays open.
+
 | `anomaly` | ML score above threshold | camera, any sensor |

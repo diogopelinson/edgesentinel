@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from core.entities import SensorReading, AnomalyScore, ActionContext, Event
+from core.incidents import Incident
 
 
 class SensorPort(ABC):
@@ -109,6 +110,41 @@ class EventPort(ABC):
     @abstractmethod
     def close(self) -> None:
         """Grava o que ainda estiver pendente e libera o armazenamento."""
+        ...
+
+
+class IncidentPort(ABC):
+    """
+    Contrato para o ciclo de vida dos incidentes.
+
+    Diferente do StatePort, aqui o estado precisa ser consultável e durável:
+    o operador lista incidentes abertos, reconhece um deles por outro
+    processo (a CLI) e o agente tem de ver isso no ciclo seguinte.
+    """
+
+    @abstractmethod
+    def open_incident(self, incident: Incident) -> Incident:
+        """
+        Abre um incidente e devolve com o incident_id atribuído.
+
+        Uma regra tem no máximo um incidente aberto — é o que faz os
+        disparos se agruparem em vez de virar um incidente cada.
+        """
+        ...
+
+    @abstractmethod
+    def acknowledge_incident(self, incident_id: int, at: float) -> None:
+        """Marca como reconhecido, sem fechar: alguém viu, o problema continua."""
+        ...
+
+    @abstractmethod
+    def resolve_incident(self, incident_id: int, at: float) -> None:
+        """Fecha o incidente."""
+        ...
+
+    @abstractmethod
+    def open_incidents(self) -> list[Incident]:
+        """Incidentes ainda abertos, do mais antigo para o mais recente."""
         ...
 
 

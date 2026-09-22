@@ -48,6 +48,30 @@ edgesentinel simulate --scenario spike
 
 Tanto `run` quanto `simulate` gravam cada regra disparada em `data/events.db` (SQLite), com retenção de 30 dias. O caminho e a retenção mudam no bloco `event_store` do `config.yaml`, e `enabled: false` desliga o histórico. Para consultar pelo Python, veja [Consultando o histórico](#consultando-o-histórico).
 
+### Incidentes
+
+A mesma execução também registra incidentes. O primeiro disparo de uma regra abre um, cada disparo seguinte entra nele, e ele fecha quando o sensor volta além da margem de resolução — o threshold menos 10%, ou o `resolve_threshold` quando a regra diz onde fecha. Eventos e incidentes ficam no mesmo banco, e cada evento carrega o `incident_id` do episódio a que pertence.
+
+Ainda não existe o comando `edgesentinel incidents` — listar e reconhecer pelo terminal é uma entrada própria no [docs/roadmap.json](docs/roadmap.json). Até lá, o SQLite responde direto:
+
+```bash
+# o que está aberto agora
+sqlite3 data/events.db "SELECT incident_id, rule_name, state, \
+    datetime(opened_at, 'unixepoch', 'localtime') AS aberto_em \
+    FROM incidents WHERE state != 'resolved' ORDER BY opened_at;"
+
+# quantos disparos cada episódio agrupou
+sqlite3 data/events.db "SELECT i.incident_id, i.rule_name, COUNT(e.event_id) AS disparos \
+    FROM incidents i LEFT JOIN events e ON e.incident_id = i.incident_id \
+    GROUP BY i.incident_id ORDER BY disparos DESC;"
+
+# reconhecer um na mão: o histórico continua, as ações param de repetir
+sqlite3 data/events.db "UPDATE incidents SET state = 'acknowledged', \
+    acknowledged_at = strftime('%s', 'now') WHERE incident_id = 7;"
+```
+
+O agente enxerga esse reconhecimento na avaliação seguinte — ele lê os incidentes abertos do banco a cada vez, em vez de guardar em memória, que é também o motivo de o ciclo sobreviver a um restart sem etapa de carga.
+
 ### Consultar o histórico
 
 ```bash
@@ -644,6 +668,23 @@ class StatePort(ABC):
 
 O `RuleEngine` usa a porta para o cooldown das regras, na chave `cooldown:<nome da regra>`, e por padrão usa o `adapters.state.memory.InMemoryState` — estado do processo, baseado em `time.monotonic()`. Para passar outro, use `RuleEngine(..., state=meu_state)`; o adapter de Redis que fará o cooldown valer entre dispositivos entra do mesmo jeito. Qualquer implementação precisa passar por `tests/adapters/test_state_contract.py`.
 
+### `IncidentPort`
+
+```python
+class IncidentPort(ABC):
+    # devolve o incidente com o incident_id atribuído pelo store
+    def open_incident(self, incident: Incident) -> Incident: ...
+    def acknowledge_incident(self, incident_id: int, at: float) -> None: ...
+    def resolve_incident(self, incident_id: int, at: float) -> None: ...
+    def open_incidents(self) -> list[Incident]: ...   # mais antigo primeiro
+```
+
+O `SQLiteEventStore` implementa esta porta junto com a `EventPort`, então eventos e incidentes caem no mesmo arquivo e um único `close()` descarrega os dois. Diferente do `StatePort`, aqui o estado precisa ser durável e consultável: o operador lista o que está aberto e reconhece de outro processo.
+
+Duas regras que qualquer implementação tem de manter, ambas cobertas por `tests/adapters/test_sqlite_incidents.py`: uma regra tem no máximo um incidente aberto — no SQLite isso é um índice único parcial, `UNIQUE (rule_name) WHERE state != 'resolved'`, então a abertura concorrente é recusada pelo armazenamento e não por um lock no engine — e `open_incidents()` devolve também os reconhecidos, porque reconhecer não fecha nada.
+
+Para passar uma implementação: `RuleEngine(..., incidents=meu_store)`. Sem nenhuma, o engine continua avaliando, alertando e registrando: os eventos vão para o histórico com o `incident_id` vazio. Uma loja que lança exceção recebe o mesmo tratamento, porque o incidente é contexto do alarme e não pode silenciá-lo.
+
 ### `SensorReading`
 
 ```python
@@ -693,7 +734,41 @@ class Event:
     timestamp: float                # horário da leitura, não da avaliação
     anomaly_score: float | None     # None em regras sem inferência
     event_id: int | None            # atribuído pelo store ao gravar
+    incident_id: int | None         # incidente que agrupa este disparo
 ```
+
+### `Incident`
+
+```python
+@dataclass(frozen=True)
+class Incident:
+    rule_name: str
+    sensor_id: str
+    severity: str                       # texto puro, como em Event.severity
+    state: IncidentState = IncidentState.TRIGGERED
+    opened_at: float = field(default_factory=time.time)
+    acknowledged_at: float | None = None
+    resolved_at: float | None = None
+    incident_id: int | None = None      # atribuído pelo store ao abrir
+
+    @property
+    def is_open(self) -> bool: ...              # reconhecido ainda é aberto
+    def acknowledge(self, at: float) -> "Incident": ...
+    def resolve(self, at: float) -> "Incident": ...
+```
+
+Imutável como as outras entidades: as transições devolvem outro incidente em vez de alterar o existente.
+
+### `IncidentState`
+
+```python
+class IncidentState(str, Enum):
+    TRIGGERED    = "triggered"      # aberto, alertando a cada disparo
+    ACKNOWLEDGED = "acknowledged"   # o histórico continua, as ações param
+    RESOLVED     = "resolved"       # fechado; o próximo disparo abre outro
+```
+
+Não existe estado `normal`. Normal é a ausência de incidente aberto — guardá-lo daria uma linha para cada regra que nunca disparou.
 
 ### `Rule`
 
@@ -746,4 +821,17 @@ Regras sem ação nenhuma aparecem em `DEBUG` no logger `edgesentinel.config`. N
 | `>=` | maior ou igual | `cpu_usage >= 90` |
 | `<=` | menor ou igual | `memory_usage <= 20` |
 | `==` | igual | `cpu_temp == 0` (sensor morto) |
+
+Uma condição com limite superior ou inferior aceita também `resolve_threshold`, o valor em que o incidente fecha:
+
+```yaml
+condition:
+  sensor_id: cpu_temp
+  operator: ">"
+  threshold: 85.0
+  resolve_threshold: 80.0     # o padrão seria 76.5
+```
+
+Sem ele, o ponto de fechamento é o threshold menos 10% do seu valor absoluto, para o lado oposto ao alarme: `> 80` fecha em 72, `< 10` fecha em 11, e threshold 0 não tem margem. O loader recusa um valor do lado do alarme — `> 85` resolvendo em 90 fecharia o incidente com o sensor ainda acima do limite — e recusa o campo nos dois operadores sem borda numérica: `==` fecha assim que o valor muda, e `anomaly` fecha quando o score volta para baixo do threshold dele. Com a inferência fora do ar não há score, e sem score não há resolução: o incidente fica aberto.
+
 | `anomaly` | score ML acima do threshold | câmera, qualquer sensor |
