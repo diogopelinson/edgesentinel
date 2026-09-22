@@ -194,10 +194,12 @@ class TestSchema:
                 );
                 PRAGMA user_version = 1;
             """)
+            # data recente: o start() aplica a retenção, e um evento de 2023
+            # seria podado antes de a migração poder ser conferida
             conn.execute(
                 "INSERT INTO events (timestamp, rule_name, sensor_id, value, unit, severity)"
                 " VALUES (?, ?, ?, ?, ?, ?)",
-                (1_700_000_000.0, "antiga", "cpu_temp", 91.0, "°C", "critical"),
+                (time.time() - 60, "antiga", "cpu_temp", 91.0, "°C", "critical"),
             )
 
         store = SQLiteEventStore(path=path)
