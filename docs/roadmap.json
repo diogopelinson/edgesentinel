@@ -3,7 +3,6 @@
   "project": "edgesentinel",
   "generated_at": "2026-09-16",
   "current_version": "0.3.0",
-
   "context": {
     "goal": "portfolio",
     "goal_note": "Projeto de portfólio/GitHub. Prioriza features verificáveis e demonstráveis por unidade de esforço. Código não exercitado é passivo, não ativo.",
@@ -11,18 +10,23 @@
     "dev_platform": "windows",
     "hardware_note": "Sem SBC disponível. Qualquer feature que exija I2C/SPI/GPIO físico fica em 'backlog-hardware' com status 'blocked'. Sensores baseados em /proc e /sys continuam testáveis via patch de pathlib.Path.read_text — padrão já estabelecido em tests/adapters/test_sensors.py.",
     "versioning_note": "A versão tem fonte única em cli/__init__.py (__version__), lida pelo pyproject.toml via [tool.setuptools.dynamic]; tests/cli/test_version.py impede que ela diverja do pyproject, do --version, dos READMEs e do CHANGELOG. A numeração de release segue o marco que fecha: 0.3.0 (tag v0.3.0) saiu quando a v0.3 ficou completa. Os ids de marco são temas, não uma sequência de entrega — features de marcos anteriores ainda abertos, como a v0.2, entram na release seguinte a ficarem prontas. O AI Inference Service versiona à parte.",
-
     "language_boundary": {
       "rule": "Python onde há lock-in de ecossistema — ML e drivers de hardware. Go onde há restrição de deploy — serviço de rede longo, ou binário que precisa rodar sem runtime.",
-      "python": ["agente de edge", "ai-inference-service", "scripts de treino"],
-      "go": ["control plane da frota", "qualquer binário que deva rodar sem runtime no dispositivo"],
+      "python": [
+        "agente de edge",
+        "ai-inference-service",
+        "scripts de treino"
+      ],
+      "go": [
+        "control plane da frota",
+        "qualquer binário que deva rodar sem runtime no dispositivo"
+      ],
       "decided_at": "2026-09-16",
       "rationale": "Repo poliglota com fronteira principiada é sinal forte; com fronteira arbitrária é sinal fraco. O diferencial é conseguir responder 'por que Go aqui e não ali' em uma frase, e a regra acima é essa frase. É também a fronteira que a stack já desenha sem ele ter escrito Go: MediaMTX, Prometheus, OTel Collector e Grafana são todos binários Go que o projeto já executa.",
       "not_the_agent": "O agente permanece em Python por três motivos: a arquitetura hexagonal com sua suíte de testes é o ativo mais defensável do repositório e reescrevê-la joga fora exatamente o que há de melhor para mostrar; adapters/inference/yolo.py e onnx.py rodam modelo local, então portar partiria o agente ao meio; e sem SBC disponível a vantagem prática de Go (binário ARM estático, RSS muito menor) é hoje indemonstrável — a mesma armadilha dos sensores de hardware.",
       "cost": "Duas toolchains, duas suítes, dois caminhos de CI, e o payload do heartbeat deixa de ser detalhe interno para virar contrato versionado entre linguagens."
     }
   },
-
   "legend": {
     "status": {
       "ready": "sem dependências pendentes, pode começar agora",
@@ -41,7 +45,6 @@
       "low": "invisível de fora; feito por necessidade técnica"
     }
   },
-
   "milestones": [
     {
       "id": "v0.2",
@@ -92,7 +95,6 @@
       "rationale": "Depende apenas de 'sensor-params'. No dia em que o Raspberry Pi chegar, estas quatro features estão desbloqueadas e cada uma é de esforço S-M."
     }
   ],
-
   "features": [
     {
       "id": "sensor-params",
@@ -104,7 +106,15 @@
       "testable_now": true,
       "rationale": "É o gargalo real por trás do item 'Sensores adicionais: GPIO input, I2C, SPI, BME280' do README. Nenhum desses sensores cabe no schema atual, e resolver isso é meio dia de trabalho que destrava quatro features de uma vez.",
       "depends_on": [],
-      "unlocks": ["sensor-disk", "sensor-network", "sensor-load-average", "bme280", "gpio-input", "i2c-generic", "spi-generic"],
+      "unlocks": [
+        "sensor-disk",
+        "sensor-network",
+        "sensor-load-average",
+        "bme280",
+        "gpio-input",
+        "i2c-generic",
+        "spi-generic"
+      ],
       "touches": [
         "config/schema.py:5-8",
         "config/loader.py:46-52",
@@ -134,7 +144,14 @@
       "testable_now": true,
       "rationale": "Bug latente que precisa sair antes de entrar sensor novo. CpuTemperatureSensor.__init__ chama _find_thermal_path(), que levanta RuntimeError quando nenhum caminho térmico existe. O processo não morre — cli/builder.py e cli/doctor.py capturam a exceção —, mas is_available(), que existe exatamente para esse caso em core/ports.py:16, nunca chega a ser chamado, e em qualquer host sem sensor térmico os dois caem no caminho de falha de construção em vez do caminho de indisponibilidade.",
       "depends_on": [],
-      "unlocks": ["sensor-disk", "sensor-uptime", "sensor-network", "sensor-load-average", "bme280", "gpio-input"],
+      "unlocks": [
+        "sensor-disk",
+        "sensor-uptime",
+        "sensor-network",
+        "sensor-load-average",
+        "bme280",
+        "gpio-input"
+      ],
       "touches": [
         "adapters/sensors/cpu_temp.py:22-38",
         "adapters/sensors/base.py",
@@ -162,7 +179,10 @@
       "portfolio_value": "medium",
       "testable_now": true,
       "rationale": "Cartão SD saturado ou degradado é a causa número um de falha em Raspberry Pi em campo. É o sensor mais útil que falta e não precisa de hardware nenhum para ser implementado e testado.",
-      "depends_on": ["sensor-params", "sensor-lazy-availability"],
+      "depends_on": [
+        "sensor-params",
+        "sensor-lazy-availability"
+      ],
       "unlocks": [],
       "touches": [
         "adapters/sensors/disk_usage.py",
@@ -190,8 +210,12 @@
       "portfolio_value": "medium",
       "testable_now": true,
       "rationale": "Barato e desproporcionalmente útil: reboot inesperado é detectável como queda de uptime, e vira a base da detecção de device offline em v0.6.",
-      "depends_on": ["sensor-lazy-availability"],
-      "unlocks": ["heartbeat"],
+      "depends_on": [
+        "sensor-lazy-availability"
+      ],
+      "unlocks": [
+        "heartbeat"
+      ],
       "touches": [
         "adapters/sensors/uptime.py",
         "adapters/sensors/registry.py:12-16"
@@ -215,7 +239,10 @@
       "portfolio_value": "medium",
       "testable_now": true,
       "rationale": "Dispositivo de edge sem rede é dispositivo mudo. Detectar isso localmente é o que permite distinguir 'device caiu' de 'device está isolado' quando o heartbeat de v0.6 existir.",
-      "depends_on": ["sensor-params", "sensor-lazy-availability"],
+      "depends_on": [
+        "sensor-params",
+        "sensor-lazy-availability"
+      ],
       "unlocks": [],
       "touches": [
         "adapters/sensors/network.py",
@@ -242,7 +269,10 @@
       "portfolio_value": "low",
       "testable_now": true,
       "rationale": "Complementa cpu_usage com a janela temporal que ele não tem. Praticamente de graça depois que os outros sensores /proc estiverem no lugar.",
-      "depends_on": ["sensor-params", "sensor-lazy-availability"],
+      "depends_on": [
+        "sensor-params",
+        "sensor-lazy-availability"
+      ],
       "unlocks": [],
       "touches": [
         "adapters/sensors/load_average.py",
@@ -258,7 +288,6 @@
         "window inválido levanta ValueError"
       ]
     },
-
     {
       "id": "rule-severity",
       "title": "severidade nas regras",
@@ -270,7 +299,11 @@
       "testable_now": true,
       "rationale": "Menor mudança do backlog inteiro com efeito visível imediato, e pré-requisito de tudo em v0.3 e v0.4. Sem severidade, todo evento tem o mesmo peso e o Event Store nasce sem eixo de filtragem.",
       "depends_on": [],
-      "unlocks": ["event-store", "severity-action-routing", "state-port"],
+      "unlocks": [
+        "event-store",
+        "severity-action-routing",
+        "state-port"
+      ],
       "touches": [
         "core/rules.py:33-42",
         "config/schema.py:36-42",
@@ -303,8 +336,14 @@
       "portfolio_value": "high",
       "testable_now": true,
       "rationale": "Hoje um disparo de regra não deixa rastro nenhum: o log vai para stdout e some. Sem histórico não existe dashboard de incidentes, análise pós-falha nem ciclo de incidente. É a fundação de v0.4 e v0.7.",
-      "depends_on": ["rule-severity"],
-      "unlocks": ["cli-events", "incident-lifecycle", "dashboard-api"],
+      "depends_on": [
+        "rule-severity"
+      ],
+      "unlocks": [
+        "cli-events",
+        "incident-lifecycle",
+        "dashboard-api"
+      ],
       "touches": [
         "core/ports.py",
         "core/entities.py",
@@ -338,7 +377,9 @@
       "portfolio_value": "medium",
       "testable_now": true,
       "rationale": "Permite declarar uma vez 'warning só loga, critical aciona o relé' em vez de repetir a lista de ações em cada regra.",
-      "depends_on": ["rule-severity"],
+      "depends_on": [
+        "rule-severity"
+      ],
       "unlocks": [],
       "touches": [
         "config/schema.py",
@@ -370,7 +411,9 @@
       "portfolio_value": "high",
       "testable_now": true,
       "rationale": "É o que torna o Event Store visível. Um bloco de saída de terminal no README vale mais que a descrição do schema do banco.",
-      "depends_on": ["event-store"],
+      "depends_on": [
+        "event-store"
+      ],
       "unlocks": [],
       "touches": [
         "cli/events.py",
@@ -391,7 +434,6 @@
         "store vazio não levanta exceção"
       ]
     },
-
     {
       "id": "state-port",
       "title": "StatePort e adapter InMemoryState",
@@ -402,8 +444,14 @@
       "portfolio_value": "medium",
       "testable_now": true,
       "rationale": "Abstrai o estado no momento em que ele deixa de ser um float e passa a ser uma máquina de estados. Feito agora, o RedisState de v0.6 é um adapter novo; feito depois, é um refactor do ciclo de incidente inteiro. Primeira metade do item 'Redis para estado distribuído' do README.",
-      "depends_on": ["rule-severity"],
-      "unlocks": ["incident-lifecycle", "redis-state", "temporal-conditions"],
+      "depends_on": [
+        "rule-severity"
+      ],
+      "unlocks": [
+        "incident-lifecycle",
+        "redis-state",
+        "temporal-conditions"
+      ],
       "touches": [
         "core/ports.py",
         "adapters/state/memory.py",
@@ -431,20 +479,27 @@
       "id": "incident-lifecycle",
       "title": "máquina de estados de incidente",
       "milestone": "v0.4",
-      "status": "ready",
+      "status": "done",
       "effort": "L",
       "portfolio_value": "high",
       "testable_now": true,
       "rationale": "Transforma alertas repetidos em incidentes com começo, reconhecimento e fim. É a feature que mais aproxima o Rule Engine de um sistema real de incident management e a mais defensável numa conversa técnica.",
-      "depends_on": ["state-port", "event-store"],
-      "unlocks": ["cli-incidents-ack", "incident-metrics", "dashboard-api"],
+      "depends_on": [
+        "state-port",
+        "event-store"
+      ],
+      "unlocks": [
+        "cli-incidents-ack",
+        "incident-metrics",
+        "dashboard-api"
+      ],
       "touches": [
         "core/incidents.py",
         "core/rules.py",
         "application/engine.py",
         "adapters/store/sqlite.py"
       ],
-      "design_notes": "Estados NORMAL, TRIGGERED, ACKNOWLEDGED, RESOLVED. Resolução precisa de histerese, senão um valor oscilando na borda do threshold gera flapping: resolve_threshold separado, com default derivado do threshold principal (por exemplo 90% dele para operadores de limite superior). Um incidente agrupa N eventos em vez de criar um incidente por disparo. Transições geram eventos próprios no store, então o histórico mostra o ciclo e não apenas os disparos.",
+      "design_notes": "Estados TRIGGERED, ACKNOWLEDGED e RESOLVED. NORMAL não é guardado: o normal é a ausência de incidente aberto, e uma linha por regra que nunca disparou não serve para nada. A resolução usa histerese — margem padrão de 10% de |threshold| para o lado oposto ao alarme, e resolve_threshold por regra quando 10% é a distância errada — senão um valor oscilando na borda gera flapping. Um incidente agrupa N eventos: cada evento carrega o incident_id em vez de virar um incidente novo.",
       "acceptance": [
         "primeiro disparo cria incidente em TRIGGERED",
         "disparos seguintes anexam eventos ao incidente aberto em vez de criar outro",
@@ -454,23 +509,28 @@
         "transições de estado sobrevivem a restart do processo"
       ],
       "tests": [
-        "ciclo completo NORMAL → TRIGGERED → ACKNOWLEDGED → RESOLVED",
+        "ciclo completo: aberto → reconhecido → resolvido",
         "valor oscilando na borda não gera múltiplos incidentes",
         "disparos repetidos agrupam sob um único incidente",
-        "estado é reconstruído do store após restart",
-        "incidente em ACKNOWLEDGED não reexecuta ações"
-      ]
+        "incidente aberto sobrevive ao restart do processo (banco real)",
+        "incidente em ACKNOWLEDGED não reexecuta ações, mas continua gravando eventos",
+        "loja de incidentes que lança exceção não impede o alerta nem o histórico"
+      ],
+      "delivered_in": "e9df88d",
+      "delivery_notes": "Duas diferenças em relação ao previsto. (1) As transições não geram eventos próprios no store: o evento é o disparo da regra, e o ciclo se lê pelos timestamps do próprio incidente (opened_at, acknowledged_at, resolved_at) mais os eventos que apontam para ele — uma tabela, não duas fontes da mesma verdade. (2) Não existe etapa de reconstrução de estado no boot: o engine lê os incidentes abertos do store a cada avaliação, o que resolve o restart e, de graça, faz o agente ver um reconhecimento feito por outro processo. Um incidente aberto por regra é garantido por índice único parcial (WHERE state != 'resolved'), não por lock no engine; a recusa é logada e engolida, como a falha do histórico, porque o incidente é contexto do alarme e não pode silenciá-lo. A migração do banco para o esquema 2 acontece na primeira abertura, preservando os eventos existentes."
     },
     {
       "id": "cli-incidents-ack",
       "title": "comandos incidents, ack e resolve",
       "milestone": "v0.4",
-      "status": "planned",
+      "status": "ready",
       "effort": "S",
       "portfolio_value": "high",
       "testable_now": true,
       "rationale": "Sem uma forma de reconhecer um incidente, o estado ACKNOWLEDGED é inalcançável e a máquina de estados fica incompleta na prática.",
-      "depends_on": ["incident-lifecycle"],
+      "depends_on": [
+        "incident-lifecycle"
+      ],
       "unlocks": [],
       "touches": [
         "cli/incidents.py",
@@ -494,12 +554,14 @@
       "id": "incident-metrics",
       "title": "métricas de incidente no OTel",
       "milestone": "v0.4",
-      "status": "planned",
+      "status": "ready",
       "effort": "S",
       "portfolio_value": "high",
       "testable_now": true,
       "rationale": "Leva incidentes para o dashboard do Grafana que já existe. Painel de 'incidentes abertos por severidade' é screenshot de README com esforço de poucas horas.",
-      "depends_on": ["incident-lifecycle"],
+      "depends_on": [
+        "incident-lifecycle"
+      ],
       "unlocks": [],
       "touches": [
         "adapters/exporter/otel.py",
@@ -518,7 +580,6 @@
         "métricas presentes tanto no exporter OTel quanto no Prometheus"
       ]
     },
-
     {
       "id": "detection-entity",
       "title": "entidade de detecção com bounding boxes",
@@ -529,7 +590,10 @@
       "testable_now": true,
       "rationale": "Pré-requisito invisível de todo o resto de v0.5. Hoje AnomalyScore em core/entities.py:15-22 carrega apenas um float, então as bounding boxes que o YOLO produz morrem no adapter e nunca chegam ao Rule Engine. Sem isso, zonas e tracking são impossíveis por mais config que se escreva.",
       "depends_on": [],
-      "unlocks": ["object-tracking", "zones-roi"],
+      "unlocks": [
+        "object-tracking",
+        "zones-roi"
+      ],
       "touches": [
         "core/entities.py:15-22",
         "adapters/inference/yolo.py",
@@ -561,8 +625,12 @@
       "portfolio_value": "medium",
       "testable_now": true,
       "rationale": "Sem identidade persistente, 'pessoa parada por 30 segundos' é inexprimível — cada frame parece uma pessoa nova. É o que habilita toda condição temporal de vídeo.",
-      "depends_on": ["detection-entity"],
-      "unlocks": ["temporal-conditions"],
+      "depends_on": [
+        "detection-entity"
+      ],
+      "unlocks": [
+        "temporal-conditions"
+      ],
       "touches": [
         "adapters/inference/yolo.py",
         "ai-inference-service/models/yolo.py",
@@ -590,8 +658,12 @@
       "portfolio_value": "high",
       "testable_now": true,
       "rationale": "A feature de maior valor de vitrine do backlog inteiro, e inteiramente demonstrável sem câmera real usando adapters/sensors/camera_simulated.py com simulated_mode: person. Combina câmera, YOLO e Rule Engine — os três diferenciais do projeto — numa única demonstração visual.",
-      "depends_on": ["detection-entity"],
-      "unlocks": ["temporal-conditions"],
+      "depends_on": [
+        "detection-entity"
+      ],
+      "unlocks": [
+        "temporal-conditions"
+      ],
       "touches": [
         "config/schema.py:44-51",
         "config/loader.py:129-142",
@@ -623,7 +695,11 @@
       "portfolio_value": "high",
       "testable_now": true,
       "rationale": "Converte detecção instantânea em comportamento observado: 'pessoa na zona restrita por 10 segundos' é um alerta útil, 'pessoa detectada' é ruído. É o que separa o projeto de um wrapper de YOLO.",
-      "depends_on": ["zones-roi", "object-tracking", "state-port"],
+      "depends_on": [
+        "zones-roi",
+        "object-tracking",
+        "state-port"
+      ],
       "unlocks": [],
       "touches": [
         "core/rules.py",
@@ -644,7 +720,6 @@
         "objeto saindo e voltando reinicia corretamente"
       ]
     },
-
     {
       "id": "device-identity",
       "title": "identidade do dispositivo no config",
@@ -655,7 +730,10 @@
       "testable_now": true,
       "rationale": "Pré-requisito trivial de tudo em v0.6 e v0.7: eventos, métricas e heartbeats precisam dizer de qual dispositivo vieram. Barato de fazer cedo e caro de retrofitar depois que houver dados gravados sem essa dimensão.",
       "depends_on": [],
-      "unlocks": ["heartbeat", "redis-state"],
+      "unlocks": [
+        "heartbeat",
+        "redis-state"
+      ],
       "touches": [
         "config/schema.py:53-60",
         "config/loader.py:36-46",
@@ -684,8 +762,13 @@
       "portfolio_value": "medium",
       "testable_now": true,
       "rationale": "Fecha o item 'Redis para estado distribuído em deployments multi-dispositivo' do roadmap do README. Feito como adapter do StatePort de v0.4, é uma implementação nova de uma interface existente — o argumento hexagonal do projeto demonstrado na prática.",
-      "depends_on": ["state-port", "device-identity"],
-      "unlocks": ["device-registry-server"],
+      "depends_on": [
+        "state-port",
+        "device-identity"
+      ],
+      "unlocks": [
+        "device-registry-server"
+      ],
       "touches": [
         "adapters/state/redis.py",
         "cli/builder.py",
@@ -717,8 +800,13 @@
       "portfolio_value": "medium",
       "testable_now": true,
       "rationale": "Silêncio é o único sintoma de um dispositivo que morreu de vez — nenhuma regra local pode reportar a própria ausência. Detectar isso exige alguém de fora esperando notícias.",
-      "depends_on": ["device-identity", "sensor-uptime"],
-      "unlocks": ["device-registry-server"],
+      "depends_on": [
+        "device-identity",
+        "sensor-uptime"
+      ],
+      "unlocks": [
+        "device-registry-server"
+      ],
       "touches": [
         "application/monitor.py",
         "adapters/heartbeat/http.py",
@@ -749,8 +837,15 @@
       "language": "go",
       "testable_now": true,
       "rationale": "Primeiro componente servidor do projeto: recebe heartbeats e marca como offline quem parou de falar. Note que isto é um produto distinto do agente, não uma feature dele — decidir cedo se mora neste repositório ou em outro evita um monólito acidental. É também onde Go entra no projeto: serviço de rede longo com muitas conexões concorrentes é o caso de uso da linguagem, e é a primeira vez que a fronteira declarada em context.language_boundary produz código.",
-      "depends_on": ["heartbeat", "redis-state"],
-      "unlocks": ["dashboard-api", "ota-updates", "terraform-deploy"],
+      "depends_on": [
+        "heartbeat",
+        "redis-state"
+      ],
+      "unlocks": [
+        "dashboard-api",
+        "ota-updates",
+        "terraform-deploy"
+      ],
       "touches": [
         "server/",
         "infra/docker/docker-compose.yml"
@@ -770,7 +865,6 @@
         "transição para offline emite evento"
       ]
     },
-
     {
       "id": "dashboard-api",
       "title": "API de leitura do dashboard",
@@ -780,9 +874,17 @@
       "portfolio_value": "medium",
       "testable_now": true,
       "rationale": "Camada de dados do dashboard próprio. Depende de v0.3 e v0.6 terem produzido dados reais — construída antes, seria uma casca sem nada para servir.",
-      "depends_on": ["event-store", "incident-lifecycle", "device-registry-server"],
-      "unlocks": ["dashboard-ui"],
-      "touches": ["server/api/"],
+      "depends_on": [
+        "event-store",
+        "incident-lifecycle",
+        "device-registry-server"
+      ],
+      "unlocks": [
+        "dashboard-ui"
+      ],
+      "touches": [
+        "server/api/"
+      ],
       "design_notes": "Somente leitura, com a exceção de ack e resolve de incidentes. Paginação obrigatória em eventos desde o início — é a rota que mais cresce. Consultas ao Event Store precisam de índices por timestamp, severity e device_id.",
       "acceptance": [
         "rotas para devices, events, incidents e cameras",
@@ -807,9 +909,13 @@
       "portfolio_value": "high",
       "testable_now": true,
       "rationale": "Maior valor de vitrine do backlog depois de zonas — e também o maior esforço. Vale a pena somente depois que houver dados reais para mostrar, o que é exatamente por que está em v0.7 e não em v0.5.",
-      "depends_on": ["dashboard-api"],
+      "depends_on": [
+        "dashboard-api"
+      ],
       "unlocks": [],
-      "touches": ["server/ui/"],
+      "touches": [
+        "server/ui/"
+      ],
       "design_notes": "Telas de frota, detalhe de dispositivo e lista de incidentes. Resistir ao impulso de recriar o Grafana: séries temporais continuam no Grafana, este dashboard mostra estado e incidentes, que é justamente o que o Grafana faz mal.",
       "acceptance": [
         "tela de frota com status online e offline",
@@ -823,7 +929,6 @@
         "estado vazio e estado de erro tratados"
       ]
     },
-
     {
       "id": "grpc-ai-service",
       "title": "gRPC no AI Service",
@@ -834,7 +939,9 @@
       "testable_now": true,
       "rationale": "Item do roadmap original do README. Ganho real de latência em frames de vídeo, onde o overhead de serializar imagem em HTTP é mensurável. Independente de todo o resto do backlog — pode ser puxado a qualquer momento se der vontade de variar.",
       "depends_on": [],
-      "unlocks": ["model-registry"],
+      "unlocks": [
+        "model-registry"
+      ],
       "touches": [
         "ai-inference-service/main.py",
         "ai-inference-service/proto/",
@@ -864,8 +971,12 @@
       "portfolio_value": "medium",
       "testable_now": true,
       "rationale": "ai-inference-service/models.yaml aponta para um caminho fixo por modelo, sem noção de versão. Trocar de modelo hoje significa editar o YAML e reiniciar o container — sem histórico e sem rollback.",
-      "depends_on": ["grpc-ai-service"],
-      "unlocks": ["ota-updates"],
+      "depends_on": [
+        "grpc-ai-service"
+      ],
+      "unlocks": [
+        "ota-updates"
+      ],
       "touches": [
         "ai-inference-service/models.yaml",
         "ai-inference-service/core/registry.py",
@@ -896,7 +1007,10 @@
       "testable_now": true,
       "language": "go",
       "rationale": "Fecha o ciclo de operação de frota. Também é a feature de maior risco do backlog: um bug aqui deixa dispositivos inacessíveis em campo, e é exatamente por isso que vem depois de heartbeat e registry existirem para detectar o estrago. É o argumento técnico mais forte para Go em todo o projeto — ver design_notes.",
-      "depends_on": ["device-registry-server", "model-registry"],
+      "depends_on": [
+        "device-registry-server",
+        "model-registry"
+      ],
       "unlocks": [],
       "touches": [
         "server/",
@@ -926,9 +1040,13 @@
       "portfolio_value": "low",
       "testable_now": false,
       "rationale": "Último item do roadmap original do README. Avaliação honesta: é o item de menor retorno do backlog inteiro para um projeto de portfólio sem nada rodando em cloud — provisiona infraestrutura que ninguém vai ver. Mantido por estar prometido no README, e colocado por último de propósito.",
-      "depends_on": ["device-registry-server"],
+      "depends_on": [
+        "device-registry-server"
+      ],
       "unlocks": [],
-      "touches": ["infra/terraform/"],
+      "touches": [
+        "infra/terraform/"
+      ],
       "design_notes": "Provisiona o lado servidor — registry, Redis, Prometheus, Grafana — não os dispositivos de edge. Antes de escrever, considerar se um docker-compose bem documentado não entrega o mesmo valor demonstrativo por um décimo do esforço.",
       "acceptance": [
         "terraform apply provisiona a stack servidor completa",
@@ -941,7 +1059,6 @@
         "apply e destroy verificados em ambiente descartável"
       ]
     },
-
     {
       "id": "bme280",
       "title": "sensor BME280 via I2C",
@@ -952,8 +1069,13 @@
       "portfolio_value": "medium",
       "testable_now": false,
       "rationale": "Item do roadmap do README e o sensor ambiental mais comum em projetos de edge: temperatura, umidade e pressão em um único encapsulamento barato. Desbloqueado por sensor-params — no dia em que o hardware chegar, é meio dia de trabalho.",
-      "depends_on": ["sensor-params", "sensor-lazy-availability"],
-      "unlocks": ["i2c-generic"],
+      "depends_on": [
+        "sensor-params",
+        "sensor-lazy-availability"
+      ],
+      "unlocks": [
+        "i2c-generic"
+      ],
       "touches": [
         "adapters/sensors/bme280.py",
         "adapters/sensors/registry.py:12-16",
@@ -983,7 +1105,10 @@
       "portfolio_value": "medium",
       "testable_now": false,
       "rationale": "Item do roadmap do README. Contrapartida natural do GPIOWriteAction que já existe em adapters/actions/gpio.py — o projeto escreve em GPIO mas não lê. Habilita botão, sensor de presença e contato magnético.",
-      "depends_on": ["sensor-params", "sensor-lazy-availability"],
+      "depends_on": [
+        "sensor-params",
+        "sensor-lazy-availability"
+      ],
       "unlocks": [],
       "touches": [
         "adapters/sensors/gpio_input.py",
@@ -1012,8 +1137,13 @@
       "portfolio_value": "low",
       "testable_now": false,
       "rationale": "Item do roadmap do README. Permite ler qualquer chip I2C declarando registrador e formato no YAML, sem escrever um adapter por modelo de sensor.",
-      "depends_on": ["sensor-params", "bme280"],
-      "unlocks": ["spi-generic"],
+      "depends_on": [
+        "sensor-params",
+        "bme280"
+      ],
+      "unlocks": [
+        "spi-generic"
+      ],
       "touches": [
         "adapters/sensors/i2c_generic.py",
         "adapters/sensors/registry.py:12-16"
@@ -1041,7 +1171,10 @@
       "portfolio_value": "low",
       "testable_now": false,
       "rationale": "Último item de sensores do roadmap do README. Cobre ADCs como o MCP3008, que é como sensores analógicos chegam a um Raspberry Pi — sem ADC, não há leitura de tensão nem corrente.",
-      "depends_on": ["sensor-params", "i2c-generic"],
+      "depends_on": [
+        "sensor-params",
+        "i2c-generic"
+      ],
       "unlocks": [],
       "touches": [
         "adapters/sensors/spi_generic.py",
