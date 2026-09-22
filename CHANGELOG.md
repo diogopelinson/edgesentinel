@@ -10,8 +10,25 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
 
 ## [Unreleased]
 
+### Added
+
+- **`StatePort`** — the contract for state that outlives a single
+  evaluation, with `try_acquire(key, ttl)` for cooldowns and `get`/`set` for
+  the incident state coming in v0.4. It exposes no timestamps on purpose: a
+  monotonic epoch means nothing in another process, so a distributed
+  implementation can expire keys server-side instead of comparing clocks.
+- **`InMemoryState`** — the default implementation, per-process and backed by
+  `time.monotonic()`, guarded by a lock. `tests/adapters/test_state_contract.py`
+  is parametrized by implementation, so the Redis adapter planned for v0.6
+  has to pass the same suite.
+
 ### Fixed
 
+- **A rule could fire twice at once.** The engine compared and then wrote
+  `rule._last_triggered` in separate steps, while pipelines run on executor
+  threads sharing one engine. Taking a cooldown is now a single atomic
+  operation on the state; a test drives twenty concurrent callers and
+  requires exactly one to win.
 - **The ONNX anomaly score no longer saturates.** IsolationForest only splits
   inside the range it was trained on, so every reading beyond that range got
   the same score — 0.9366 for anything above ~65 °C and 1.0 for anything
@@ -29,6 +46,10 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
 
 ### Changed
 
+- Cooldown state left the `Rule` entity: the `_last_triggered` field is gone
+  and the engine asks the state for `cooldown:<rule name>`. `Rule` is now
+  only the declaration of a rule. Behaviour is unchanged, and the existing
+  cooldown tests were not touched.
 - **Anomaly models have a new format — retrain them** with
   `python scripts/train_model.py`. The export is now one self-contained
   `anomaly.onnx` whose single output, `anomaly_score`, already includes

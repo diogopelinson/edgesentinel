@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Callable
 
@@ -67,11 +67,14 @@ class Condition:
 
 @dataclass
 class Rule:
-    """Uma regra: quando Condition é verdadeira, executa uma lista de action_ids."""
+    """
+    Uma regra: quando Condition é verdadeira, executa uma lista de action_ids.
+
+    Só declaração — o estado do cooldown mora no StatePort, com o engine.
+    """
     name: str
     condition: Condition
     action_ids: list[str]       # referência às ações registradas no container
     severity: Severity = Severity.WARNING
     enabled: bool = True
     cooldown_seconds: float = 0.0   # evita spam de ação (ex: não alerta 2x em 30s)
-    _last_triggered: float = field(default=0.0, init=False, repr=False)

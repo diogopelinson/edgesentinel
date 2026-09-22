@@ -630,6 +630,20 @@ class EventPort(ABC):
     def close(self) -> None: ...                 # grava o que estiver pendente
 ```
 
+### `StatePort`
+
+```python
+class StatePort(ABC):
+    # toma a chave por ttl_seconds; False enquanto uma tomada anterior
+    # estiver viva. Tomar e verificar são uma operação atômica, e nenhum
+    # timestamp é exposto: o epoch do monotônico não vale em outro processo
+    def try_acquire(self, key: str, ttl_seconds: float) -> bool: ...
+    def get(self, key: str) -> str | None: ...
+    def set(self, key: str, value: str) -> None: ...
+```
+
+O `RuleEngine` usa a porta para o cooldown das regras, na chave `cooldown:<nome da regra>`, e por padrão usa o `adapters.state.memory.InMemoryState` — estado do processo, baseado em `time.monotonic()`. Para passar outro, use `RuleEngine(..., state=meu_state)`; o adapter de Redis que fará o cooldown valer entre dispositivos entra do mesmo jeito. Qualquer implementação precisa passar por `tests/adapters/test_state_contract.py`.
+
 ### `SensorReading`
 
 ```python
