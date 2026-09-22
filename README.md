@@ -133,6 +133,7 @@ edgesentinel uses **Hexagonal Architecture (Ports & Adapters)**. The core domain
 │  actions/     → log, webhook, gpio               │
 │  exporter/    → legacy Prometheus + OTel         │
 │  store/       → event history (SQLite)           │
+│  state/       → cooldowns, incident state        │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -501,7 +502,7 @@ pytest tests/ -v
 pytest tests/ --cov=. --cov-report=term-missing
 ```
 
-**263 tests, zero failures.**
+**278 tests, zero failures.**
 
 | Layer | Coverage |
 |---|---|
@@ -528,7 +529,8 @@ edgesentinel/
 │   ├── inference/              # dummy, onnx, tflite, remote (AI Service)
 │   ├── actions/                # log, webhook, gpio
 │   ├── exporter/               # legacy Prometheus + OpenTelemetry
-│   └── store/                  # SQLite Event Store
+│   ├── store/                  # SQLite Event Store
+│   └── state/                  # cooldowns and, later, incident state
 ├── application/                # RuleEngine, Pipeline, MonitorLoop
 ├── cli/                        # run / simulate / doctor / events
 ├── ai-inference-service/       # FastAPI with containerized YOLO/ONNX
@@ -536,7 +538,7 @@ edgesentinel/
 ├── infra/docker/               # docker-compose, MediaMTX, OTel, Prometheus, Grafana
 ├── dashboards/                 # edgesentinel_dashboard_v2.json for Grafana
 ├── data/                       # events.db — created at runtime, not tracked
-└── tests/                      # unit + integration (263 tests)
+└── tests/                      # unit + integration (278 tests)
 ```
 
 ---
@@ -551,7 +553,7 @@ edgesentinel/
 
 **`frozen=True` on entities** — the loop is async. Immutability eliminates concurrency bugs.
 
-**`time.monotonic()` for cooldowns** — wall clock can go backwards under NTP. Monotonic only moves forward.
+**Cooldowns behind a port** — the engine never reads a clock. It asks the `StatePort` to take a key for N seconds, and taking it is the same operation as checking it, so two pipeline threads cannot fire the same rule at once. `InMemoryState` implements that with `time.monotonic()`, because the wall clock can go backwards under NTP; the Redis adapter will let the server expire the key instead. That is the point of the port: a monotonic clock's epoch is per process, so an engine comparing timestamps could never have its cooldowns made distributed.
 
 **Separate AI Service** — fault isolation. If YOLO crashes, sensor monitoring keeps running.
 
