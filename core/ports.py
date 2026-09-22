@@ -41,6 +41,39 @@ class ActionPort(ABC):
         ...
 
 
+class StatePort(ABC):
+    """
+    Contrato para o estado que sobrevive entre avaliações — cooldown de
+    regra hoje, ciclo de incidente depois.
+
+    Nenhum método expõe timestamp: o epoch do relógio monotônico é por
+    processo e não tem significado em outro. Quem tomar a chave decide o
+    prazo, e a implementação cuida de expirá-la — em memória, com o próprio
+    monotônico; no Redis, com a expiração do servidor.
+    """
+
+    @abstractmethod
+    def try_acquire(self, key: str, ttl_seconds: float) -> bool:
+        """
+        Toma a chave por ttl_seconds. True se ela estava livre agora, False
+        enquanto o prazo anterior não expirar. ttl_seconds <= 0 sempre toma.
+
+        Precisa ser atômico: dois chamadores simultâneos não podem tomar a
+        mesma chave.
+        """
+        ...
+
+    @abstractmethod
+    def get(self, key: str) -> str | None:
+        """Valor guardado, ou None se a chave nunca foi escrita."""
+        ...
+
+    @abstractmethod
+    def set(self, key: str, value: str) -> None:
+        """Guarda um valor sob a chave, sem prazo."""
+        ...
+
+
 class EventPort(ABC):
     """Contrato para qualquer armazenamento do histórico de regras disparadas."""
 
