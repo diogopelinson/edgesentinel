@@ -23,7 +23,9 @@ def build_monitor(config: EdgeSentinelConfig) -> MonitorLoop:
     exporter  = _build_exporter(config)
     events    = build_event_store(config)
 
-    engine = RuleEngine(rules=rules, actions=actions, events=events)
+    # o mesmo store atende os dois contratos: histórico e incidentes. Sem
+    # event_store habilitado não há incidente — o ciclo precisa ser durável
+    engine = RuleEngine(rules=rules, actions=actions, events=events, incidents=events)
 
     sensor_pipelines = [
         Pipeline(sensor=s, engine=engine, inference=inference, exporter=exporter)
