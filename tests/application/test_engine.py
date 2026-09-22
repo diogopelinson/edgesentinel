@@ -1,11 +1,14 @@
 import logging
 import time
+from pathlib import Path
+
 import pytest
 
 from unittest.mock import MagicMock, call
+import application.engine
 from core.rules import Rule, Condition, Severity
 from core.entities import SensorReading, AnomalyScore, ActionContext
-from core.ports import ActionPort, EventPort
+from core.ports import ActionPort, EventPort, StatePort
 from application.engine import RuleEngine
 
 
@@ -386,3 +389,77 @@ class TestRuleEngineEventRecording:
 
         assert "cpu_critica" in caplog.text
         assert "disco cheio" in caplog.text
+
+
+class TestRuleEngineCooldownState:
+    """
+    O cooldown deixa de ser um campo da Rule e passa pelo StatePort. É o que
+    permite trocar estado local por Redis em deployment multi-device sem
+    mexer no engine.
+    """
+
+    @pytest.fixture
+    def rule_with_cooldown(self) -> Rule:
+        return Rule(
+            name="com_cooldown",
+            condition=Condition(sensor_id="cpu_temp", operator=">", threshold=75.0),
+            action_ids=["log"],
+            cooldown_seconds=60.0,
+        )
+
+    def test_asks_the_state_for_the_rule_cooldown(self, rule_with_cooldown, reading_82):
+        state = MagicMock(spec=StatePort)
+        state.try_acquire.return_value = True
+        engine = RuleEngine(rules=[rule_with_cooldown], actions={}, state=state)
+
+        engine.evaluate(reading_82)
+
+        state.try_acquire.assert_called_once()
+        key, ttl = state.try_acquire.call_args.args
+        assert "com_cooldown" in key
+        assert ttl == pytest.approx(60.0)
+
+    def test_does_not_fire_when_the_state_refuses(self, rule_with_cooldown, reading_82):
+        state = MagicMock(spec=StatePort)
+        state.try_acquire.return_value = False
+        log_action = make_action()
+        engine = RuleEngine(rules=[rule_with_cooldown], actions={"log": log_action}, state=state)
+
+        engine.evaluate(reading_82)
+
+        log_action.execute.assert_not_called()
+
+    def test_each_rule_has_its_own_cooldown_key(self, reading_82):
+        """Duas regras que casam a mesma leitura não podem consumir um cooldown só."""
+        first = Rule(
+            name="primeira",
+            condition=Condition(sensor_id="cpu_temp", operator=">", threshold=75.0),
+            action_ids=["log"],
+            cooldown_seconds=60.0,
+        )
+        second = Rule(
+            name="segunda",
+            condition=Condition(sensor_id="cpu_temp", operator=">", threshold=80.0),
+            action_ids=["log"],
+            cooldown_seconds=60.0,
+        )
+        log_action = make_action()
+        engine = make_engine(rules=[first, second], actions={"log": log_action})
+
+        engine.evaluate(reading_82)
+
+        assert log_action.execute.call_count == 2
+
+    def test_rules_no_longer_carry_cooldown_state(self, rule_with_cooldown):
+        """O estado saiu da entidade: a Rule volta a ser só a declaração da regra."""
+        assert not hasattr(rule_with_cooldown, "_last_triggered")
+
+    def test_the_engine_does_not_read_the_clock_itself(self):
+        """
+        time.monotonic() não atravessa processos — seu epoch é por processo.
+        Se o engine voltar a comparar timestamps, o RedisState não tem como
+        fazer o cooldown valer entre dispositivos.
+        """
+        source = Path(application.engine.__file__).read_text(encoding="utf-8")
+
+        assert "monotonic" not in source
