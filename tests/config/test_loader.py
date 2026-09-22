@@ -327,3 +327,97 @@ def test_rejects_rule_actions_written_as_a_string(tmp_path):
 
     with pytest.raises(ValueError, match="alta_temp"):
         load(config_file)
+
+
+# --- resolve_threshold: onde o incidente fecha ---
+
+def _config_with_condition(tmp_path, condition_yaml: str) -> Path:
+    return _config_with(tmp_path, f"""    - name: alta_temp
+      condition:
+{condition_yaml}
+      actions: [log]
+""")
+
+
+def test_resolve_threshold_is_absent_by_default(tmp_path):
+    """Sem o campo, vale a margem padrão de histerese."""
+    config = load(_config_with_condition(tmp_path, """        sensor_id: cpu_temp
+        operator: ">"
+        threshold: 80.0
+"""))
+
+    assert config.rules[0].condition.resolve_threshold is None
+
+
+def test_parses_resolve_threshold(tmp_path):
+    config = load(_config_with_condition(tmp_path, """        sensor_id: cpu_temp
+        operator: ">"
+        threshold: 80.0
+        resolve_threshold: 70.0
+"""))
+
+    assert config.rules[0].condition.resolve_threshold == 70.0
+
+
+def test_rejects_a_non_numeric_resolve_threshold(tmp_path):
+    config_file = _config_with_condition(tmp_path, """        sensor_id: cpu_temp
+        operator: ">"
+        threshold: 80.0
+        resolve_threshold: morno
+""")
+
+    with pytest.raises(ValueError, match="alta_temp"):
+        load(config_file)
+
+
+def test_rejects_a_resolve_threshold_on_the_alarm_side_of_an_upper_bound(tmp_path):
+    """
+    Regra '> 80' resolvendo em 85 fecharia o incidente com o sensor ainda
+    acima do limite — e abriria outro na leitura seguinte.
+    """
+    config_file = _config_with_condition(tmp_path, """        sensor_id: cpu_temp
+        operator: ">"
+        threshold: 80.0
+        resolve_threshold: 85.0
+""")
+
+    with pytest.raises(ValueError) as exc:
+        load(config_file)
+
+    message = str(exc.value)
+    assert "alta_temp" in message
+    assert "resolve_threshold" in message
+
+
+def test_rejects_a_resolve_threshold_on_the_alarm_side_of_a_lower_bound(tmp_path):
+    config_file = _config_with_condition(tmp_path, """        sensor_id: cpu_temp
+        operator: "<"
+        threshold: 20.0
+        resolve_threshold: 15.0
+""")
+
+    with pytest.raises(ValueError, match="resolve_threshold"):
+        load(config_file)
+
+
+@pytest.mark.parametrize("operator", ["==", "anomaly"])
+def test_rejects_a_resolve_threshold_without_a_numeric_edge(tmp_path, operator):
+    """'==' e 'anomaly' não têm borda numérica: o campo aqui é erro de config."""
+    config_file = _config_with_condition(tmp_path, f"""        sensor_id: cpu_temp
+        operator: "{operator}"
+        resolve_threshold: 70.0
+""")
+
+    with pytest.raises(ValueError, match="resolve_threshold"):
+        load(config_file)
+
+
+def test_accepts_a_resolve_threshold_equal_to_the_threshold(tmp_path):
+    """Igual é permitido: significa 'sem margem', escolhido de propósito."""
+    config = load(_config_with_condition(tmp_path, """        sensor_id: cpu_temp
+        operator: ">"
+        threshold: 80.0
+        resolve_threshold: 80.0
+"""))
+
+    assert config.rules[0].condition.resolve_threshold == 80.0
