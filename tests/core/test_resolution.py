@@ -113,3 +113,14 @@ class TestResolves:
         para fechar o incidente.
         """
         assert Condition("cpu_temp", "anomaly").resolves(reading(80.0), None) is False
+
+    def test_an_unknown_operator_never_resolves(self):
+        """
+        Guard do domínio. O loader recusa operador desconhecido, mas se um
+        novo operador chegar sem regra de fechamento, o incidente tem de
+        ficar aberto — fechar por engano some com o alarme.
+        """
+        condition = Condition("cpu_temp", "~=", 80.0)
+
+        assert condition.resolution_point() is None
+        assert condition.resolves(reading(10.0)) is False
