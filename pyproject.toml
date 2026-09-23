@@ -52,3 +52,30 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+
+[tool.ruff]
+line-length = 110
+exclude = [".venv", "build", "dist", "*.egg-info"]
+
+[tool.ruff.lint]
+# Conjunto inicial: o que aponta defeito, não o que reformata. Regra nova entra
+# uma por vez, com o diff dela separado.
+select = ["E", "W", "F", "UP", "B", "C4", "SIM", "RUF"]
+ignore = [
+    # o alinhamento de colunas em tabelas de constantes e em mensagens de log é
+    # deliberado; reflow automático destruiria o que ele organiza
+    "E501",
+    # 'except Exception' é decisão de arquitetura aqui: falha de rede, disco ou
+    # hardware é logada e engolida para que o alerta ainda saia
+    "BLE001",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# dict(campo=valor) nas fixtures é kwargs sendo montado para **expansão logo
+# depois; reescrever como literal esconde o que aquilo é
+"tests/**" = ["B011", "C408"]
+
+[tool.mypy]
+# tipo é contrato no core; nos adapters, biblioteca externa sem stub vira ruído
+files = ["core", "application"]
+strict = true
