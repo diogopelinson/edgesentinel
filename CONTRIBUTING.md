@@ -42,6 +42,13 @@ belongs in the docs that cover that area — [docs/](docs/README.md) for the
 English documentation, `README-BR.md` and `USAGE-PTBR.md` for the Portuguese
 mirrors — and in `CHANGELOG.md` under `[Unreleased]`.
 
+**A green pipeline.** Every push and pull request runs the suite on Ubuntu
+with Python 3.10 through 3.13, and on Windows with 3.10 — the version this
+project is developed on. The workflow installs the optional dependencies the
+tests need (`scikit-learn`, `skl2onnx`, `onnx`, `opencv-python-headless`), so a
+test that skips locally still runs there. If you do not install them, expect
+around eighteen skips in your local run and nothing red.
+
 **An honest roadmap.** `docs/roadmap.json` is the backlog and
 `tests/test_roadmap.py` verifies it. If your change delivers a feature listed
 there, mark it `done` with the merge SHA and promote whatever it unlocked. If
