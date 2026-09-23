@@ -1,11 +1,9 @@
 import time
 import logging
-import argparse
 
 from config.loader import load
 from config.mapper import to_rules
 from adapters.sensors.simulated import SimulatedSensor
-from adapters.inference.dummy import DummyInferenceAdapter
 from adapters.actions.registry import build_actions
 from adapters.exporter.prometheus import PrometheusExporter
 from application.engine import RuleEngine
@@ -48,11 +46,11 @@ def run_simulate(scenario: str, config_path: str, interval: float) -> None:
         return
 
     s = SCENARIOS[scenario]
-    print(f"\nedgesentinel simulate")
+    print("\nedgesentinel simulate")
     print(f"Cenário : {scenario} — {s['description']}")
     print(f"Intervalo: {interval}s")
-    print(f"Métricas : http://localhost:8000/metrics")
-    print(f"\nPressione Ctrl+C para parar.\n")
+    print("Métricas : http://localhost:8000/metrics")
+    print("\nPressione Ctrl+C para parar.\n")
     print("-" * 60)
 
     # carrega config e monta peças reais

@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import signal
 
 from application.pipeline import Pipeline
 from core.ports import ExporterPort, EventPort

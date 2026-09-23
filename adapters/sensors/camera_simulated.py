@@ -1,5 +1,4 @@
 import numpy as np
-import time
 from core.ports import SensorPort
 from core.entities import SensorReading
 

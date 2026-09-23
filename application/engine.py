@@ -173,6 +173,13 @@ class RuleEngine:
 
     def _resolve(self, rule: Rule, incident: Incident, reading: SensorReading) -> None:
         """Fecha o incidente quando a leitura recua além da margem."""
+        # As duas invariantes vêm de _open_incidents_by_rule: sem store não há
+        # incidente aberto para chegar aqui, e todo incidente que veio do store
+        # tem id. Declaradas para o verificador de tipos e para quebrar alto se
+        # alguém mudar aquele caminho — passar None ao store falharia calado.
+        assert self._incidents is not None
+        assert incident.incident_id is not None
+
         try:
             self._incidents.resolve_incident(incident.incident_id, at=reading.timestamp)
             logger.info(

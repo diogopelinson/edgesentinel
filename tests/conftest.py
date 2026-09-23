@@ -1,7 +1,6 @@
-import time
 import pytest
 
-from core.entities import SensorReading, AnomalyScore, ActionContext
+from core.entities import SensorReading, AnomalyScore
 from core.rules import Rule, Condition
 
 

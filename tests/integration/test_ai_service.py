@@ -2,7 +2,6 @@ import pytest
 import json
 import base64
 from unittest.mock import patch, MagicMock
-from pathlib import Path
 
 import numpy as np
 

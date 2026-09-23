@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Any
 
 from core.entities import SensorReading, AnomalyScore, ActionContext, Event
 from core.incidents import Incident

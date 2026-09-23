@@ -66,7 +66,7 @@ def _parse_inference(raw: dict) -> InferenceConfig:
         backend=raw.get("backend", "dummy"),
         model_path=raw.get("model_path"),
         service_url=raw.get("service_url", "http://localhost:8080"),
-        model_id=raw.get("model_id"),     
+        model_id=raw.get("model_id"),
     )
 
 

@@ -1,4 +1,3 @@
-import time
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -7,7 +6,6 @@ from core.entities import SensorReading
 from core.ports import ActionPort
 from adapters.sensors.simulated import SimulatedSensor
 from adapters.inference.dummy import DummyInferenceAdapter
-from adapters.actions.log import LogAction
 from adapters.exporter.prometheus import PrometheusExporter
 from application.engine import RuleEngine
 from application.pipeline import Pipeline
