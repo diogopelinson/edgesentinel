@@ -87,12 +87,12 @@ def run_simulate(scenario: str, config_path: str, interval: float) -> None:
             print(f"\n[tick {tick:03d}]")
 
             for pipeline in pipelines:
-                # lê o sensor e imprime o valor no terminal
+                # a mesma leitura é impressa e avaliada: ler duas vezes mostraria
+                # um valor e alarmaria sobre outro, e ainda adiantaria o cenário
                 reading = pipeline._sensor.read()
                 print(f"  {reading.name:<20} {reading.value:>7.2f} {reading.unit}")
 
-                # roda o pipeline real (inferência + regras + ações)
-                pipeline.run_once()
+                pipeline.run_once(reading=reading)
 
             time.sleep(interval)
 

@@ -1,6 +1,7 @@
 import time
 import logging
 
+from core.entities import SensorReading
 from core.ports import SensorPort, InferencePort
 from application.engine import RuleEngine
 from adapters.exporter.prometheus import PrometheusExporter
@@ -22,14 +23,20 @@ class Pipeline:
         self._inference = inference
         self._exporter = exporter
 
-    def run_once(self) -> None:
+    def run_once(self, reading: SensorReading | None = None) -> None:
+        """
+        Executa o ciclo do sensor. Quem já tem a leitura em mãos a passa
+        adiante: ler de novo avaliaria um valor diferente do que o chamador
+        viu — e, num sensor simulado, ainda adiantaria a curva do cenário.
+        """
         pipeline_start = time.monotonic()
 
-        try:
-            reading = self._sensor.read()
-        except Exception as e:
-            logger.error(f"Falha ao ler sensor: {e}")
-            return
+        if reading is None:
+            try:
+                reading = self._sensor.read()
+            except Exception as e:
+                logger.error(f"Falha ao ler sensor: {e}")
+                return
 
         score = None
         if self._inference is not None:

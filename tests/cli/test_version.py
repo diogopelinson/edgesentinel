@@ -74,3 +74,22 @@ def test_changelog_has_an_entry_for_the_current_version():
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 
     assert re.search(rf"^## \[{re.escape(__version__)}\] - \d{{4}}-\d{{2}}-\d{{2}}$", changelog, re.M)
+
+
+def test_the_module_can_be_run_with_dash_m():
+    """
+    O console script do venv embute o caminho absoluto de onde o venv foi
+    criado e quebra quando o projeto muda de pasta. 'python -m cli.main' é a
+    saída documentada para esse caso — e só funciona com o bloco __main__.
+    """
+    import subprocess
+
+    from cli import __version__
+
+    resultado = subprocess.run(
+        [sys.executable, "-m", "cli.main", "--version"],
+        cwd=ROOT, capture_output=True, text=True,
+    )
+
+    assert resultado.returncode == 0, resultado.stderr
+    assert resultado.stdout.strip() == f"edgesentinel {__version__}"

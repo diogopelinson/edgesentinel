@@ -267,6 +267,25 @@ class TestJsonOutput:
         assert isinstance(record["event_id"], int)
         assert isinstance(record["timestamp"], float)
 
+    def test_record_carries_the_incident_it_belongs_to(self, workspace, capsys):
+        """
+        O incident_id é o que liga um disparo ao episódio. Sem ele no JSON,
+        agrupar os eventos de um incidente exige abrir o banco à mão.
+        """
+        cfg, db = workspace
+        seed(db,
+             make_event(rule_name="temperatura_critica", incident_id=7),
+             make_event(rule_name="sem_incidente"))
+
+        run_events(cfg, as_json=True)
+
+        por_regra = {
+            json.loads(linha)["rule_name"]: json.loads(linha)["incident_id"]
+            for linha in stdout_lines(capsys)
+        }
+        assert por_regra["temperatura_critica"] == 7
+        assert por_regra["sem_incidente"] is None
+
     def test_record_has_a_readable_time_with_offset(self, workspace, capsys):
         cfg, db = workspace
         seed(db, make_event())

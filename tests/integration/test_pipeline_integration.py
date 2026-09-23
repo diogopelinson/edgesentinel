@@ -166,6 +166,25 @@ class TestPipelineIntegration:
         assert context.score.model_id == "dummy"
         assert context.score.score == 0.0
 
+    def test_a_reading_given_by_the_caller_is_not_read_again(
+        self, stress_sensor, rule_above_75, mock_action
+    ):
+        """
+        Quem já leu o sensor passa a leitura adiante. Ler de novo avalia um
+        valor diferente do que o chamador tem em mãos — e, num sensor
+        simulado, ainda adianta a curva do cenário a cada tick.
+        """
+        engine = RuleEngine(rules=[rule_above_75], actions={"log": mock_action})
+        pipeline = Pipeline(sensor=stress_sensor, engine=engine)
+        leitura = SensorReading("cpu_temp", "CPU Temperature", 99.0, "°C")
+
+        with patch.object(stress_sensor, "read", wraps=stress_sensor.read) as lendo:
+            pipeline.run_once(reading=leitura)
+
+        lendo.assert_not_called()
+        contexto = mock_action.execute.call_args[0][0]
+        assert contexto.reading is leitura
+
     def test_multiple_sensors_run_independently(self, dummy_inference):
         """
         Dois pipelines com sensores diferentes devem operar

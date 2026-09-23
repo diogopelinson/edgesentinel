@@ -2,6 +2,14 @@
 
 Esse guia cobre como usar o edgesentinel como biblioteca, como conectar câmeras reais via MediaMTX, como o AI Inference Service funciona na prática e como configurar o Prometheus e o Grafana do zero.
 
+> **Este é o guia em português, e continua sendo mantido em arquivo único.** A
+> versão em inglês foi dividida em [docs/](docs/README.md) no padrão Diátaxis —
+> tutoriais, guias práticos, referência e explicações. O que só existe lá:
+> os [tutoriais](docs/tutorials/README.md), a
+> [referência de configuração](docs/reference/configuration.md), a
+> [referência do banco](docs/reference/database.md) e os
+> [registros de decisão](docs/adr/README.md).
+
 ---
 
 ## Índice

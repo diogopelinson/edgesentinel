@@ -163,6 +163,7 @@ def _to_record(event: Event) -> dict:
         "value":         event.value,
         "unit":          event.unit,
         "anomaly_score": event.anomaly_score,
+        "incident_id":   event.incident_id,
     }
 
 
