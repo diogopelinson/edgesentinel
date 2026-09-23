@@ -60,19 +60,26 @@ def test_the_documentation_was_actually_found():
     assert len(DOCS) > 20
 
 
-@pytest.mark.parametrize("doc", DOCS)
-def test_relative_links_point_to_existing_files(doc):
-    base = (ROOT / doc).parent
-    missing = [t for t in relative_links(doc) if t and not (base / t).exists()]
+def test_relative_links_point_to_existing_files():
+    quebrados = {
+        doc: [alvo for alvo in relative_links(doc)
+              if alvo and not ((ROOT / doc).parent / alvo).exists()]
+        for doc in DOCS
+        if any(alvo and not ((ROOT / doc).parent / alvo).exists()
+               for alvo in relative_links(doc))
+    }
 
-    assert missing == [], f"{doc} aponta para arquivos inexistentes: {missing}"
+    assert quebrados == {}, f"links para arquivos inexistentes: {quebrados}"
 
 
-@pytest.mark.parametrize("doc", DOCS)
-def test_dashboard_files_mentioned_exist(doc):
-    missing = [p for p in dashboard_paths(doc) if not (ROOT / p).exists()]
+def test_dashboard_files_mentioned_exist():
+    ausentes = {
+        doc: [caminho for caminho in dashboard_paths(doc) if not (ROOT / caminho).exists()]
+        for doc in DOCS
+        if any(not (ROOT / caminho).exists() for caminho in dashboard_paths(doc))
+    }
 
-    assert missing == [], f"{doc} cita dashboards inexistentes: {missing}"
+    assert ausentes == {}, f"dashboards citados que não existem: {ausentes}"
 
 
 @pytest.mark.parametrize("secao", ["tutorials", "how-to", "reference", "explanation", "adr"])
