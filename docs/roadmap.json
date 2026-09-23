@@ -1,7 +1,7 @@
 {
   "$comment": "Backlog executável do edgesentinel. Fonte única de verdade para as próximas features. O roadmap público do README deve ser derivado deste arquivo, não mantido em paralelo.",
   "project": "edgesentinel",
-  "generated_at": "2026-09-16",
+  "generated_at": "2026-09-22",
   "current_version": "0.3.0",
   "context": {
     "goal": "portfolio",
@@ -65,6 +65,12 @@
       "rationale": "O cooldown em application/engine.py:52-57 já é o embrião de uma máquina de estados. Esta é a evolução natural, e é o que aproxima o Rule Engine de um sistema real de incident management."
     },
     {
+      "id": "project-health",
+      "name": "Saúde do projeto",
+      "goal": "Documentação, verificação automática e empacotamento: o que faz o repositório ser utilizável por outra pessoa, e não só por quem o escreveu.",
+      "rationale": "Não é marco de release — corre em paralelo à linha de versões, como o backlog de hardware. O código já tem 353 testes e arquitetura defensável; o que falta é a casca que um projeto grande tem: onde está escrito como usar, como configurar, como contribuir e o que um agente de IA precisa saber antes de tocar no repositório."
+    },
+    {
       "id": "v0.5",
       "name": "Visão estruturada",
       "goal": "Detecções de câmera chegam à camada de regras com bounding boxes e identidade temporal, permitindo zonas e condições de duração.",
@@ -89,6 +95,18 @@
       "rationale": "Fecha os itens restantes do roadmap original do README. Todos de alto esforço e baixa visibilidade — corretamente por último."
     },
     {
+      "id": "v0.9",
+      "name": "Operação em campo",
+      "goal": "O que passa a importar quando o agente deixa de rodar num terminal e passa a rodar sozinho num dispositivo por semanas.",
+      "rationale": "Todas as features anteriores assumem alguém olhando. Este marco cobre o resto: recarregar config sem parar o monitoramento, não perder alerta quando o webhook cai, silenciar manutenção programada, responder a um supervisor e rodar como serviço."
+    },
+    {
+      "id": "v1.0",
+      "name": "Regras compostas",
+      "goal": "Uma regra deixa de falar de um sensor num instante e passa a falar de combinações e de variação no tempo.",
+      "rationale": "A Condition de hoje compara um sensor com um número. Metade dos alertas úteis do mundo real é 'quente sob carga' ou 'subiu rápido demais', e nenhuma das duas cabe nessa forma."
+    },
+    {
       "id": "backlog-hardware",
       "name": "Bloqueado por hardware",
       "goal": "Drivers de sensores físicos, prontos para implementação quando um SBC estiver disponível.",
@@ -99,6 +117,8 @@
     {
       "id": "sensor-params",
       "title": "params arbitrários no SensorConfig",
+      "does": "Permite que cada sensor declare parâmetros próprios no YAML — pino, endereço I2C, caminho de arquivo — em vez de o schema conhecer cada tipo de antemão.",
+      "adds": "Destrava qualquer sensor futuro sem tocar em config/schema.py: é o gargalo real por trás dos quatro sensores de hardware do backlog.",
       "milestone": "v0.2",
       "status": "ready",
       "effort": "S",
@@ -136,6 +156,8 @@
     {
       "id": "sensor-lazy-availability",
       "title": "is_available() sem explodir no __init__",
+      "does": "Tira a descoberta de hardware do __init__: dispositivo ausente vira is_available() == False em vez de exceção na construção.",
+      "adds": "Faz o mesmo config.yaml subir no Raspberry Pi e no notebook — sensor indisponível é ignorado com aviso e o resto do monitoramento segue.",
       "milestone": "v0.2",
       "status": "done",
       "delivered_in": "dbc2590",
@@ -173,6 +195,8 @@
     {
       "id": "sensor-disk",
       "title": "sensores de disco: uso e temperatura",
+      "does": "Lê uso e temperatura de disco e expõe as duas coisas como sensores comuns, avaliáveis por regra.",
+      "adds": "Cobre a causa número um de falha em campo — cartão SD saturado ou degradado — sem exigir hardware nenhum.",
       "milestone": "v0.2",
       "status": "planned",
       "effort": "S",
@@ -204,6 +228,8 @@
     {
       "id": "sensor-uptime",
       "title": "sensor de uptime do dispositivo",
+      "does": "Expõe o tempo desde o último boot como leitura numérica.",
+      "adds": "Torna reboot inesperado detectável por regra e serve de base para a detecção de dispositivo offline na frota.",
       "milestone": "v0.2",
       "status": "ready",
       "effort": "S",
@@ -233,6 +259,8 @@
     {
       "id": "sensor-network",
       "title": "sensor de status e throughput de rede",
+      "does": "Reporta estado do link e throughput das interfaces de rede.",
+      "adds": "Permite distinguir 'o dispositivo caiu' de 'o dispositivo está isolado' — a diferença entre trocar a máquina e trocar o cabo.",
       "milestone": "v0.2",
       "status": "planned",
       "effort": "S",
@@ -263,6 +291,8 @@
     {
       "id": "sensor-load-average",
       "title": "sensor de load average",
+      "does": "Lê o load average de /proc/loadavg e o publica como sensor.",
+      "adds": "Dá ao rule engine a janela temporal que o cpu_usage instantâneo não tem, quase de graça depois dos outros sensores /proc.",
       "milestone": "v0.2",
       "status": "planned",
       "effort": "S",
@@ -291,6 +321,8 @@
     {
       "id": "rule-severity",
       "title": "severidade nas regras",
+      "does": "Classifica cada regra em info, warning ou critical e leva essa classificação ao nível de log e a todas as ações.",
+      "adds": "Acaba com o peso único: é o vocabulário que eventos, roteamento de ações e incidentes usam daí em diante.",
       "milestone": "v0.3",
       "status": "done",
       "delivered_in": "678f790",
@@ -329,6 +361,8 @@
     {
       "id": "event-store",
       "title": "Event Store em SQLite",
+      "does": "Persiste cada regra disparada num SQLite local, por fila e thread de escrita, com retenção configurável.",
+      "adds": "Dá memória ao agente — histórico consultável, análise pós-falha e a base dos incidentes — sem servidor nem dependência nova.",
       "milestone": "v0.3",
       "status": "done",
       "delivered_in": "40468ca",
@@ -370,6 +404,8 @@
     {
       "id": "severity-action-routing",
       "title": "ações roteadas por severidade",
+      "does": "Declara uma vez quais ações cada severidade dispara, valendo para toda regra que não traz lista própria.",
+      "adds": "Tira a repetição de listas de ação regra a regra e deixa a política de alerta legível num lugar só.",
       "milestone": "v0.3",
       "status": "done",
       "delivered_in": "1f5612d",
@@ -404,6 +440,8 @@
     {
       "id": "cli-events",
       "title": "comando edgesentinel events",
+      "does": "Comando `edgesentinel events`, com filtros de severidade, sensor, regra e janela de tempo, em tabela ou JSON.",
+      "adds": "Torna o Event Store utilizável sem SQL; dados em stdout e status em stderr fazem dele uma peça de script.",
       "milestone": "v0.3",
       "status": "done",
       "delivered_in": "3ccb848",
@@ -437,6 +475,8 @@
     {
       "id": "state-port",
       "title": "StatePort e adapter InMemoryState",
+      "does": "Abstrai o estado que sobrevive a uma avaliação atrás de uma porta, com try_acquire atômico para cooldown.",
+      "adds": "Tira o relógio de dentro do engine e abre caminho para o cooldown distribuído; de quebra, eliminou uma corrida entre threads do executor.",
       "milestone": "v0.4",
       "status": "done",
       "delivered_in": "f62635b",
@@ -478,6 +518,8 @@
     {
       "id": "incident-lifecycle",
       "title": "máquina de estados de incidente",
+      "does": "Agrupa disparos repetidos de uma regra num incidente com estados, e fecha por histerese quando o sensor volta.",
+      "adds": "Transforma alerta repetido em episódio com começo, reconhecimento e fim — é o que separa um alarme de um sistema de incidentes.",
       "milestone": "v0.4",
       "status": "done",
       "effort": "L",
@@ -491,7 +533,8 @@
       "unlocks": [
         "cli-incidents-ack",
         "incident-metrics",
-        "dashboard-api"
+        "dashboard-api",
+        "maintenance-windows"
       ],
       "touches": [
         "core/incidents.py",
@@ -522,6 +565,8 @@
     {
       "id": "cli-incidents-ack",
       "title": "comandos incidents, ack e resolve",
+      "does": "Comandos para listar, reconhecer e resolver incidentes pelo terminal.",
+      "adds": "Fecha o ciclo na prática: sem uma forma de reconhecer, o estado ACKNOWLEDGED existe no banco e é inalcançável pelo operador.",
       "milestone": "v0.4",
       "status": "ready",
       "effort": "S",
@@ -553,6 +598,8 @@
     {
       "id": "incident-metrics",
       "title": "métricas de incidente no OTel",
+      "does": "Exporta incidentes abertos por severidade e por regra como métricas OTel.",
+      "adds": "Leva o ciclo de incidentes ao Grafana que já existe, em painel de estado atual em vez de contagem de disparos.",
       "milestone": "v0.4",
       "status": "ready",
       "effort": "S",
@@ -583,6 +630,8 @@
     {
       "id": "detection-entity",
       "title": "entidade de detecção com bounding boxes",
+      "does": "Cria a entidade de detecção — bounding box, classe e confiança — separada do AnomalyScore de um float só.",
+      "adds": "Faz a saída do YOLO chegar inteira à camada de regras, que é o pré-requisito invisível de zonas, tracking e condições temporais.",
       "milestone": "v0.5",
       "status": "ready",
       "effort": "M",
@@ -619,6 +668,8 @@
     {
       "id": "object-tracking",
       "title": "tracking de objetos entre frames",
+      "does": "Mantém identidade dos objetos entre frames consecutivos.",
+      "adds": "Permite falar de comportamento — 'parado há 30 segundos' — em vez de aparição isolada: sem identidade, cada frame é uma pessoa nova.",
       "milestone": "v0.5",
       "status": "planned",
       "effort": "M",
@@ -652,6 +703,8 @@
     {
       "id": "zones-roi",
       "title": "zonas poligonais e condição object_in_zone",
+      "does": "Define zonas poligonais no config e a condição object_in_zone sobre elas.",
+      "adds": "Transforma 'detectei uma pessoa' em 'pessoa na área restrita', que é a regra que alguém de fato quer escrever.",
       "milestone": "v0.5",
       "status": "planned",
       "effort": "M",
@@ -689,6 +742,8 @@
     {
       "id": "temporal-conditions",
       "title": "condições de duração e objeto parado",
+      "does": "Condições de duração: objeto presente, ou parado, por N segundos.",
+      "adds": "Converte detecção instantânea em comportamento observado e corta o ruído de um alerta por frame.",
       "milestone": "v0.5",
       "status": "planned",
       "effort": "M",
@@ -723,6 +778,8 @@
     {
       "id": "device-identity",
       "title": "identidade do dispositivo no config",
+      "does": "Dá identidade ao dispositivo no config e carimba eventos, métricas e heartbeats com ela.",
+      "adds": "Pré-requisito de qualquer visão de frota: sem isso, dois dispositivos produzem dados indistinguíveis no mesmo painel.",
       "milestone": "v0.6",
       "status": "ready",
       "effort": "S",
@@ -732,7 +789,8 @@
       "depends_on": [],
       "unlocks": [
         "heartbeat",
-        "redis-state"
+        "redis-state",
+        "structured-logging"
       ],
       "touches": [
         "config/schema.py:53-60",
@@ -756,6 +814,8 @@
     {
       "id": "redis-state",
       "title": "adapter RedisState",
+      "does": "Implementa o StatePort sobre Redis, deixando a expiração das chaves com o servidor.",
+      "adds": "Faz cooldown e estado valerem entre dispositivos sem que o engine saiba que o estado mudou de lugar.",
       "milestone": "v0.6",
       "status": "planned",
       "effort": "M",
@@ -794,6 +854,8 @@
     {
       "id": "heartbeat",
       "title": "heartbeat do dispositivo",
+      "does": "Faz o agente reportar periodicamente que está vivo.",
+      "adds": "Cria o sinal cuja ausência alguém de fora consegue notar — nenhuma regra local sabe reportar o próprio silêncio.",
       "milestone": "v0.6",
       "status": "planned",
       "effort": "M",
@@ -830,6 +892,8 @@
     {
       "id": "device-registry-server",
       "title": "servidor de registro de dispositivos",
+      "does": "Servidor que recebe heartbeats, mantém o inventário e marca como offline quem parou de falar.",
+      "adds": "Primeiro componente de plano de controle do projeto: a frota passa a existir como conjunto, e não como N agentes isolados.",
       "milestone": "v0.6",
       "status": "planned",
       "effort": "L",
@@ -868,6 +932,8 @@
     {
       "id": "dashboard-api",
       "title": "API de leitura do dashboard",
+      "does": "API de leitura sobre eventos, incidentes e dispositivos, para consumo do dashboard próprio.",
+      "adds": "Separa dado de tela: qualquer frontend, ou um script, passa a ler a mesma fonte.",
       "milestone": "v0.7",
       "status": "planned",
       "effort": "L",
@@ -903,6 +969,8 @@
     {
       "id": "dashboard-ui",
       "title": "frontend do dashboard",
+      "does": "Frontend próprio para dispositivos, eventos, incidentes e câmeras.",
+      "adds": "Dá cara própria ao projeto, sem depender de um Grafana configurado à mão para mostrar o que ele faz.",
       "milestone": "v0.7",
       "status": "planned",
       "effort": "L",
@@ -932,6 +1000,8 @@
     {
       "id": "grpc-ai-service",
       "title": "gRPC no AI Service",
+      "does": "Expõe o AI Service em gRPC ao lado do HTTP, com o mesmo contrato de inferência.",
+      "adds": "Corta o overhead de serializar imagem em JSON, que é exatamente onde a latência de vídeo aparece.",
       "milestone": "v0.8",
       "status": "ready",
       "effort": "M",
@@ -965,6 +1035,8 @@
     {
       "id": "model-registry",
       "title": "registry de modelos versionado",
+      "does": "Versiona modelos e permite trocar de versão sem editar YAML e reiniciar o serviço.",
+      "adds": "Transforma 'o modelo' em 'uma versão do modelo', que é o que torna possível voltar atrás depois de um treino ruim.",
       "milestone": "v0.8",
       "status": "planned",
       "effort": "L",
@@ -1000,6 +1072,8 @@
     {
       "id": "ota-updates",
       "title": "atualização remota do agente",
+      "does": "Atualiza o agente remotamente, com verificação e rollback.",
+      "adds": "Fecha o ciclo de operação de frota — e é a feature de maior risco do backlog: um erro aqui deixa dispositivo inacessível em campo.",
       "milestone": "v0.8",
       "status": "planned",
       "effort": "L",
@@ -1034,6 +1108,8 @@
     {
       "id": "terraform-deploy",
       "title": "Terraform para cloud-assisted deployment",
+      "does": "Descreve a infraestrutura do lado servidor em Terraform.",
+      "adds": "Torna o ambiente reprodutível; vale pouco enquanto não houver servidor de fato rodando.",
       "milestone": "v0.8",
       "status": "planned",
       "effort": "M",
@@ -1062,6 +1138,8 @@
     {
       "id": "bme280",
       "title": "sensor BME280 via I2C",
+      "does": "Lê temperatura, umidade e pressão do BME280 por I2C.",
+      "adds": "Primeiro sensor ambiental real do projeto e a prova de que o SensorPort serve hardware externo, não só /proc.",
       "milestone": "backlog-hardware",
       "status": "blocked",
       "blocked_by": "hardware: requer SBC com barramento I2C e um módulo BME280",
@@ -1098,6 +1176,8 @@
     {
       "id": "gpio-input",
       "title": "sensor de entrada GPIO",
+      "does": "Lê pinos GPIO como sensores: botão, reed switch, sensor de presença.",
+      "adds": "Fecha a simetria com o GPIOWriteAction que já existe — hoje o projeto escreve em GPIO e não lê.",
       "milestone": "backlog-hardware",
       "status": "blocked",
       "blocked_by": "hardware: requer SBC com pinos GPIO",
@@ -1130,6 +1210,8 @@
     {
       "id": "i2c-generic",
       "title": "sensor I2C genérico",
+      "does": "Lê qualquer chip I2C declarando endereço, registrador e formato no YAML.",
+      "adds": "Evita um adapter por modelo de sensor: é o que faz o catálogo crescer sem código novo.",
       "milestone": "backlog-hardware",
       "status": "blocked",
       "blocked_by": "hardware: requer SBC com barramento I2C",
@@ -1164,6 +1246,8 @@
     {
       "id": "spi-generic",
       "title": "sensor SPI genérico",
+      "does": "Lê dispositivos SPI, incluindo ADCs como o MCP3008.",
+      "adds": "É por onde sensor analógico entra num Raspberry Pi — sem ADC, não existe leitura analógica.",
       "milestone": "backlog-hardware",
       "status": "blocked",
       "blocked_by": "hardware: requer SBC com barramento SPI",
@@ -1190,6 +1274,544 @@
         "conversão de valor bruto do ADC para tensão",
         "barramento SPI mockado",
         "canal inválido levanta erro claro"
+      ]
+    },
+    {
+      "id": "docs-structure",
+      "title": "documentação em padrão Diátaxis e instruções para agentes",
+      "does": "Cria docs/ dividido em tutorials, how-to, reference e explanation, mais AGENTS.md, CONTRIBUTING.md, SECURITY.md, LICENSE e templates de issue e pull request.",
+      "adds": "Dá ao repositório a forma de um projeto grande: cada pergunta tem um lugar previsível, e tanto contribuidor humano quanto agente de IA leem instruções escritas em vez de inferir do código.",
+      "milestone": "project-health",
+      "status": "ready",
+      "effort": "L",
+      "portfolio_value": "high",
+      "testable_now": true,
+      "rationale": "README.md e USAGE-EN.md somam mais de 1.300 linhas e acumulam quatro papéis no mesmo arquivo: ensinar, dar receita, listar fatos e explicar decisão. Diátaxis separa esses quatro e é o padrão que Canonical, Django e Cloudflare adotaram — usar um padrão existente vale mais que inventar uma divisão própria. O AGENTS.md é a metade nova do problema: o repositório já é editado por agente de IA, e hoje as convenções que valem aqui (um arquivo por commit, TDD, mensagens em inglês) não estão escritas em lugar nenhum.",
+      "depends_on": [],
+      "unlocks": [
+        "packaging-pypi"
+      ],
+      "touches": [
+        "docs/",
+        "AGENTS.md",
+        "CONTRIBUTING.md",
+        "SECURITY.md",
+        "LICENSE",
+        ".github/",
+        "README.md",
+        "README-BR.md",
+        "tests/test_docs_paths.py"
+      ],
+      "design_notes": "docs/ em inglês, como o README padrão; README-BR.md e USAGE-PTBR.md continuam na raiz e permanecem a versão pt-BR de entrada. Os quatro diretórios do Diátaxis não se misturam: tutorial não vira referência no meio do caminho. AGENTS.md fica na raiz, abaixo de 300 linhas — acima disso a própria convenção reconhece queda de aderência — e aponta para docs/ em vez de repetir conteúdo. As decisões de arquitetura já escritas no README viram ADRs em docs/adr/, numerados e imutáveis: quem lê descobre não só a decisão, mas quando e contra o quê ela foi tomada. USAGE-EN.md e USAGE-PTBR.md continuam existindo, apontando para docs/ no que já foi movido, para não quebrar link externo.",
+      "acceptance": [
+        "docs/ com tutorials, how-to, reference e explanation, cada um com índice próprio",
+        "AGENTS.md na raiz, abaixo de 300 linhas, com comandos de build, teste e as convenções de commit do projeto",
+        "CONTRIBUTING.md, SECURITY.md e LICENSE presentes e citados no README",
+        "README reescrito no formato de projeto grande: badges reais, sumário, quickstart e links para docs/",
+        "os dois READMEs e os dois USAGE continuam consistentes entre si"
+      ],
+      "tests": [
+        "todo link relativo em qualquer .md do repositório aponta para arquivo existente",
+        "todo arquivo em docs/ está citado no índice do seu diretório",
+        "AGENTS.md não passa de 300 linhas",
+        "os comandos citados no AGENTS.md existem (entry points e scripts)"
+      ]
+    },
+    {
+      "id": "ci-pipeline",
+      "title": "integração contínua no GitHub Actions",
+      "does": "Roda a suíte a cada push e pull request, em Python 3.10, 3.11 e 3.12, com relatório de cobertura.",
+      "adds": "Transforma 'os testes passam na minha máquina' em 'os testes passam em três versões a cada push' — e é o que faz o badge do README dizer a verdade.",
+      "milestone": "project-health",
+      "status": "ready",
+      "effort": "M",
+      "portfolio_value": "high",
+      "testable_now": true,
+      "rationale": "O projeto declara requires-python >= 3.10 e é desenvolvido só em 3.10: as outras duas versões suportadas nunca foram exercitadas. Além disso, um README com badge de build é o primeiro sinal que alguém lê, e um badge apontando para workflow inexistente é pior que nenhum.",
+      "depends_on": [],
+      "unlocks": [
+        "lint-and-types",
+        "packaging-pypi"
+      ],
+      "touches": [
+        ".github/workflows/",
+        "pyproject.toml",
+        "README.md"
+      ],
+      "design_notes": "Matriz nas três versões declaradas em requires-python; instalação por extras mínimos, porque instalar 'all' arrastaria ultralytics e opencv para dentro de cada job e o agente não precisa deles para rodar a suíte. Cobertura publicada como artefato do job, não como serviço externo — badge de cobertura via terceiro é dependência nova para um ganho pequeno.",
+      "acceptance": [
+        "push e pull request disparam a suíte nas três versões",
+        "job falha quando qualquer teste falha",
+        "cobertura sai como artefato do job",
+        "badge do README aponta para esse workflow"
+      ],
+      "tests": [
+        "o workflow roda verde no próprio pull request que o adiciona",
+        "um teste quebrado de propósito faz o job falhar (verificado uma vez, revertido)"
+      ]
+    },
+    {
+      "id": "lint-and-types",
+      "title": "ruff e mypy no mesmo workflow",
+      "does": "Verifica estilo com ruff no repositório inteiro e tipos com mypy em core/ e application/.",
+      "adds": "Põe o contrato das portas sob verificação automática: hoje um Optional mal declarado só aparece quando o código roda.",
+      "milestone": "project-health",
+      "status": "planned",
+      "effort": "M",
+      "portfolio_value": "medium",
+      "testable_now": true,
+      "rationale": "O core é todo anotado e nunca foi verificado. Tipar o núcleo e deixar os adapters de fora é a divisão honesta: é no core que o tipo é contrato, e é nos adapters que bibliotecas externas sem stubs tornam a checagem ruído.",
+      "depends_on": [
+        "ci-pipeline"
+      ],
+      "unlocks": [],
+      "touches": [
+        "pyproject.toml",
+        ".github/workflows/",
+        "core/",
+        "application/"
+      ],
+      "design_notes": "mypy em modo estrito só em core/ e application/; adapters e cli em modo padrão. ruff com a configuração mínima que o código já respeita, para a primeira execução não virar um diff de mil linhas — regra nova entra depois, uma por vez.",
+      "acceptance": [
+        "ruff passa sem erro no repositório",
+        "mypy passa em core/ e application/ em modo estrito",
+        "as duas verificações rodam no mesmo workflow da suíte"
+      ],
+      "tests": [
+        "job falha quando um tipo do core é violado de propósito",
+        "job falha em erro de lint introduzido de propósito"
+      ]
+    },
+    {
+      "id": "packaging-pypi",
+      "title": "pacote edgesentinel/ e publicação no PyPI",
+      "does": "Reorganiza os módulos de topo sob o pacote edgesentinel/ e publica no PyPI por workflow disparado em tag.",
+      "adds": "Faz `pip install edgesentinel` funcionar fora deste repositório — hoje instalar significa clonar, e os nomes de topo (core, config, cli) colidem com qualquer outro pacote do ambiente.",
+      "milestone": "project-health",
+      "status": "planned",
+      "effort": "M",
+      "portfolio_value": "medium",
+      "testable_now": true,
+      "rationale": "core, config, cli, adapters e application ocupam nomes genéricos no topo do site-packages: instalado ao lado de qualquer outro projeto, o conflito é questão de tempo. Adiada de propósito: mover os módulos agora quebraria os imports de toda feature em andamento, e o ganho só aparece quando houver o que publicar.",
+      "depends_on": [
+        "ci-pipeline",
+        "docs-structure"
+      ],
+      "unlocks": [],
+      "touches": [
+        "edgesentinel/",
+        "pyproject.toml",
+        ".github/workflows/",
+        "tests/"
+      ],
+      "design_notes": "Um commit move os módulos e outro corrige os imports, para o diff ficar legível. A publicação usa trusted publishing do PyPI, sem token guardado no repositório, e só dispara em tag que case com a versão de cli/__init__.py — a mesma fonte única de versão que o pyproject já lê.",
+      "acceptance": [
+        "import edgesentinel.core funciona a partir do pacote instalado",
+        "nenhum nome genérico permanece no topo do site-packages",
+        "tag dispara publicação; push comum não",
+        "versão publicada é a mesma de `edgesentinel --version`"
+      ],
+      "tests": [
+        "suíte inteira passa depois da renomeação, sem exceção de import",
+        "instalação do wheel construído expõe o entry point edgesentinel",
+        "workflow recusa tag cuja versão não bate com a do código"
+      ]
+    },
+    {
+      "id": "docker-agent-image",
+      "title": "imagem Docker do agente",
+      "does": "Empacota o agente numa imagem e o acrescenta ao compose, ao lado de MediaMTX, Collector, Prometheus e Grafana.",
+      "adds": "Faz a stack inteira subir com um comando — hoje o compose sobe tudo, menos aquilo que o projeto é.",
+      "milestone": "project-health",
+      "status": "ready",
+      "effort": "M",
+      "portfolio_value": "high",
+      "testable_now": true,
+      "rationale": "infra/docker sobe quatro serviços de apoio e nenhum deles é o edgesentinel, que continua rodando à mão no host. Para quem chega no repositório, a distância entre 'clonei' e 'estou vendo métrica no Grafana' é justamente esse passo.",
+      "depends_on": [],
+      "unlocks": [],
+      "touches": [
+        "infra/docker/",
+        "Dockerfile",
+        "README.md",
+        "docs/"
+      ],
+      "design_notes": "Imagem slim com os extras mínimos; câmera e YOLO continuam no AI Service, que já tem imagem própria. O modo simulado é o default da imagem, porque num contêiner de laptop não há /sys/class/thermal — rodar com sensores reais exige montar /proc e /sys explicitamente, e isso fica documentado em vez de embutido.",
+      "acceptance": [
+        "`docker compose up` sobe agente, Collector, Prometheus e Grafana juntos",
+        "o agente no contêiner exporta métricas que o Prometheus coleta",
+        "config e banco de eventos ficam em volume, não dentro da imagem",
+        "a imagem roda como usuário sem privilégio"
+      ],
+      "tests": [
+        "contêiner sobe em modo simulado e responde no endpoint de métricas",
+        "evento gravado sobrevive a recriar o contêiner (volume)",
+        "build da imagem entra no workflow de CI"
+      ]
+    },
+    {
+      "id": "anomaly-sensor-scoping",
+      "title": "escopo de sensores da inferência",
+      "does": "Permite declarar no config quais sensores passam pelo modelo de anomalia, em vez de mandar todos.",
+      "adds": "Corrige um erro visível hoje: o modelo treinado em temperatura pontua cpu_usage em 0.98, e uma regra de anomalia sobre esse sensor dispara por um número sem significado.",
+      "milestone": "v0.4",
+      "status": "ready",
+      "effort": "S",
+      "portfolio_value": "medium",
+      "testable_now": true,
+      "rationale": "O pipeline manda toda leitura para o InferencePort, e o modelo de referência foi treinado só com temperatura de CPU. Uso de CPU em % cai fora da faixa de treino e recebe score alto por construção — o score existe, parece legítimo e não significa nada.",
+      "depends_on": [],
+      "unlocks": [],
+      "touches": [
+        "config/schema.py",
+        "config/loader.py",
+        "application/pipeline.py",
+        "cli/builder.py"
+      ],
+      "design_notes": "Campo `sensors` no bloco de inferência; ausente, o comportamento continua o de hoje, para não quebrar config existente. O metadado de faixa de treino que o modelo já carrega permite ir além e avisar no load quando um sensor declarado está fora dessa faixa — aviso, não erro, porque a faixa é do modelo de referência e não uma regra do formato.",
+      "acceptance": [
+        "sensor fora da lista não é enviado ao modelo e sai com score None",
+        "sem o campo, todos os sensores continuam sendo pontuados",
+        "sensor inexistente na lista falha ao carregar o config",
+        "regra com operador anomaly sobre sensor não pontuado falha ao carregar, em vez de nunca disparar"
+      ],
+      "tests": [
+        "pipeline não chama predict() para sensor fora do escopo",
+        "config sem o campo mantém o comportamento atual",
+        "loader recusa sensor desconhecido e regra anomaly órfã"
+      ]
+    },
+    {
+      "id": "config-env-substitution",
+      "title": "variáveis de ambiente no config.yaml",
+      "does": "Expande ${VAR} no config, com erro claro no carregamento quando a variável não existe.",
+      "adds": "Tira segredo de dentro do YAML: hoje uma URL de webhook com token precisa ser versionada ou editada à mão em cada dispositivo.",
+      "milestone": "v0.9",
+      "status": "ready",
+      "effort": "S",
+      "portfolio_value": "medium",
+      "testable_now": true,
+      "rationale": "O config é o único lugar onde credencial aparece, e é justamente o arquivo que se quer versionar e distribuir igual para toda a frota. Enquanto os dois não puderem ser separados, ou o segredo vaza para o git, ou cada dispositivo ganha um config próprio editado à mão.",
+      "depends_on": [],
+      "unlocks": [],
+      "touches": [
+        "config/loader.py",
+        "config.yaml",
+        "docs/"
+      ],
+      "design_notes": "Substituição só em valores de string, nunca em chave, e sem executar nada — nada de eval nem de template engine. Variável ausente é erro no carregamento, com o nome da variável e o caminho do campo; falhar cedo é melhor que subir com uma URL contendo a string literal ${TOKEN}. Sintaxe ${VAR:-default} para o caso comum de valor opcional.",
+      "acceptance": [
+        "${VAR} é substituído pelo valor do ambiente",
+        "variável ausente falha no load, nomeando variável e campo",
+        "${VAR:-default} usa o default quando a variável não existe",
+        "um $ literal continua possível"
+      ],
+      "tests": [
+        "substituição em URL de webhook e em caminho de arquivo",
+        "erro nomeia a variável ausente",
+        "default é aplicado; valor presente vence o default"
+      ]
+    },
+    {
+      "id": "config-hot-reload",
+      "title": "recarregar o config sem reiniciar",
+      "does": "Recarrega o config.yaml sob demanda, valida antes de trocar e mantém o config anterior se a validação falhar.",
+      "adds": "Muda a operação em campo: ajustar um threshold deixa de custar uma janela sem monitoramento, e um YAML quebrado deixa de derrubar o agente.",
+      "milestone": "v0.9",
+      "status": "ready",
+      "effort": "M",
+      "portfolio_value": "high",
+      "testable_now": true,
+      "rationale": "Ajustar regra é a operação mais frequente depois que o agente está rodando, e hoje ela custa um restart: o histórico fica sem cobertura na janela, cooldown em memória se perde e um erro de digitação no YAML impede o processo de voltar.",
+      "depends_on": [],
+      "unlocks": [],
+      "touches": [
+        "application/monitor.py",
+        "cli/builder.py",
+        "cli/main.py",
+        "config/loader.py"
+      ],
+      "design_notes": "Gatilho por sinal (SIGHUP) no Linux e por comando na CLI, porque no Windows não há SIGHUP e o desenvolvimento acontece lá. A troca é atômica: carrega e valida o novo config inteiro, monta sensores, regras e ações novos e só então substitui a referência — falhou em qualquer ponto, nada muda e o erro vai para o log. Incidente aberto sobrevive, porque vive no banco e é lido a cada avaliação; cooldown em memória não sobrevive, e isso é documentado em vez de disfarçado.",
+      "acceptance": [
+        "config válido novo passa a valer sem reiniciar o processo",
+        "config inválido é recusado e o anterior continua valendo",
+        "regra removida para de disparar; regra nova passa a disparar",
+        "incidente aberto continua aberto depois do reload"
+      ],
+      "tests": [
+        "reload troca o conjunto de regras em execução",
+        "YAML inválido não derruba o loop e mantém o config anterior",
+        "sensor removido do config para de ser lido",
+        "incidente aberto sobrevive ao reload"
+      ]
+    },
+    {
+      "id": "action-retry",
+      "title": "retentativa e isolamento de ações",
+      "does": "Reexecuta a ação que falhou, com backoff e limite, fora da thread do pipeline, e exporta a falha como métrica.",
+      "adds": "Hoje um webhook com timeout perde o alerta em silêncio e ainda segura a thread que lê sensores.",
+      "milestone": "v0.9",
+      "status": "ready",
+      "effort": "M",
+      "portfolio_value": "medium",
+      "testable_now": true,
+      "rationale": "A ação é o único ponto do caminho crítico que fala com a rede, e é o único sem nenhuma proteção: o Event Store já tem fila e thread própria justamente por esse motivo. Uma rede intermitente — o normal em edge — descarta alerta que o sistema inteiro existe para entregar.",
+      "depends_on": [],
+      "unlocks": [
+        "notification-channels"
+      ],
+      "touches": [
+        "application/engine.py",
+        "adapters/actions/",
+        "core/ports.py",
+        "config/schema.py"
+      ],
+      "design_notes": "Retentativa com backoff exponencial e teto configurável por ação, não global: relé de GPIO não se comporta como webhook. Ação esgotada vira métrica e log com a severidade da regra, nunca exceção que suba ao pipeline. Fila limitada, com descarte avisado quando encher, pelo mesmo raciocínio do Event Store: atrasar a próxima leitura é pior que perder uma entrega.",
+      "acceptance": [
+        "ação que falha é retentada até o limite configurado",
+        "backoff cresce entre tentativas",
+        "falha definitiva vira métrica e log, sem derrubar a avaliação",
+        "ação lenta não atrasa a leitura do próximo sensor"
+      ],
+      "tests": [
+        "ação que falha duas vezes e funciona na terceira é entregue uma vez só",
+        "limite de tentativas é respeitado",
+        "webhook lento não bloqueia o pipeline",
+        "fila cheia descarta com aviso"
+      ]
+    },
+    {
+      "id": "notification-channels",
+      "title": "canais de notificação: Telegram, Slack e e-mail",
+      "does": "Adapters de ação para Telegram, Slack e e-mail, configurados por YAML como qualquer outra ação.",
+      "adds": "Leva o alerta para onde alguém está olhando; hoje os únicos caminhos são log e um webhook genérico que o operador precisa montar sozinho.",
+      "milestone": "v0.9",
+      "status": "planned",
+      "effort": "M",
+      "portfolio_value": "high",
+      "testable_now": true,
+      "rationale": "É a distância entre 'o sistema registrou' e 'alguém ficou sabendo'. Também é a demonstração mais direta do valor da arquitetura hexagonal: três canais novos sem que o core mude uma linha.",
+      "depends_on": [
+        "action-retry"
+      ],
+      "unlocks": [],
+      "touches": [
+        "adapters/actions/",
+        "config/schema.py",
+        "config/loader.py",
+        "docs/"
+      ],
+      "design_notes": "Cada canal é um ActionPort, sem caso especial no engine. Mensagem formatada por canal — Telegram aceita Markdown, e-mail quer assunto e corpo — mas o conteúdo vem todo do ActionContext, que já carrega regra, leitura, score e severidade. Credencial entra por variável de ambiente, o que torna config-env-substitution um pré-requisito prático.",
+      "acceptance": [
+        "alerta chega ao Telegram, ao Slack e por e-mail com a severidade visível",
+        "credencial vem do ambiente, nunca do YAML versionado",
+        "canal fora do ar usa a retentativa e não derruba a avaliação",
+        "cada canal é selecionável por regra e por severidade, como as ações atuais"
+      ],
+      "tests": [
+        "payload de cada canal é montado a partir do ActionContext",
+        "erro HTTP do canal aciona a retentativa",
+        "credencial ausente falha no load, não no primeiro disparo"
+      ]
+    },
+    {
+      "id": "maintenance-windows",
+      "title": "janelas de manutenção",
+      "does": "Silencia as ações de regras escolhidas durante um período declarado, continuando a registrar eventos e incidentes.",
+      "adds": "Evita a enxurrada de alerta previsível durante manutenção programada — a razão número um pela qual as pessoas passam a ignorar o alarme.",
+      "milestone": "v0.9",
+      "status": "ready",
+      "effort": "M",
+      "portfolio_value": "medium",
+      "testable_now": true,
+      "rationale": "Reinício de máquina, troca de disco e atualização geram exatamente os sinais que as regras existem para pegar. Sem janela de silêncio, ou o operador desliga o agente — e fica cego de verdade — ou aprende a ignorar o alerta, que dá no mesmo.",
+      "depends_on": [
+        "incident-lifecycle"
+      ],
+      "unlocks": [],
+      "touches": [
+        "config/schema.py",
+        "config/loader.py",
+        "application/engine.py",
+        "cli/"
+      ],
+      "design_notes": "Silenciar é não despachar ação; evento e incidente continuam sendo gravados, senão o histórico mente sobre o que aconteceu na janela. Uma janela tem início, fim e um filtro de regras ou severidades; incidente aberto durante a janela permanece aberto depois dela, com os disparos todos registrados. Janela sem fim não existe: silêncio indefinido é agente desligado com outro nome.",
+      "acceptance": [
+        "dentro da janela, regra silenciada não dispara ação",
+        "evento e incidente continuam sendo registrados na janela",
+        "fora da janela, o comportamento volta sem intervenção",
+        "janela sem fim é recusada no carregamento"
+      ],
+      "tests": [
+        "ação não é executada dentro da janela e volta a ser depois",
+        "evento gravado dentro da janela aparece no histórico",
+        "incidente aberto na janela continua aberto ao fim dela",
+        "janela sem fim, ou com fim anterior ao início, falha no load"
+      ]
+    },
+    {
+      "id": "health-endpoint",
+      "title": "endpoints de saúde e prontidão",
+      "does": "Publica /healthz e /readyz no mesmo servidor de métricas, reportando sensores disponíveis, inferência e estado do store.",
+      "adds": "Dá a supervisor, contêiner e balanceador uma resposta padrão sobre o agente, em vez de 'o processo está vivo'.",
+      "milestone": "v0.9",
+      "status": "ready",
+      "effort": "S",
+      "portfolio_value": "medium",
+      "testable_now": true,
+      "rationale": "Um agente pode estar rodando com todos os sensores indisponíveis, a inferência fora do ar e o banco sem permissão de escrita — do lado de fora, um processo vivo. Healthcheck de contêiner, unit do systemd e qualquer orquestrador precisam de um sinal melhor que esse.",
+      "depends_on": [],
+      "unlocks": [],
+      "touches": [
+        "adapters/exporter/",
+        "application/monitor.py",
+        "docs/"
+      ],
+      "design_notes": "/healthz responde ao processo estar respondendo; /readyz responde a ter pelo menos um sensor disponível e o store gravável. A distinção importa: um agente sem sensor nenhum não deve ser considerado pronto, mas também não deve ser reiniciado em laço, porque reiniciar não faz o sensor aparecer. Resposta em JSON, com a lista do que está indisponível.",
+      "acceptance": [
+        "/healthz responde 200 com o processo vivo",
+        "/readyz responde 503 quando nenhum sensor está disponível",
+        "o corpo nomeia o que está indisponível",
+        "os endpoints não dependem do backend de métricas escolhido"
+      ],
+      "tests": [
+        "readyz cai para 503 com todos os sensores indisponíveis",
+        "readyz volta a 200 quando um sensor volta",
+        "healthz continua 200 com store indisponível"
+      ]
+    },
+    {
+      "id": "systemd-unit",
+      "title": "rodar como serviço do systemd",
+      "does": "Arquivo de unit e how-to para rodar o agente como serviço, com restart automático, logs no journal e usuário sem privilégio.",
+      "adds": "É assim que o agente roda de verdade num dispositivo — hoje a documentação para em 'edgesentinel run' num terminal aberto.",
+      "milestone": "v0.9",
+      "status": "ready",
+      "effort": "S",
+      "portfolio_value": "medium",
+      "testable_now": true,
+      "rationale": "Todo o resto do projeto assume execução longa e não supervisionada, e a instalação descrita termina num processo de terminal que morre com a sessão. É a lacuna mais barata de fechar entre o que o projeto promete e o que ele documenta.",
+      "depends_on": [],
+      "unlocks": [],
+      "touches": [
+        "infra/systemd/",
+        "docs/",
+        "README.md"
+      ],
+      "design_notes": "Restart=on-failure com backoff, usuário dedicado e as permissões mínimas: leitura em /sys e /proc, escrita apenas no diretório do banco. GPIO exige grupo próprio e isso fica explícito, porque é onde a instalação costuma falhar em silêncio. A unit aponta para o entry point instalado, e não para um caminho de venv de desenvolvimento.",
+      "acceptance": [
+        "unit sobe o agente no boot e reinicia em falha",
+        "logs aparecem no journal com a severidade correta",
+        "roda como usuário sem privilégio, com acesso mínimo",
+        "how-to cobre instalar, habilitar, acompanhar e desinstalar"
+      ],
+      "tests": [
+        "o arquivo de unit passa em systemd-analyze verify",
+        "os caminhos citados na unit existem depois da instalação documentada"
+      ]
+    },
+    {
+      "id": "structured-logging",
+      "title": "log estruturado em JSON",
+      "does": "Modo de log opcional em JSON, com device_id, rule_name, incident_id e severidade em campos próprios.",
+      "adds": "Torna o log de uma frota agregável por ferramenta, em vez de legível por humano um dispositivo de cada vez.",
+      "milestone": "v0.9",
+      "status": "planned",
+      "effort": "S",
+      "portfolio_value": "medium",
+      "testable_now": true,
+      "rationale": "O log atual é ótimo para uma pessoa lendo um terminal e inútil para dez dispositivos mandando para o mesmo coletor. Com identidade de dispositivo já resolvida, passar a emitir campos em vez de frases é barato e é o que permite correlacionar log, métrica e incidente pelo mesmo id.",
+      "depends_on": [
+        "device-identity"
+      ],
+      "unlocks": [],
+      "touches": [
+        "cli/main.py",
+        "application/",
+        "adapters/actions/log.py",
+        "docs/"
+      ],
+      "design_notes": "Formatter novo, escolhido por config; o texto legível continua sendo o default, porque o primeiro contato com o projeto é alguém rodando no terminal. Os campos vêm dos objetos que já existem — sem string interpolada dentro do campo. incident_id no log fecha o triângulo com o evento gravado e a métrica exportada.",
+      "acceptance": [
+        "log em JSON traz device_id, rule_name, incident_id e severidade em campos",
+        "o formato legível continua sendo o default",
+        "a escolha é de config, sem variável de ambiente escondida"
+      ],
+      "tests": [
+        "cada linha emitida é JSON válido",
+        "campos obrigatórios presentes no disparo de regra",
+        "incident_id aparece no log do disparo que pertence a um incidente"
+      ]
+    },
+    {
+      "id": "rule-expressions",
+      "title": "condições compostas entre sensores",
+      "does": "Permite escrever condição sobre mais de um sensor — `cpu_temp > 75 and cpu_usage > 90` — com and, or e not.",
+      "adds": "Tira a limitação de uma regra falar de um sensor só: é onde mora a diferença entre 'está quente' e 'está quente sob carga'.",
+      "milestone": "v1.0",
+      "status": "ready",
+      "effort": "M",
+      "portfolio_value": "high",
+      "testable_now": true,
+      "rationale": "A Condition compara um sensor com um número, e o docstring dela já promete `when: \"cpu_temp > 75\"`. Metade dos alertas que valem a pena é combinação: temperatura alta com carga alta é problema, temperatura alta durante compilação é terça-feira.",
+      "depends_on": [],
+      "unlocks": [
+        "rate-of-change-rules"
+      ],
+      "touches": [
+        "core/rules.py",
+        "config/schema.py",
+        "config/loader.py",
+        "config/mapper.py"
+      ],
+      "design_notes": "Parser próprio e restrito, nunca eval: a gramática aceita comparação, and, or, not e parênteses, e nada mais. A expressão é compilada no carregamento, de modo que erro de sintaxe aparece ao subir e não no primeiro disparo. A avaliação precisa da última leitura de cada sensor citado — o engine passa a manter esse instantâneo, e uma expressão só é avaliada quando todos os sensores dela já foram lidos ao menos uma vez. A condição simples de hoje continua válida e vira um caso particular.",
+      "acceptance": [
+        "expressão com and, or, not e parênteses é avaliada corretamente",
+        "sintaxe inválida falha ao carregar o config, apontando a posição",
+        "sensor desconhecido na expressão falha ao carregar",
+        "expressão não dispara enquanto algum sensor citado nunca foi lido",
+        "a forma antiga de condição continua funcionando"
+      ],
+      "tests": [
+        "tabela-verdade das combinações de and, or e not",
+        "precedência e parênteses",
+        "erro de sintaxe e sensor inexistente falham no load",
+        "expressão com sensor ainda não lido não dispara",
+        "regra composta abre um incidente só"
+      ]
+    },
+    {
+      "id": "rate-of-change-rules",
+      "title": "condições sobre variação no tempo",
+      "does": "Condições sobre a taxa de variação de um sensor numa janela: 'subiu 5 °C em 2 minutos'.",
+      "adds": "Permite alertar antes de o limite ser cruzado — a diferença entre avisar e constatar.",
+      "milestone": "v1.0",
+      "status": "planned",
+      "effort": "M",
+      "portfolio_value": "high",
+      "testable_now": true,
+      "rationale": "Todo alerta do projeto hoje é sobre estado: o valor cruzou um número. Aquecimento rápido é sintoma de ventoinha parada minutos antes de a temperatura crítica ser atingida, e é a informação que permite agir em vez de registrar.",
+      "depends_on": [
+        "rule-expressions"
+      ],
+      "unlocks": [],
+      "touches": [
+        "core/rules.py",
+        "application/engine.py",
+        "config/schema.py"
+      ],
+      "design_notes": "Janela deslizante por sensor, limitada por tempo e por número de amostras, para a memória não crescer com o uptime. A taxa só é avaliada com amostras suficientes cobrindo a janela — antes disso a regra não dispara, em vez de extrapolar de dois pontos. Reinício zera a janela: reconstruir do Event Store daria uma taxa calculada sobre um buraco de tempo.",
+      "acceptance": [
+        "condição de variação dispara ao cruzar a taxa declarada",
+        "não dispara com amostras insuficientes para a janela",
+        "a janela não cresce indefinidamente em memória",
+        "combina com as expressões compostas"
+      ],
+      "tests": [
+        "série sintética subindo à taxa declarada dispara",
+        "série ruidosa sem tendência não dispara",
+        "janela descarta amostra antiga e mantém tamanho limitado",
+        "regra não dispara antes de a janela encher"
       ]
     }
   ]
