@@ -1325,7 +1325,7 @@
       "does": "Roda a suíte a cada push e pull request, em Python 3.10, 3.11 e 3.12, com relatório de cobertura.",
       "adds": "Transforma 'os testes passam na minha máquina' em 'os testes passam em três versões a cada push' — e é o que faz o badge do README dizer a verdade.",
       "milestone": "project-health",
-      "status": "ready",
+      "status": "done",
       "effort": "M",
       "portfolio_value": "high",
       "testable_now": true,
@@ -1348,9 +1348,15 @@
         "badge do README aponta para esse workflow"
       ],
       "tests": [
-        "o workflow roda verde no próprio pull request que o adiciona",
-        "um teste quebrado de propósito faz o job falhar (verificado uma vez, revertido)"
-      ]
+        "o workflow é YAML válido e dispara em push e pull request",
+        "a matriz inclui a versão mínima declarada em requires-python",
+        "nenhum job roda versão anterior à suportada",
+        "todo job faz checkout do histórico completo",
+        "todo job instala as dependências opcionais que a suíte precisa",
+        "os dois READMEs citam o workflow do badge"
+      ],
+      "delivered_in": "8a071f3",
+      "delivery_notes": "Matriz maior que a prevista: 3.10 a 3.13 no Ubuntu, mais Windows com 3.10, que é a plataforma de desenvolvimento. A matriz foi validada antes de ser escrita — a suíte rodou no Ubuntu 22.04 com Python 3.10.12 via WSL e no Windows com 3.13 — e isso achou dois problemas reais: um teste quebrava (em vez de se ignorar) sem OpenCV instalado, e 18 testes de modelo se ignoravam em silêncio sem sklearn, skl2onnx e onnx, que não estão em nenhum extra. O workflow instala essas dependências de propósito e faz checkout com fetch-depth 0, sem o qual o tests/test_roadmap.py se ignora por não achar os commits de entrega. A cobertura sai como artefato do job, não por serviço externo. O tests/test_ci_workflow.py guarda essas escolhas, porque o pior defeito de um CI não é job vermelho: é job verde verificando menos do que deveria."
     },
     {
       "id": "lint-and-types",
@@ -1358,7 +1364,7 @@
       "does": "Verifica estilo com ruff no repositório inteiro e tipos com mypy em core/ e application/.",
       "adds": "Põe o contrato das portas sob verificação automática: hoje um Optional mal declarado só aparece quando o código roda.",
       "milestone": "project-health",
-      "status": "planned",
+      "status": "ready",
       "effort": "M",
       "portfolio_value": "medium",
       "testable_now": true,
@@ -1390,7 +1396,7 @@
       "does": "Reorganiza os módulos de topo sob o pacote edgesentinel/ e publica no PyPI por workflow disparado em tag.",
       "adds": "Faz `pip install edgesentinel` funcionar fora deste repositório — hoje instalar significa clonar, e os nomes de topo (core, config, cli) colidem com qualquer outro pacote do ambiente.",
       "milestone": "project-health",
-      "status": "planned",
+      "status": "ready",
       "effort": "M",
       "portfolio_value": "medium",
       "testable_now": true,
