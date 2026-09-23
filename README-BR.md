@@ -1,129 +1,115 @@
 # edgesentinel
 
-> Observabilidade inteligente para dispositivos Linux embarcados — lê sensores de hardware, processa streams de câmera com YOLO, detecta anomalias com ML e envia tudo para o Grafana em tempo real.
+> Observabilidade inteligente para dispositivos Linux embarcados — sensores,
+> modelo de ML local, regras, incidentes e OpenTelemetry, em um processo
+> pequeno o bastante para um Raspberry Pi.
+
+Ele lê sensores, pontua as leituras com um modelo local, avalia regras, agrupa
+alarmes repetidos em incidentes, guarda o próprio histórico e exporta
+métricas — e continua fazendo tudo isso quando a rede cai.
+
+[![Licença: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
+[![Versão 0.3.0](https://img.shields.io/badge/version-0.3.0-orange.svg)](CHANGELOG.md)
+[![Docs](https://img.shields.io/badge/docs-Di%C3%A1taxis-green.svg)](docs/README.md)
+[![Arquitetura: hexagonal](https://img.shields.io/badge/architecture-hexagonal-lightgrey.svg)](docs/explanation/architecture.md)
+
+[Guia de uso](USAGE-PTBR.md) · [Documentação (inglês)](docs/README.md) · [Roadmap](docs/roadmap.json) · [Changelog](CHANGELOG.md) · [English](README.md)
 
 ---
 
-## O que é o edgesentinel?
+## Índice
 
-O edgesentinel é uma **plataforma de monitoramento para dispositivos embarcados** (Raspberry Pi, Orange Pi, SBCs em geral) que resolve um problema comum: as ferramentas de monitoramento de hardware e as ferramentas de ML vivem em mundos separados.
-
-- Ferramentas de hardware (`psutil`, `gpiozero`) leem sensores mas não entendem de ML
-- Ferramentas de ML (`tflite`, `onnxruntime`) rodam modelos mas não monitoram hardware
-
-O edgesentinel une os dois em um sistema coeso, observável e extensível.
-
----
-
-## Por que usar?
-
-**Sem o edgesentinel**, monitorar um Raspberry Pi com câmera exige colar várias ferramentas com scripts bash, lidar com múltiplas dependências e reinventar a roda a cada projeto.
-
-**Com o edgesentinel**, você declara o que quer monitorar em um `config.yaml`:
-
-```yaml
-rules:
-  - name: servidor_superaquecendo
-    condition:
-      sensor_id: cpu_temp
-      operator: ">"
-      threshold: 80.0
-    actions: [log, webhook]
-    cooldown_seconds: 60
-```
-
-Temperatura acima de 80°C → alerta disparado → webhook enviado → dado no Grafana. Sem código, sem scripts.
+- [Por quê](#por-quê)
+- [Comece em um minuto](#comece-em-um-minuto)
+- [O que ele faz](#o-que-ele-faz)
+- [Arquitetura](#arquitetura)
+- [Documentação](#documentação)
+- [Configuração](#configuração)
+- [Stack completa](#stack-completa)
+- [Testes](#testes)
+- [Estrutura do projeto](#estrutura-do-projeto)
+- [Decisões de design](#decisões-de-design)
+- [Roadmap](#roadmap)
+- [Contribuindo](#contribuindo)
+- [Licença](#licença)
 
 ---
 
-## O que o sistema faz
+## Por quê
 
-### Leitura de sensores de hardware
+Monitorar um dispositivo de edge costuma ter duas saídas ruins: mandar as
+leituras cruas para outro lugar e ficar cego toda vez que o link cai, ou
+escrever um script de shell por dispositivo e descobrir meses depois que
+ninguém sabe do que ele alerta.
 
-Lê diretamente dos pseudo-filesystems do Linux — sem dependências pesadas:
+O edgesentinel é o meio: o dispositivo decide sozinho. As regras são avaliadas
+ali, os alertas saem dali, o histórico fica ali, e um endpoint de métricas
+espera quem quiser coletar. A rede fora do ar degrada a visão, não o
+monitoramento.
 
-- **Temperatura da CPU** via `/sys/class/thermal` ou `vcgencmd` (Raspberry Pi)
-- **Uso de CPU** calculado pela diferença de ticks do `/proc/stat`
-- **Uso de memória** via `MemAvailable` do `/proc/meminfo`
+- **Não precisa de hardware para experimentar.** O modo de simulação roda o motor real com leituras geradas.
+- **Não precisa de servidor para ter histórico.** SQLite, da biblioteca padrão.
+- **Detecção de anomalia rodando no dispositivo.** Um modelo ONNX pequeno, não uma API na nuvem.
+- **Alarmes repetidos viram incidentes**, com começo, reconhecimento e fim.
+- **Arquitetura hexagonal**: sensor, ação ou backend novo é um arquivo novo atrás de uma porta que já existe.
 
-### Streams de câmera com MediaMTX
+## Comece em um minuto
 
-O **MediaMTX** é um hub de streams RTSP. A câmera se conecta uma vez e o hub distribui para quantos consumidores quiser — edgesentinel, VLC, browser, outros sistemas — sem limitar a câmera.
+```bash
+git clone https://github.com/diogopelinson/edgesentinel.git
+cd edgesentinel
+python -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\activate
+pip install -e .[onnx]
 
-```
-Câmera IP ──▶ MediaMTX ──▶ edgesentinel (YOLO 1fps)
-                      ├──▶ VLC (você assistindo ao vivo)
-                      └──▶ Smart Incident Management
-```
-
-Isso resolve um problema real: câmeras IP baratas aceitam apenas 1-2 conexões simultâneas.
-
-### AI Inference Service containerizado
-
-Um microserviço FastAPI que expõe modelos de ML via HTTP. O edgesentinel envia um frame e recebe as detecções. Qualquer sistema pode usar o mesmo endpoint.
-
-- **YOLO** para detecção de objetos em frames de câmera
-- **ONNX** para modelos de anomalia que seguem o contrato do edgesentinel — valor bruto do sensor na entrada, `anomaly_score` na saída (veja [Modelo de anomalia ONNX](#modelo-de-anomalia-onnx))
-- **Plug-and-play** — novo modelo é uma linha no `models.yaml`, sem código
-
-### Rule Engine
-
-Avalia regras a cada leitura de sensor com operadores configuráveis:
-
-| Operador | Quando dispara |
-|---|---|
-| `>` `<` `>=` `<=` `==` | comparação numérica simples |
-| `anomaly` | score do modelo ML acima do threshold |
-
-Cada regra tem uma **severidade** — `info`, `warning` (padrão) ou `critical`. Ela define o nível do log e chega a todas as ações da regra, então o mesmo sensor pode ter um aviso aos 75 °C e um alerta crítico aos 85 °C. Severidade inválida no YAML falha na hora de carregar o config, não no primeiro disparo.
-
-### Histórico de eventos
-
-Toda regra que dispara vira uma linha num SQLite local (`data/events.db`): regra, sensor, valor, severidade, horário da leitura e score de anomalia. Sem servidor e sem dependência nova — só a biblioteca padrão.
-
-A gravação nunca atrasa o monitoramento. A leitura do sensor só enfileira o evento, e uma thread dedicada grava em lote; se o disco travar e a fila encher, o evento é descartado com aviso, porque perder uma linha do histórico é melhor que atrasar o próximo alerta. No encerramento, inclusive por Ctrl+C, o que está na fila é gravado antes de sair. Eventos mais velhos que a retenção configurada são removidos ao iniciar.
-
-O histórico é consultado pelo terminal com `edgesentinel events` — veja [Consulta o histórico de eventos](#consulta-o-histórico-de-eventos).
-
-### Ciclo de vida de incidentes
-
-Uma regra em alarme por uma hora é um problema, não um alerta por leitura. O primeiro disparo abre um **incidente**, cada disparo seguinte da mesma regra entra nele, e o incidente fecha sozinho quando o sensor volta.
-
-| Estado | O que significa |
-|---|---|
-| `triggered` | aberto, alertando a cada disparo |
-| `acknowledged` | alguém está cuidando: o histórico continua, as ações param de repetir |
-| `resolved` | o sensor voltou além da margem; o próximo disparo abre um incidente novo |
-
-O fechamento não acontece no mesmo threshold que abriu. Uma regra que dispara acima de 80 °C resolve em 72 °C — o threshold menos uma **margem de histerese de 10%** — então um valor oscilando na borda não abre e fecha incidente a cada leitura. Qualquer regra pode dizer onde fecha com `resolve_threshold`, e um valor do lado do alarme falha ao carregar o config, porque fecharia o incidente com o sensor ainda acima do limite.
-
-Os incidentes ficam no mesmo arquivo SQLite dos eventos, e todo evento carrega o `incident_id` do episódio a que pertence. Duas coisas vêm de guardá-los ali em vez de na memória: o ciclo sobrevive a um restart sem etapa de carga, porque o engine lê os incidentes abertos a cada avaliação; e um reconhecimento feito por outro processo aparece no ciclo seguinte.
-
-### Observabilidade com OpenTelemetry
-
-O edgesentinel e o AI Service exportam métricas via OTel para o mesmo Collector. O Prometheus coleta e o Grafana plota tudo em tempo real — dois serviços, um dashboard.
-
-### Ações configuráveis
-
-- **`log`** — log estruturado no nível da severidade da regra (`info` → INFO, `warning` → WARNING, `critical` → CRITICAL)
-- **`webhook`** — HTTP POST com payload JSON completo
-- **`gpio_write`** — aciona pino GPIO (LED, relé, buzzer)
-
-As ações de uma regra podem ser definidas na própria regra ou uma vez por severidade:
-
-```yaml
-default_actions:            # para regras que não declaram `actions`
-  warning:  [log, webhook]
-  critical: [log, webhook, buzzer]
+edgesentinel doctor                        # o que sua máquina consegue e o que não
+edgesentinel simulate --scenario stress    # o pipeline real, sensores simulados
+edgesentinel events                        # o que ele registrou
 ```
 
-A lista `actions` da própria regra substitui o padrão em vez de somar a ele, e `actions: []` não dispara nada, mas o evento continua registrado no histórico. Severidade desconhecida e lista malformada falham no carregamento do config.
+```
+2026-09-23 00:02:57 [INFO] edgesentinel.engine: Incidente #1 aberto para 'uso_alto_cpu' [warning].
+2026-09-23 00:02:57 [WARNING] edgesentinel.action.log: Regra 'uso_alto_cpu' disparada | sensor=cpu_usage value=80.44% | anomaly_score=0.9418 threshold=0.7
+2026-09-23 00:03:06 [INFO] edgesentinel.engine: Incidente #1 de 'uso_alto_cpu' resolvido em 71.86%.
+```
 
----
+Uma regra disparou, um incidente abriu, a leitura voltou e o incidente fechou
+sozinho. O mesmo passo a passo, explicado, está em
+[Sua primeira execução sem hardware](docs/tutorials/first-run.md) (em inglês);
+em português, o [guia de uso](USAGE-PTBR.md) cobre o mesmo caminho.
+
+## O que ele faz
+
+**Sensores de hardware.** Temperatura e uso de CPU e memória, lidos direto de
+`/proc` e `/sys` — sem `psutil`, sem dependência compilada. Sensor cujo
+dispositivo não existe se declara indisponível em vez de levantar exceção,
+então o mesmo `config.yaml` sobe num Raspberry Pi e num notebook.
+
+**Streams de câmera.** RTSP via MediaMTX, para que uma câmera barata que aceita
+duas conexões alimente quantos consumidores forem necessários.
+
+**Inferência de IA em contêiner.** YOLO e modelos ONNX ficam num serviço
+separado: se ele cair, o monitoramento de sensores continua.
+
+**Motor de regras.** Comparações numéricas e o operador `anomaly`, apoiado no
+modelo local. Cada regra carrega uma severidade — `info`, `warning`,
+`critical` — que define o nível de log e chega a todas as ações.
+
+**Incidentes.** O primeiro disparo de uma regra abre um incidente; os seguintes
+entram nele; ele fecha sozinho quando o sensor volta, com uma margem que evita
+flapping. Reconhecer para o alerta e mantém o registro.
+
+**Histórico local.** Todo disparo vira uma linha em SQLite, gravada por uma
+fila e uma thread dedicada — o disco nunca atrasa uma leitura —, consultável no
+terminal com `edgesentinel events`.
+
+**OpenTelemetry.** O agente e o AI Service exportam para o mesmo Collector; o
+Prometheus coleta e o Grafana mostra dois serviços num painel só.
 
 ## Arquitetura
 
-O edgesentinel usa **Arquitetura Hexagonal (Ports & Adapters)**. O domínio central não conhece Prometheus, GPIO nem YOLO — só contratos abstratos.
+**Ports & adapters**, com uma regra: as dependências apontam para dentro. O
+domínio não importa nada — nem SQLite, nem ONNX, nem Prometheus.
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -152,63 +138,23 @@ O edgesentinel usa **Arquitetura Hexagonal (Ports & Adapters)**. O domínio cent
 └─────────────────────────────────────────────────┘
 ```
 
----
+É essa regra que faz o `simulate` não ser um mock: ele roda o motor, as regras,
+os incidentes, o store e o exporter de verdade, trocando um adapter só.
 
-## Stack completa
+## Documentação
 
-```
-Câmera RTSP
-      │
-      ▼
-MediaMTX  :8554 :8888 :8889
-      │
-  ┌───┴──────────────────┐
-  │                       │
-  ▼                       ▼
-edgesentinel          VLC / browser
-  │
-  ▼
-AI Inference Service  :8080
-  │
-  ▼
-OTel Collector  :4317
-  │
-  ▼
-Prometheus  :9090  ──▶  Grafana  :3000
-```
+A documentação longa fica em [docs/](docs/README.md), organizada em
+[Diátaxis](https://diataxis.fr/) — tutoriais, guias práticos, referência e
+explicação — **em inglês**. Em português, o caminho é o
+[guia de uso](USAGE-PTBR.md) e este README.
 
----
-
-## Instalação
-
-### Requisitos
-
-| Item | Mínimo | Recomendado |
-|---|---|---|
-| Python | 3.10+ | 3.11+ |
-| Sistema | Linux (SBC) | Raspberry Pi 4 2GB+ |
-| Docker | 24+ | 28+ |
-
-> **Windows / Mac**: use o modo simulação para desenvolvimento sem hardware.
-
-### Instala o pacote
-
-```bash
-pip install edgesentinel            # base
-pip install edgesentinel[onnx]      # + modelo ONNX
-pip install edgesentinel[camera]    # + câmera e YOLO local
-pip install edgesentinel[gpio]      # + GPIO (Raspberry Pi)
-pip install edgesentinel[otel]      # + OpenTelemetry
-pip install edgesentinel[all]       # tudo
-```
-
-### Verifica o ambiente
-
-```bash
-edgesentinel doctor
-```
-
----
+| Se você quer… | Vá para |
+|---|---|
+| aprender fazendo | [Tutoriais](docs/tutorials/README.md) |
+| resolver uma tarefa | [Guias práticos](docs/how-to/README.md) |
+| consultar um detalhe | [Referência](docs/reference/README.md) |
+| entender o porquê | [Explicações](docs/explanation/README.md) |
+| ver o que foi decidido, e quando | [Registros de decisão](docs/adr/README.md) |
 
 ## Configuração
 
@@ -219,71 +165,33 @@ edgesentinel:
   sensors:
     - id: cpu_temp
       type: cpu_temperature
-    - id: cpu_usage
-      type: cpu_usage
-    - id: memory_usage
-      type: memory_usage
-
-  cameras:
-    - sensor_id: camera_01
-      source: "rtsp://localhost:8554/camera_01"
-      name: "Camera Entrada"
-      fps_limit: 1.0
-      simulated: false
 
   inference:
     enabled: true
     backend: onnx
     model_path: models/anomaly.onnx
 
-  # modo simples: Prometheus coleta direto em :8000/metrics
   exporter:
     port: 8000
     use_otel: false
 
-  # modo avançado: manda pro OTel Collector, exporta para qualquer backend
-  # exporter:
-  #   use_otel: true
-  #   backend: otlp
-  #   endpoint: "http://localhost:4317"
-  #   service_name: "edgesentinel"
-
-  # histórico local — habilitado por padrão, mesmo sem este bloco
   event_store:
     enabled: true
     path: data/events.db
-    retention_days: 30          # precisa ser > 0
+    retention_days: 30
 
-  # ações por severidade, para regras que não declaram `actions`
-  default_actions:
+  default_actions:              # para regras que não declaram ações próprias
     warning:  [log, webhook]
     critical: [log, webhook, buzzer]
 
-  # severity: info | warning | critical  (padrão: warning)
   rules:
-    - name: alta_temperatura          # → log, webhook
-      condition:
-        sensor_id: cpu_temp
-        operator: ">"
-        threshold: 75.0
-      severity: warning
-      cooldown_seconds: 60
-
-    - name: temperatura_critica       # → log, webhook, buzzer
+    - name: temperatura_critica
       condition:
         sensor_id: cpu_temp
         operator: ">"
         threshold: 85.0
-        resolve_threshold: 80.0     # onde o incidente fecha; padrão é 10% abaixo
+        resolve_threshold: 80.0   # onde o incidente fecha; padrão é 10% abaixo
       severity: critical
-      cooldown_seconds: 30
-
-    - name: pessoa_detectada          # → só log: a lista própria vence
-      condition:
-        sensor_id: camera_01
-        operator: anomaly
-      severity: info
-      actions: [log]
       cooldown_seconds: 30
 
   actions:
@@ -291,249 +199,55 @@ edgesentinel:
       type: log
     - id: webhook
       type: webhook
-      url: "https://hooks.exemplo.com/alerta"
+      url: "https://hooks.example.com/alert"
     - id: buzzer
-      type: gpio_write              # pino GPIO 17
+      type: gpio_write
 ```
 
----
+Todos os campos, os padrões e tudo o que o loader recusa estão na
+[referência de configuração](docs/reference/configuration.md); em português, no
+[guia de uso](USAGE-PTBR.md).
 
-## Executando
-
-### Sobe a infraestrutura
+## Stack completa
 
 ```bash
 cd infra/docker
-docker compose up -d
-docker compose ps
+docker compose up -d      # MediaMTX, OTel Collector, Prometheus, Grafana, AI Service
 ```
 
-| Serviço | Porta | Função |
-|---|---|---|
-| MediaMTX | 8554 / 8888 | Hub de streams de câmera |
-| AI Inference Service | 8080 | YOLO e ONNX via HTTP |
-| OTel Collector | 4317 | Coleta métricas de todos |
-| Prometheus | 9090 | Armazena séries temporais |
-| Grafana | 3000 | Dashboard em tempo real |
+Grafana em <http://localhost:3000>, Prometheus em <http://localhost:9090>,
+métricas do agente em <http://localhost:8000/metrics>. O dashboard a importar é
+`dashboards/edgesentinel_dashboard_v2.json`.
 
-### Roda o edgesentinel
-
-```bash
-# hardware real
-edgesentinel run --config config.yaml
-
-# simulação (Windows / Mac)
-edgesentinel simulate --scenario stress --interval 1
-edgesentinel simulate --scenario normal
-edgesentinel simulate --scenario spike
-```
-
-### Consulta o histórico de eventos
-
-```bash
-edgesentinel events                                   # os 20 mais recentes
-edgesentinel events --severity critical --last 24h    # críticos das últimas 24 horas
-edgesentinel events --rule alta_temperatura -n 50
-edgesentinel events --sensor cpu_temp --json | jq .value
-```
-
-```
-QUANDO               SEVERIDADE  REGRA                SENSOR        VALOR  SCORE
-2026-09-17 00:35:10  WARNING     uso_alto_cpu         cpu_usage  92.36 %    0.98
-2026-09-17 00:35:10  CRITICAL    temperatura_critica  cpu_temp   85.93 °C   0.96
-2026-09-17 00:35:10  WARNING     alta_temperatura     cpu_temp   85.93 °C   0.96
-2026-09-17 00:35:10  WARNING     uso_alto_cpu         cpu_usage  93.04 %    0.98
-
-4 evento(s) — mostrando os 4 mais recentes; use --limit para ver mais
-```
-
-| Opção | Efeito |
-|---|---|
-| `-s, --severity info\|warning\|critical` | só esse nível |
-| `--sensor ID` | só esse sensor |
-| `-r, --rule NOME` | só essa regra |
-| `--last 30m\|24h\|7d` | janela até agora (`s`, `m`, `h`, `d`) |
-| `-n, --limit N` | no máximo N eventos, mais recentes primeiro (padrão 20) |
-| `--json` | um objeto JSON por linha, com o campo `time` em ISO |
-| `-c, --config CAMINHO` | config de onde vem o `event_store.path` |
-
-O comando só lê: nunca poda eventos antigos e nunca cria o banco. Dados vão para o stdout e mensagens de status para o stderr, então `--json` pode ir direto para um pipe. Código de saída 0 cobre resultados, nenhum resultado e histórico ainda vazio; 1 indica config inválido, store desabilitado ou arquivo ilegível; 2 é opção inválida.
-
-### Diagnostica o ambiente
-
-```bash
-edgesentinel doctor
-```
-
----
-
-## Configurando o Grafana do zero
-
-### 1. Abre o Grafana
-
-Acessa `http://localhost:3000` — login `admin` / `edgesentinel`.
-
-### 2. Adiciona o Prometheus como datasource
-
-1. Menu lateral → **Connections** → **Data sources** → **Add data source**
-2. Seleciona **Prometheus**
-3. URL: `http://prometheus:9090`
-4. Clica **Save & test** — deve aparecer "Successfully queried the Prometheus API"
-
-### 3. Importa o dashboard
-
-1. Menu lateral → **Dashboards** → **Import**
-2. Clica **Upload dashboard JSON file**
-3. Seleciona `dashboards/edgesentinel_dashboard_v2.json`
-4. Em **Prometheus**, seleciona o datasource criado no passo anterior
-5. Clica **Import**
-
-### 4. Verifica os dados
-
-Deixa o edgesentinel rodando e clica **Refresh** no dashboard. Os painéis mostram dados em até 10 segundos.
-
-> **Dica**: após qualquer customização, exporte o dashboard em **Export → Save to file** e commita no repositório — assim nunca perde ao recriar os containers.
-
----
-
-## Modo simulação
-
-| Cenário | O que acontece |
-|---|---|
-| `normal` | Valores estáveis, nenhuma regra dispara |
-| `stress` | Temperatura sobe progressivamente até disparar alertas |
-| `spike` | Picos repentinos a cada ~20 segundos |
-
-```
-[tick 023]
-  CPU Temperature   74.98 °C
-  CPU Usage         90.68 %
-  Memory Usage      64.50 %
-
-[WARNING] Regra 'alta_temperatura' disparada | sensor=cpu_temp value=75.92°C | anomaly_score=0.9366
-
-[tick 051]
-  CPU Temperature   86.12 °C
-  CPU Usage         97.40 %
-  Memory Usage      63.10 %
-
-[CRITICAL] Regra 'temperatura_critica' disparada | sensor=cpu_temp value=86.12°C | anomaly_score=0.9366
-```
-
-No cenário `stress`, a temperatura passa de 85 °C perto dos 50 segundos e a regra `critical` do config de exemplo dispara. A `alta_temperatura` não se repete ali porque ainda está no cooldown de 60 s.
-
-A simulação grava o histórico como o modo `run`; o caminho do banco aparece no início da saída, na linha `Eventos :`.
-
----
-
-## AI Inference Service
-
-### Verificando
-
-```bash
-curl http://localhost:8080/health
-# {"status":"ok","models":1}
-
-curl http://localhost:8080/models
-# [{"id":"yolo_v8n","type":"yolo","status":"loaded"}]
-```
-
-### Adicionando modelos
-
-Edita `ai-inference-service/models.yaml` e reinicia:
-
-```yaml
-models:
-  - id: yolo_v8n
-    type: yolo
-    path: weights/yolov8n.pt
-    target_classes: [person, car, truck]
-    confidence_threshold: 0.5
-
-  - id: fire_detector
-    type: yolo
-    path: weights/fire.pt
-    target_classes: [fire, smoke]
-    confidence_threshold: 0.4
-```
-
-```bash
-docker compose restart ai-inference-service
-```
-
-`weights/` dentro do container é a pasta `models/` do repositório, montada pelo Docker Compose. Arquivo de peso novo vai em `models/`.
-
----
-
-## Modelo de anomalia ONNX
-
-```bash
-pip install scikit-learn skl2onnx
-python scripts/train_model.py            # --seed N para outro conjunto de treino
-# gera: models/anomaly.onnx
-```
-
-O modelo é um arquivo único e autossuficiente, com contrato fixo: entra o valor bruto do sensor, sai um `anomaly_score` em [0, 1]. A normalização e a regra de score moram dentro dele, então o agente e o AI Inference Service só leem essa saída e não têm como discordar.
-
-| Leitura | Score |
-|---|---|
-| dentro da faixa de treino (~51–65 °C) | IsolationForest, reescalado para 0 – 0.8 |
-| fora da faixa de treino | de 0.8 em direção a 1, crescendo com a distância até a faixa |
-
-As duas partes existem porque o IsolationForest sozinho não distingue 75 °C de 95 °C: as árvores só fazem cortes dentro da faixa em que foram treinadas, então todo valor além da borda cai na mesma folha e recebe o mesmo score. Com a regra acima, o modelo de referência dá 0.91 a 75 °C, 0.96 a 85 °C e 0.98 a 95 °C, enquanto 58 °C fica em 0.12. Modelos exportados por versões anteriores do script não têm a saída `anomaly_score` e são recusados no carregamento; treine de novo.
-
-Os arquivos de modelo não são versionados — um clone novo não tem nenhum. O [`models/README.md`](models/README.md) lista cada arquivo, como obtê-lo e quem o usa (em inglês).
-
----
-
-## Métricas expostas
-
-### edgesentinel
-
-| Métrica Prometheus | Tipo | Descrição |
-|---|---|---|
-| `edgesentinel_sensor_value` | Gauge | Valor atual do sensor |
-| `edgesentinel_anomaly_score` | Gauge | Score do modelo (0.0 – 1.0) |
-| `edgesentinel_anomaly_total` | Counter | Total de anomalias |
-| `edgesentinel_pipeline_latency_seconds` | Histogram | Tempo do ciclo por sensor |
-| `edgesentinel_inference_latency_seconds` | Histogram | Tempo de inferência ML |
-
-### AI Inference Service
-
-| Métrica Prometheus | Tipo | Descrição |
-|---|---|---|
-| `ai_service_inference_total` | Counter | Total de inferências |
-| `ai_service_inference_latency_ms_milliseconds` | Histogram | Latência por inferência |
-| `ai_service_detections_total` | Counter | Total de detecções |
-
-> Os nomes acima são os que aparecem no Prometheus e no Grafana. Use-os exatamente assim nas queries PromQL.
-
----
+O agente ainda roda no host — colocá-lo em contêiner é a feature
+`docker-agent-image` do roadmap.
 
 ## Testes
 
 ```bash
 pip install pytest pytest-mock pytest-cov
-pytest tests/ -v
-pytest tests/ --cov=. --cov-report=term-missing
+pytest tests/ -q
+pytest tests/ --cov=core --cov=application --cov-report=term-missing
 ```
 
-**353 testes, zero falhas.**
+**370 testes, zero falhas**, e nenhum deles precisa de hardware, rede ou
+relógio.
 
 | Camada | Cobertura |
 |---|---|
 | `core/` | 100% |
 | `application/engine` | 100% |
 | `application/pipeline` | 100% |
-| `adapters/actions/log` | 100% |
-| `adapters/inference/dummy` | 100% |
-| `config/mapper` | 100% |
 | `adapters/state/memory` | 100% |
+| `adapters/actions/log` | 100% |
+| `config/mapper` | 100% |
 | `cli/events` | 99% |
 | `config/loader` | 95% |
 | `adapters/store/sqlite` | 94% |
 
----
+Os testes vêm antes do código, e um teste novo só vale depois de quebrar de
+propósito o código que ele cobre — teste que continua verde com o código
+quebrado é pior que teste nenhum, porque nele se confia.
 
 ## Estrutura do projeto
 
@@ -554,51 +268,61 @@ edgesentinel/
 ├── scripts/                    # train_model.py
 ├── infra/docker/               # docker-compose, MediaMTX, OTel, Prometheus, Grafana
 ├── dashboards/                 # edgesentinel_dashboard_v2.json para Grafana
+├── docs/                       # tutoriais, guias, referência, explicações, ADRs
 ├── data/                       # events.db — gerado em execução, fora do git
-└── tests/                      # unitários + integração (353 testes)
+└── tests/                      # unitários + integração (370 testes)
 ```
-
----
 
 ## Decisões de design
 
-**Arquitetura Hexagonal** — o core não conhece infraestrutura. Trocar Prometheus por Datadog é um novo adapter. Trocar ONNX por TFLite é uma linha no config.
+Cada uma está registrada por inteiro, com as alternativas que perderam, em
+[docs/adr](docs/adr/README.md) (em inglês).
 
-**Leitura direta do `/proc`** — sem `psutil`. Mais leve, mais explícito, sem dependência C compilada.
+- **[Arquitetura hexagonal](docs/adr/0002-hexagonal-architecture.md)** — o core não conhece infraestrutura: trocar Prometheus por Datadog é um adapter novo, trocar ONNX por TFLite é uma linha de config.
+- **[SQLite atrás de uma fila](docs/adr/0003-sqlite-for-the-history.md)** — num cartão SD um `fsync` pode travar centenas de milissegundos, e essa thread é a que lê sensores.
+- **[Cooldown atrás de uma porta](docs/adr/0004-cooldowns-behind-a-state-port.md)** — o engine não lê relógio, o que corrigiu uma corrida e é o que torna cooldown distribuído possível.
+- **[Score dentro do arquivo do modelo](docs/adr/0005-scoring-inside-the-model-file.md)** — dois serviços constroem a mesma fórmula separadamente; uma definição só, dentro do artefato, impede que discordem.
+- **[Incidente fecha com margem](docs/adr/0006-incidents-with-a-resolution-margin.md)** — e um incidente aberto por regra é garantido por índice único parcial, não por lock.
+- **[Agente em Python, plano de controle em Go](docs/adr/0007-python-with-go-at-the-edges.md)** — Python onde o lock-in é de ecossistema, Go onde a restrição é de deploy.
 
-**Descoberta de hardware preguiçosa** — nenhum sensor toca o hardware no construtor. A ausência do dispositivo é informada por `is_available()`, nunca por exceção. O mesmo `config.yaml` sobe num Raspberry Pi e num notebook: sensores indisponíveis são ignorados com aviso, e o resto do monitoramento segue.
-
-**`frozen=True` nas entidades** — o loop é async. Imutabilidade elimina bugs de concorrência.
-
-**Cooldown atrás de uma porta** — o engine não lê relógio. Ele pede ao `StatePort` para tomar uma chave por N segundos, e tomar é a mesma operação que verificar, então duas threads de pipeline não conseguem disparar a mesma regra ao mesmo tempo. O `InMemoryState` faz isso com `time.monotonic()`, porque o relógio de parede pode andar para trás em NTP; o adapter de Redis vai deixar o servidor expirar a chave. É esse o motivo da porta: o epoch do monotônico é por processo, então um engine que compara timestamps nunca teria como ter cooldown distribuído.
-
-**Incidente com margem de resolução** — agrupar disparos é metade do problema; um incidente que nunca fecha teria de ser fechado à mão, e um que fecha no mesmo threshold em que abriu oscilaria junto com o sensor. Resolver 10% além do threshold, para o lado oposto ao alarme, é o que torna o agrupamento utilizável sem operador, e `resolve_threshold` dá a cada regra o seu ponto quando 10% é a distância errada.
-
-**Um incidente aberto por regra, garantido pelo banco** — quem garante é um índice único parcial (`WHERE state != 'resolved'`), não o engine. O engine não guarda incidente em memória: lê os abertos a cada avaliação, então um restart não precisa de etapa de carga e um reconhecimento feito pela CLI chega no ciclo seguinte. Duas threads de pipeline correndo para abrir o mesmo incidente são recusadas pelo índice, e a recusa é logada e engolida — como a falha do histórico, não pode silenciar o alerta.
-
-**AI Service separado** — isolamento de falha. Se o YOLO travar, o monitoramento de sensores continua.
-
-**Regra de score dentro do arquivo do modelo** — o agente e o AI Service são construídos e implantados separadamente e não compartilham código. Com a normalização e o score dentro do grafo ONNX, os dois só precisam ler `anomaly_score`: existe um único lugar onde o score é definido e um único lugar para corrigi-lo.
-
-**Histórico com fila e thread de escrita** — os pipelines rodam num pool de threads limitado, e num cartão SD um `fsync` pode travar por centenas de milissegundos. Gravar direto seguraria a thread que lê sensores; enfileirar não. Pelo mesmo motivo, falha no histórico é logada e engolida: o alerta sempre sai.
-
-**MediaMTX** — câmeras IP baratas aceitam 1-2 conexões. O hub distribui para N consumidores sem limitar a câmera.
-
-**OpenTelemetry** — instrumenta uma vez, exporta para qualquer backend. Sem acoplamento ao Prometheus.
-
----
+Também verdade, e menos arquitetural: `/proc` é lido direto em vez de por
+`psutil` (mais leve, explícito, sem dependência compilada), as entidades são
+imutáveis porque o loop é async, e o MediaMTX existe porque câmera IP barata
+aceita uma ou duas conexões.
 
 ## Roadmap
 
-- [ ] Redis para estado distribuído em deployments multi-dispositivo
-- [ ] gRPC no AI Service como alternativa ao HTTP
-- [ ] Sensores adicionais: GPIO input, I2C, SPI, BME280
-- [ ] Terraform para cloud-assisted deployments
+O backlog é um arquivo, não uma lista de desejos:
+[docs/roadmap.json](docs/roadmap.json) tem 48 features com dependências,
+esforço, status e — nas entregues — o commit que as entregou. O
+`tests/test_roadmap.py` mantém isso honesto.
 
-Versão atual: **0.3.0** (`edgesentinel --version`). O que mudou em cada release está no [CHANGELOG.md](CHANGELOG.md), em inglês; o backlog completo, com dependências e status de entrega por feature, está em [docs/roadmap.json](docs/roadmap.json).
+| Marco | O que o fecha |
+|---|---|
+| v0.2 Fundação de sensores | Qualquer sensor futuro entra sem mexer no schema |
+| v0.3 Eventos e severidade | Todo disparo vira evento classificado e consultável ✅ |
+| v0.4 Ciclo de incidente | Uma regra passa a ter estado: aberto, reconhecido, resolvido ✅ |
+| Saúde do projeto | Documentação, CI, lint, empacotamento, imagem de contêiner |
+| v0.5 Visão estruturada | Detecções chegam às regras com bounding boxes e identidade |
+| v0.6 Identidade e frota | Dispositivos com identidade, heartbeat e estado compartilhado |
+| v0.7 Dashboard próprio | Interface própria, independente do Grafana |
+| v0.8 Plataforma | gRPC, versionamento de modelos, atualização remota, Terraform |
+| v0.9 Operação em campo | Reload a quente, retentativa, canais de notificação, janelas de manutenção |
+| v1.0 Regras compostas | Condições entre sensores e sobre variação no tempo |
 
----
+Versão atual: **0.3.0** (`edgesentinel --version`).
+
+## Contribuindo
+
+Issues e pull requests são bem-vindos. O [CONTRIBUTING.md](CONTRIBUTING.md)
+cobre a configuração do ambiente, o que uma mudança precisa carregar e as
+convenções — um arquivo por commit, mensagens em inglês, comentários de código
+em português. Agentes de IA têm instruções próprias em [AGENTS.md](AGENTS.md).
+
+Relato de segurança vai pelo [SECURITY.md](SECURITY.md), nunca por issue
+público. Esse arquivo também lista o que o agente assume sobre a rede em que
+roda, o que vale ler antes de expor um.
 
 ## Licença
 
-MIT
+MIT — veja [LICENSE](LICENSE).
