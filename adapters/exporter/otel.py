@@ -50,7 +50,7 @@ class OTelExporter(ExporterPort):
             raise ImportError(
                 "opentelemetry-sdk não instalado. "
                 "Execute: pip install opentelemetry-sdk"
-            )
+            ) from None
 
         resource = Resource(attributes={SERVICE_NAME: self._service_name})
         readers  = self._build_readers()
@@ -131,7 +131,7 @@ class OTelExporter(ExporterPort):
             raise ImportError(
                 "opentelemetry-exporter-otlp-proto-grpc não instalado.\n"
                 "Execute: pip install opentelemetry-exporter-otlp-proto-grpc"
-            )
+            ) from None
 
         exporter = OTLPMetricExporter(endpoint=self._endpoint, insecure=True)
         reader   = PeriodicExportingMetricReader(exporter, export_interval_millis=5000)
@@ -146,7 +146,7 @@ class OTelExporter(ExporterPort):
             raise ImportError(
                 "opentelemetry-exporter-prometheus não instalado.\n"
                 "Execute: pip install opentelemetry-exporter-prometheus"
-            )
+            ) from None
 
         prometheus_client.start_http_server(port=self._port)
         reader = PrometheusMetricReader()

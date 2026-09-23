@@ -132,7 +132,7 @@ def format_table(events: list[Event], color: bool = False) -> str:
     def render(cells: tuple[str, ...], severity: str | None = None) -> str:
         padded = [
             cell.rjust(width) if i in _RIGHT_ALIGN else cell.ljust(width)
-            for i, (cell, width) in enumerate(zip(cells, widths))
+            for i, (cell, width) in enumerate(zip(cells, widths, strict=True))
         ]
         # cor aplicada depois do alinhamento: escape ANSI não ocupa coluna
         if color and severity in _COLORS:
@@ -140,7 +140,7 @@ def format_table(events: list[Event], color: bool = False) -> str:
         return "  ".join(padded).rstrip()
 
     lines = [render(_HEADERS)]
-    lines += [render(row, e.severity) for row, e in zip(rows, events)]
+    lines += [render(row, e.severity) for row, e in zip(rows, events, strict=True)]
     return "\n".join(lines)
 
 

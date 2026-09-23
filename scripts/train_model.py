@@ -226,7 +226,7 @@ def evaluate(model_path: Path, X_train: np.ndarray) -> None:
     scores = session.run([OUTPUT_NAME], {INPUT_NAME: x})[0].ravel()
 
     print(f"  Faixa de treino: {low:.1f} ~ {high:.1f}")
-    for (label, value), score in zip(points, scores):
+    for (label, value), score in zip(points, scores, strict=True):
         flag = "← anomalia" if score >= SUPPORT_BOUNDARY_SCORE else ""
         print(f"    {label:<20} {value:>7.1f}  →  score {score:.4f}  {flag}")
 
@@ -256,10 +256,10 @@ def main() -> None:
     evaluate(args.output, X_train)
 
     print("\nConcluído. Para usar no edgesentinel:")
-    print(f"  Edite o config.yaml:")
-    print(f"    inference:")
-    print(f"      enabled: true")
-    print(f"      backend: onnx")
+    print("  Edite o config.yaml:")
+    print("    inference:")
+    print("      enabled: true")
+    print("      backend: onnx")
     print(f"      model_path: {args.output}")
     print()
 

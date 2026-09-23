@@ -5,7 +5,6 @@ import urllib.request
 import urllib.error
 import base64
 
-import numpy as np
 
 from core.ports import InferencePort
 from core.entities import SensorReading, AnomalyScore
@@ -56,7 +55,6 @@ class RemoteInferenceAdapter(InferencePort):
     def predict(self, reading: SensorReading) -> AnomalyScore:
         payload = self._build_payload(reading)
         result  = self._post_predict(payload)
-        score   = result.get("has_detections", False)
         confidence = result.get("detections", [{}])[0].get("confidence", 0.0) if result.get("detections") else 0.0
 
         return AnomalyScore(
@@ -102,6 +100,6 @@ class RemoteInferenceAdapter(InferencePort):
                 return json.loads(resp.read())
         except urllib.error.HTTPError as e:
             body = e.read().decode()
-            raise RuntimeError(f"AI Service retornou {e.code}: {body}")
+            raise RuntimeError(f"AI Service retornou {e.code}: {body}") from e
         except Exception as e:
-            raise RuntimeError(f"Falha ao chamar AI Service: {e}")
+            raise RuntimeError(f"Falha ao chamar AI Service: {e}") from e

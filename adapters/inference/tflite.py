@@ -31,7 +31,7 @@ class TFLiteInferenceAdapter(BaseInferenceAdapter):
                     "Nenhum runtime TFLite encontrado. Execute:\n"
                     "  pip install tflite-runtime   (recomendado para SBCs)\n"
                     "  pip install tensorflow        (alternativa completa)"
-                )
+                ) from None
 
         self._interpreter = tflite.Interpreter(model_path=model_path)
         self._interpreter.allocate_tensors()

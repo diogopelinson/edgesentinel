@@ -1,7 +1,6 @@
 from __future__ import annotations
 import logging
 import base64
-import time
 from contextlib import asynccontextmanager
 
 import cv2  # type: ignore[import]
@@ -10,7 +9,6 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel as PydanticModel
 
 from core.registry import ModelRegistry
-from core.base import InferenceResult
 from exporter.otel import ServiceExporter
 
 logging.basicConfig(
@@ -81,7 +79,7 @@ def predict(request: PredictRequest):
     try:
         model = registry.get(request.model_id)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
     # sensor_value só é válido para modelos ONNX
     if request.sensor_value is not None:

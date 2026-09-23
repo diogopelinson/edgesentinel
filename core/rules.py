@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable
+from collections.abc import Callable
 
 from core.entities import SensorReading, AnomalyScore
 
@@ -39,10 +39,10 @@ _HYSTERESIS = 0.1
 class Condition:
     """
     Condição avaliável contra uma leitura.
-    
+
     Exemplo via YAML:
         when: "cpu_temp > 75"
-    
+
     Exemplo via código:
         Condition(sensor_id="cpu_temp", operator=">", threshold=75.0)
     """
