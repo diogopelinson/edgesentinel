@@ -62,6 +62,14 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
   secrets in plain text in the config — rather than only how to report a
   vulnerability. The MIT licence text had been claimed by the README since the
   first commit and was never in the repository.
+- **Continuous integration** (`.github/workflows/tests.yml`): every push and
+  pull request runs the suite on Ubuntu with Python 3.10, 3.11, 3.12 and 3.13,
+  and on Windows with 3.10. `requires-python` has promised 3.10 and newer since
+  the first release and only 3.10 was ever exercised. The workflow installs the
+  optional dependencies the tests need, so the eighteen model and payload tests
+  run there instead of skipping, and checks out the full history, without which
+  the roadmap's delivery commits cannot be verified. `tests/test_ci_workflow.py`
+  guards all of that.
 - **`tests/test_roadmap.py`** — `docs/roadmap.json` is now verified by the
   suite: fields present, dependency edges symmetric, no dependency in a later
   milestone, no cycles, status derived from the graph rather than asserted,
@@ -69,6 +77,10 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
 
 ### Fixed
 
+- **A test failed instead of skipping without OpenCV.** The frame payload test
+  encodes through `cv2`, which belongs to the optional `[camera]` extra; it
+  passed here only because this checkout had every extra installed. Found by
+  running the suite on a second interpreter with only the `onnx` extra.
 - **`python -m cli.main` did nothing.** The module had no `__main__` block, so
   it was imported and the process exited 0 having printed nothing. It is the
   documented way to run the CLI when a venv's console scripts break — they

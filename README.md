@@ -8,6 +8,7 @@ It reads sensors, scores them with a local model, evaluates rules, groups
 repeated alarms into incidents, keeps its own history and exports metrics —
 and it keeps doing all of that when the network is gone.
 
+[![tests](https://github.com/diogopelinson/edgesentinel/actions/workflows/tests.yml/badge.svg)](https://github.com/diogopelinson/edgesentinel/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 [![Version 0.3.0](https://img.shields.io/badge/version-0.3.0-orange.svg)](CHANGELOG.md)
@@ -237,7 +238,7 @@ pytest tests/ -q
 pytest tests/ --cov=core --cov=application --cov-report=term-missing
 ```
 
-**367 tests, zero failures**, none of which need hardware, a network or a
+**376 tests, zero failures**, none of which need hardware, a network or a
 clock.
 
 | Layer | Coverage |
@@ -277,7 +278,7 @@ edgesentinel/
 ├── dashboards/                 # edgesentinel_dashboard_v2.json for Grafana
 ├── docs/                       # tutorials, how-to, reference, explanation, ADRs
 ├── data/                       # events.db — created at runtime, not tracked
-└── tests/                      # unit + integration (367 tests)
+└── tests/                      # unit + integration (376 tests)
 ```
 
 ## Design decisions

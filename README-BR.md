@@ -8,6 +8,7 @@ Ele lê sensores, pontua as leituras com um modelo local, avalia regras, agrupa
 alarmes repetidos em incidentes, guarda o próprio histórico e exporta
 métricas — e continua fazendo tudo isso quando a rede cai.
 
+[![tests](https://github.com/diogopelinson/edgesentinel/actions/workflows/tests.yml/badge.svg)](https://github.com/diogopelinson/edgesentinel/actions/workflows/tests.yml)
 [![Licença: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 [![Versão 0.3.0](https://img.shields.io/badge/version-0.3.0-orange.svg)](CHANGELOG.md)
@@ -230,7 +231,7 @@ pytest tests/ -q
 pytest tests/ --cov=core --cov=application --cov-report=term-missing
 ```
 
-**367 testes, zero falhas**, e nenhum deles precisa de hardware, rede ou
+**376 testes, zero falhas**, e nenhum deles precisa de hardware, rede ou
 relógio.
 
 | Camada | Cobertura |
@@ -270,7 +271,7 @@ edgesentinel/
 ├── dashboards/                 # edgesentinel_dashboard_v2.json para Grafana
 ├── docs/                       # tutoriais, guias, referência, explicações, ADRs
 ├── data/                       # events.db — gerado em execução, fora do git
-└── tests/                      # unitários + integração (367 testes)
+└── tests/                      # unitários + integração (376 testes)
 ```
 
 ## Decisões de design

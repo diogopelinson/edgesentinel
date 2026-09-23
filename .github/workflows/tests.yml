@@ -1,0 +1,80 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# um push novo na mesma branch cancela a execução anterior: o resultado que
+# importa é o do último commit
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: ubuntu · python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false      # saber que 3.13 quebrou e 3.10 não vale mais que parar no primeiro
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # tests/test_roadmap.py confere cada delivered_in contra o histórico;
+          # num clone raso ele se ignora, e passaria sem verificar nada
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[onnx]"
+          pip install pytest pytest-mock pytest-cov tomli setuptools
+          # dependências de treino e de câmera: sem elas, 18 testes de modelo e
+          # de payload se ignoram em silêncio
+          pip install scikit-learn skl2onnx onnx opencv-python-headless
+
+      - name: Tests
+        run: |
+          pytest tests/ -q \
+            --cov=core --cov=application --cov=adapters --cov=config --cov=cli \
+            --cov-report=term-missing --cov-report=xml
+
+      - name: Coverage report
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.xml
+          retention-days: 14
+
+  windows:
+    name: windows · python 3.10
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[onnx]"
+          pip install pytest pytest-mock pytest-cov tomli setuptools
+          pip install scikit-learn skl2onnx onnx opencv-python-headless
+
+      - name: Tests
+        run: pytest tests/ -q
