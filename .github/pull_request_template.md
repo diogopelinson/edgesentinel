@@ -1,5 +1,7 @@
 <!--
 Conventions are in CONTRIBUTING.md; AI agents have their own copy in AGENTS.md.
+A filled-in example of this template, from a real change, is in
+docs/how-to/submit-a-pull-request.md.
 Delete any section that does not apply.
 -->
 

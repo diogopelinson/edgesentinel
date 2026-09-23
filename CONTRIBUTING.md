@@ -55,6 +55,11 @@ there, mark it `done` with the merge SHA and promote whatever it unlocked. If
 the delivery differed from the plan, correct the entry: what shipped is more
 useful to the next reader than what was predicted.
 
+A worked example of all of the above, using a change that is actually in the
+history — the failing test, the two commits, the mutation check and the filled
+in template — is in
+[Submit a pull request](docs/how-to/submit-a-pull-request.md).
+
 ## Conventions
 
 **Commits are one file each.** It reads oddly at first and pays for itself on
