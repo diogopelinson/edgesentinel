@@ -92,6 +92,10 @@ class TestRemoteInferenceAdapter:
 
     def test_predict_with_frame_builds_base64_payload(self, reading_with_frame):
         """Payload para frame deve conter frame_b64."""
+        # o encode do frame é do OpenCV, que é extra opcional: sem ele o teste
+        # não tem o que exercitar, e a suíte de quem não usa câmera fica verde
+        pytest.importorskip("cv2")
+
         adapter = RemoteInferenceAdapter(
             model_id="yolo_v8n",
             service_url="http://localhost:8080",
