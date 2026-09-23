@@ -25,7 +25,8 @@
       "rationale": "Repo poliglota com fronteira principiada é sinal forte; com fronteira arbitrária é sinal fraco. O diferencial é conseguir responder 'por que Go aqui e não ali' em uma frase, e a regra acima é essa frase. É também a fronteira que a stack já desenha sem ele ter escrito Go: MediaMTX, Prometheus, OTel Collector e Grafana são todos binários Go que o projeto já executa.",
       "not_the_agent": "O agente permanece em Python por três motivos: a arquitetura hexagonal com sua suíte de testes é o ativo mais defensável do repositório e reescrevê-la joga fora exatamente o que há de melhor para mostrar; adapters/inference/yolo.py e onnx.py rodam modelo local, então portar partiria o agente ao meio; e sem SBC disponível a vantagem prática de Go (binário ARM estático, RSS muito menor) é hoje indemonstrável — a mesma armadilha dos sensores de hardware.",
       "cost": "Duas toolchains, duas suítes, dois caminhos de CI, e o payload do heartbeat deixa de ser detalhe interno para virar contrato versionado entre linguagens."
-    }
+    },
+    "ci_cd_note": "CI sim, CD não — por ora. Entrega contínua precisa de alvo: hoje não há pacote publicado (packaging-pypi está adiada de propósito), não há servidor rodando (device-registry-server é v0.6) e não há frota para receber atualização (ota-updates é v0.8). Esteira de deploy sem destino é cerimônia que quebra sozinha e some da atenção de todo mundo. Revisitar quando packaging-pypi entregar (aí a publicação em tag é o primeiro CD legítimo) ou quando existir servidor de fato implantado."
   },
   "legend": {
     "status": {
@@ -1333,7 +1334,12 @@
       "depends_on": [],
       "unlocks": [
         "lint-and-types",
-        "packaging-pypi"
+        "packaging-pypi",
+        "ci-smoke-run",
+        "ci-arm-runner",
+        "ci-dependency-audit",
+        "ci-code-scanning",
+        "ci-coverage-gate"
       ],
       "touches": [
         ".github/workflows/",
@@ -1820,6 +1826,161 @@
         "série ruidosa sem tendência não dispara",
         "janela descarta amostra antiga e mantém tamanho limitado",
         "regra não dispara antes de a janela encher"
+      ]
+    },
+    {
+      "id": "ci-smoke-run",
+      "title": "job de fumaça: o agente sobe e registra",
+      "does": "Job que roda o `simulate` por alguns segundos no CI e verifica o que ele produziu: evento no banco, incidente aberto e /metrics respondendo.",
+      "adds": "Cobre a lacuna entre 'os testes passam' e 'o programa funciona' — o processo inteiro, com sinal, encerramento e I/O reais, que nenhum teste unitário exercita.",
+      "milestone": "project-health",
+      "status": "ready",
+      "effort": "M",
+      "portfolio_value": "high",
+      "testable_now": true,
+      "rationale": "Dois defeitos recentes passaram por uma suíte verde e só apareceram quando alguém rodou o comando: 'python -m cli.main' não executava nada, e o simulate lia cada sensor duas vezes por tick. Ambos seriam pegos por um job que executa o binário de verdade e olha o resultado.",
+      "depends_on": [
+        "ci-pipeline"
+      ],
+      "unlocks": [],
+      "touches": [
+        ".github/workflows/",
+        "tests/",
+        "cli/simulate.py"
+      ],
+      "design_notes": "Roda o agente como processo, com timeout, e depois consulta o banco e o endpoint — nada de importar módulo e chamar função, senão volta a ser teste unitário. O encerramento faz parte do que se verifica: enviar o sinal e conferir que a fila do histórico foi gravada antes de sair. Job separado da matriz, numa versão só de Python: é verificação de comportamento, não de compatibilidade.",
+      "acceptance": [
+        "o job sobe o agente, espera e encerra por sinal, sem intervenção",
+        "falha se nenhum evento for gravado no período",
+        "falha se /metrics não responder",
+        "falha se o processo não sair limpo no encerramento"
+      ],
+      "tests": [
+        "o próprio job é o teste; roda verde no PR que o adiciona",
+        "quebra proposital no simulate faz o job falhar (verificado uma vez)"
+      ]
+    },
+    {
+      "id": "ci-arm-runner",
+      "title": "matriz em arm64, a arquitetura de destino",
+      "does": "Acrescenta um job em runner arm64 à matriz, rodando a suíte na mesma arquitetura dos dispositivos alvo.",
+      "adds": "Hoje o projeto é testado só em x86_64 e implantado em ARM — a diferença que mais importa é justamente a que ninguém exercita.",
+      "milestone": "project-health",
+      "status": "ready",
+      "effort": "S",
+      "portfolio_value": "high",
+      "testable_now": true,
+      "rationale": "O alvo declarado do projeto é Raspberry Pi. Diferenças de arquitetura aparecem onde dói: rodas de wheels que não existem para arm64, numpy e onnxruntime compilados de outro jeito, e tipos de tamanho diferente. Um job em arm64 transforma isso de suposição em fato.",
+      "depends_on": [
+        "ci-pipeline"
+      ],
+      "unlocks": [],
+      "touches": [
+        ".github/workflows/",
+        "tests/test_ci_workflow.py"
+      ],
+      "design_notes": "Runner arm64 hospedado do GitHub para repositório público, sem emulação — QEMU deixaria o job lento o bastante para ser ignorado. Uma versão de Python só, a mínima suportada: o que se procura é diferença de arquitetura, não de versão. Se alguma dependência não tiver wheel arm64, o job vai dizer isso, que já é a informação que falta hoje.",
+      "acceptance": [
+        "a suíte roda em arm64 a cada push",
+        "as dependências instalam sem compilar da fonte, ou o job registra o que precisou compilar",
+        "o teste do workflow passa a exigir o job de arm"
+      ],
+      "tests": [
+        "tests/test_ci_workflow.py exige um job em runner arm",
+        "o job roda verde no PR que o adiciona"
+      ]
+    },
+    {
+      "id": "ci-dependency-audit",
+      "title": "Dependabot e auditoria de vulnerabilidades",
+      "does": "Dependabot abrindo PR para dependências de pip e para as actions do próprio CI, mais `pip-audit` num job semanal contra o conjunto instalado.",
+      "adds": "Fecha o ciclo que o SECURITY.md abre: o arquivo diz como reportar uma falha, isso avisa quando a falha chega pelas dependências.",
+      "milestone": "project-health",
+      "status": "ready",
+      "effort": "S",
+      "portfolio_value": "medium",
+      "testable_now": true,
+      "rationale": "O agente carrega onnxruntime, numpy, pyyaml e, no serviço de IA, opencv e ultralytics — superfície grande o bastante para que uma CVE apareça. Sem automação, a descoberta depende de alguém lembrar de olhar, e ninguém lembra.",
+      "depends_on": [
+        "ci-pipeline"
+      ],
+      "unlocks": [],
+      "touches": [
+        ".github/dependabot.yml",
+        ".github/workflows/",
+        "SECURITY.md"
+      ],
+      "design_notes": "Dependabot agrupado e semanal, não diário: PR demais vira PR ignorado. As actions do CI entram no mesmo arquivo, porque foi exatamente aí que a primeira defasagem apareceu (Node 20 depreciado). O pip-audit roda em job próprio e agendado, para que uma CVE publicada depois do último commit ainda seja vista; falha de auditoria não bloqueia PR de código, avisa.",
+      "acceptance": [
+        "Dependabot abre PR agrupado para pip e para actions",
+        "job semanal roda pip-audit sobre o ambiente instalado",
+        "vulnerabilidade conhecida introduzida de propósito é reportada",
+        "SECURITY.md cita o processo"
+      ],
+      "tests": [
+        "pip-audit falha contra uma versão sabidamente vulnerável (verificado uma vez)",
+        "o arquivo do Dependabot é YAML válido e cobre os dois ecossistemas"
+      ]
+    },
+    {
+      "id": "ci-code-scanning",
+      "title": "análise estática de segurança no CI",
+      "does": "CodeQL para Python em push e pull request, com os alertas na aba de segurança do repositório.",
+      "adds": "Procura a classe de defeito que teste não pega — injeção de comando, caminho não sanitizado, uso inseguro de subprocess — na base que lê arquivo de sistema e executa ações com efeito físico.",
+      "milestone": "project-health",
+      "status": "ready",
+      "effort": "S",
+      "portfolio_value": "medium",
+      "testable_now": true,
+      "rationale": "O agente lê caminhos vindos de YAML, monta requisições HTTP com dados de config e aciona GPIO. Nenhuma dessas é chamada perigosa por si, e todas são o tipo de coisa que vira uma quando alguém acrescenta um parâmetro. Análise estática é barata e roda sozinha.",
+      "depends_on": [
+        "ci-pipeline"
+      ],
+      "unlocks": [],
+      "touches": [
+        ".github/workflows/"
+      ],
+      "design_notes": "CodeQL padrão para Python, sem consulta customizada no começo — a consulta própria vem depois de existir um falso positivo recorrente para justificá-la. Roda em push e PR, e também num agendamento, porque as regras do CodeQL mudam sem o código mudar. Alerta não bloqueia merge enquanto o volume não for conhecido: gate cedo demais vira gate desligado.",
+      "acceptance": [
+        "CodeQL roda em push e pull request",
+        "os alertas aparecem na aba de segurança",
+        "o volume inicial de alertas é triado e registrado"
+      ],
+      "tests": [
+        "o workflow roda verde no PR que o adiciona",
+        "um padrão inseguro introduzido de propósito gera alerta (verificado uma vez)"
+      ]
+    },
+    {
+      "id": "ci-coverage-gate",
+      "title": "piso de cobertura no core",
+      "does": "Faz o job falhar quando a cobertura de `core/` e `application/` cai abaixo do piso declarado, e publica o relatório no resumo do PR.",
+      "adds": "Impede que os números escritos no README apodreçam em silêncio: hoje a cobertura é verificada por alguém olhar a saída, que é o mesmo que não ser verificada.",
+      "milestone": "project-health",
+      "status": "ready",
+      "effort": "S",
+      "portfolio_value": "medium",
+      "testable_now": true,
+      "rationale": "core/ e application/ estão em 100% e é razoável manter — são as camadas sem dependência externa, onde não há desculpa de ambiente. O piso vale para elas e não para os adapters, onde cobrir hardware ausente seria teatro.",
+      "depends_on": [
+        "ci-pipeline"
+      ],
+      "unlocks": [],
+      "touches": [
+        ".github/workflows/",
+        "pyproject.toml",
+        "README.md",
+        "README-BR.md"
+      ],
+      "design_notes": "`--cov-fail-under` por caminho, não global: uma média do repositório inteiro esconde exatamente a queda que interessa. O piso entra abaixo do valor atual, não igual, para que um refactor legítimo não vire discussão de meio ponto. O resumo do PR recebe a tabela, que é onde ela é lida — artefato de job ninguém abre.",
+      "acceptance": [
+        "o job falha quando a cobertura do core cai abaixo do piso",
+        "o piso é declarado num lugar só e citado no README",
+        "o relatório aparece no resumo do pull request"
+      ],
+      "tests": [
+        "remover um teste do core faz o job falhar (verificado uma vez)",
+        "o valor no README é o mesmo declarado na configuração"
       ]
     }
   ]
