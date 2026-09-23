@@ -14,13 +14,15 @@ class TestCpuUsageSensor:
         """
         stat_content = "cpu  1000 0 500 8000 0 0 0 0 0 0\n"
 
-        with patch("builtins.open", mock_open(read_data=stat_content)):
-            with patch("pathlib.Path.read_text", return_value=stat_content):
-                sensor = CpuUsageSensor()
-                reading = sensor.read()
-                assert reading.value == 0.0
-                assert reading.sensor_id == "cpu_usage"
-                assert reading.unit == "%"
+        with (
+            patch("builtins.open", mock_open(read_data=stat_content)),
+            patch("pathlib.Path.read_text", return_value=stat_content),
+        ):
+            sensor = CpuUsageSensor()
+            reading = sensor.read()
+            assert reading.value == 0.0
+            assert reading.sensor_id == "cpu_usage"
+            assert reading.unit == "%"
 
     def test_reading_has_correct_fields(self):
         stat_content = "cpu  1000 0 500 8000 0 0 0 0 0 0\n"
@@ -65,4 +67,3 @@ class TestMemoryUsageSensor:
             sensor = MemoryUsageSensor()
             reading = sensor.read()
             assert reading.value == pytest.approx(100.0)
-            

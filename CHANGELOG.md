@@ -62,6 +62,14 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
   secrets in plain text in the config — rather than only how to report a
   vulnerability. The MIT licence text had been claimed by the README since the
   first commit and was never in the repository.
+- **ruff and mypy, enforced by CI.** `ruff check .` over the repository with
+  E, W, F, UP, B, C4, SIM and RUF, and `mypy --strict` over `core/` and
+  `application/`, both configured in `pyproject.toml` so the command in the
+  pipeline is the command you run locally. Three rules are off with the reason
+  written next to each: `E501` (column alignment is deliberate), `BLE001`
+  (`except Exception` is an architectural decision here) and `C408` in tests
+  (`dict(field=value)` is kwargs being assembled). Everything else passes with
+  nothing ignored.
 - **Continuous integration** (`.github/workflows/tests.yml`): every push and
   pull request runs the suite on Ubuntu with Python 3.10, 3.11, 3.12 and 3.13,
   and on Windows with 3.10. `requires-python` has promised 3.10 and newer since
@@ -77,6 +85,20 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
 
 ### Fixed
 
+- **Exceptions raised while handling another now say so.** Nine sites gained
+  `from None` or `from e` — `from None` where a missing optional package is
+  re-raised with install instructions, `from e` in the remote adapter and the
+  AI service, where the HTTP failure underneath is what a debugger needs.
+- **`zip()` states its length expectation** in the events table, the rendered
+  rows and the training report: `strict=True` turns a silent truncation into an
+  error.
+- **A dead variable left the remote inference adapter** — `has_detections` was
+  computed and never read, while the score came from `confidence`.
+- **Two tests stopped claiming more than they checked.** One asserted that
+  mutating a frozen dataclass raises `Exception`, which any failure satisfies;
+  it now asserts `FrozenInstanceError`. The other annotated a helper as
+  returning `Event` without importing it, and shadowed `unittest.mock.call`
+  with a variable of the same name.
 - **A test failed instead of skipping without OpenCV.** The frame payload test
   encodes through `cv2`, which belongs to the optional `[camera]` extra; it
   passed here only because this checkout had every extra installed. Found by
@@ -116,6 +138,11 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
 
 ### Changed
 
+- **The repository root is no longer an importable package.** An empty
+  `__init__.py` from the first structural commit made the project directory
+  itself a package, so every module had two names — `core.entities` and
+  `edgesentinel.core.entities` — and mypy refused to run at all. Nothing
+  imported it.
 - **The README is an entry point rather than a manual.** It was 582 lines and
   served as tutorial, reference, guide and rationale at once; it now covers
   what the project is, why it exists, a quickstart, and a map into `docs/`.

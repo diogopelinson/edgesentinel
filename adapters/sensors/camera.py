@@ -1,6 +1,5 @@
 import time
 import logging
-import numpy as np
 from core.ports import SensorPort
 from core.entities import SensorReading
 
@@ -95,7 +94,7 @@ class CameraSensor(SensorPort):
             raise ImportError(
                 "opencv-python não instalado. "
                 "Execute: pip install opencv-python"
-            )
+            ) from None
 
         logger.info(f"[{self.sensor_id}] Conectando em: {self.source}")
         self._cap = cv2.VideoCapture(self.source)

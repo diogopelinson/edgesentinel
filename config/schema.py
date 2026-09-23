@@ -13,7 +13,7 @@ class InferenceConfig:
     backend: str = "dummy"
     model_path: str | None = None
     service_url: str = "http://localhost:8080"
-    model_id: str | None = None      
+    model_id: str | None = None
 
 
 @dataclass

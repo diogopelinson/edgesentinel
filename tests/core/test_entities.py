@@ -1,7 +1,9 @@
 import time
+import dataclasses
+
 import pytest
 
-from core.entities import SensorReading, AnomalyScore, ActionContext
+from core.entities import SensorReading, AnomalyScore
 
 
 class TestSensorReading:
@@ -34,7 +36,7 @@ class TestSensorReading:
             value=72.5,
             unit="°C",
         )
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             reading.value = 999  # type: ignore
 
 

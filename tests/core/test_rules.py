@@ -1,7 +1,6 @@
 import pytest
 
 from core.rules import Condition, Rule
-from core.entities import SensorReading, AnomalyScore
 
 
 class TestCondition:

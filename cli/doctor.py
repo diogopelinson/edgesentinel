@@ -165,7 +165,7 @@ def _check_camera_backends() -> tuple[int, int]:
             print(f"  {ok(pip_name + ' ' + version)}")
         except ImportError:
             print(f"  {warn(pip_name + ' — não instalado (necessário para câmera)')}")
-            print(f"         instale com: pip install edgesentinel[camera]")
+            print("         instale com: pip install edgesentinel[camera]")
             warnings += 1
     return (0, warnings)
 
@@ -187,7 +187,7 @@ def _check_yolo(config_path: str) -> tuple[int, int]:
     model_path = Path(config.yolo.model_path)
     if not model_path.exists():
         print(f"  {warn('modelo não encontrado: ' + str(model_path))}")
-        print(f"         o modelo será baixado automaticamente na primeira execução")
+        print("         o modelo será baixado automaticamente na primeira execução")
         return (0, 1)
 
     print(f"  {ok('modelo encontrado: ' + str(model_path))}")

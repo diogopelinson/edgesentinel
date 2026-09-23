@@ -1,4 +1,3 @@
-from typing import Type
 
 from adapters.inference.base import BaseInferenceAdapter
 from adapters.inference.dummy import DummyInferenceAdapter
@@ -6,7 +5,7 @@ from adapters.inference.onnx import ONNXInferenceAdapter
 from adapters.inference.tflite import TFLiteInferenceAdapter
 
 
-_REGISTRY: dict[str, Type[BaseInferenceAdapter]] = {
+_REGISTRY: dict[str, type[BaseInferenceAdapter]] = {
     "dummy":  DummyInferenceAdapter,
     "onnx":   ONNXInferenceAdapter,
     "tflite": TFLiteInferenceAdapter,
@@ -45,7 +44,7 @@ def build_inference(
 
     cls = _REGISTRY.get(backend)
     if cls is None:
-        supported = ", ".join(list(_REGISTRY.keys()) + ["remote"])
+        supported = ", ".join([*_REGISTRY.keys(), "remote"])
         raise ValueError(
             f"Backend de inferência desconhecido: '{backend}'. "
             f"Suportados: {supported}"

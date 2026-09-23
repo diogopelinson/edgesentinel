@@ -1,6 +1,4 @@
-import time
 import logging
-import threading
 
 import prometheus_client
 

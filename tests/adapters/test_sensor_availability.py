@@ -83,9 +83,11 @@ class TestBuilderTreatsMissingHardwareAsUnavailable:
             cameras=[CameraConfig(sensor_id="cam", source="x", simulated=True)],
         )
 
-        with patch("pathlib.Path.exists", return_value=False):
-            with caplog.at_level(logging.WARNING, logger="edgesentinel.builder"):
-                sensors = _build_sensors(config)
+        with (
+            patch("pathlib.Path.exists", return_value=False),
+            caplog.at_level(logging.WARNING, logger="edgesentinel.builder"),
+        ):
+            sensors = _build_sensors(config)
 
         assert sensors == []
         assert "não disponível nesse hardware" in caplog.text

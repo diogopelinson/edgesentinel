@@ -2,7 +2,7 @@ import logging
 import pytest
 
 from adapters.actions.log import LogAction
-from core.entities import ActionContext, SensorReading, AnomalyScore
+from core.entities import ActionContext, SensorReading
 from core.rules import Severity
 
 

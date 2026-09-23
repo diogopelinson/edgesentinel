@@ -26,7 +26,7 @@ class YOLOInferenceAdapter(InferencePort):
             raise ImportError(
                 "ultralytics não instalado. "
                 "Execute: pip install edgesentinel[camera]"
-            )
+            ) from None
         logger.info(f"Carregando modelo YOLO de: {model_path}")
         self._model = YOLO(model_path)
         logger.info("Modelo YOLO carregado.")

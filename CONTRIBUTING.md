@@ -42,6 +42,13 @@ belongs in the docs that cover that area — [docs/](docs/README.md) for the
 English documentation, `README-BR.md` and `USAGE-PTBR.md` for the Portuguese
 mirrors — and in `CHANGELOG.md` under `[Unreleased]`.
 
+**Style and types that pass.** `ruff check .` over the repository and
+`mypy` over `core/` and `application/`, both configured in `pyproject.toml`
+and both run by CI. `ruff check . --fix` applies the safe fixes; anything it
+leaves is worth reading rather than silencing, and if a rule genuinely fights
+the design, turn it off in the config with the reason next to it — that is how
+`E501`, `BLE001` and `C408` came to be off.
+
 **A green pipeline.** Every push and pull request runs the suite on Ubuntu
 with Python 3.10 through 3.13, and on Windows with 3.10 — the version this
 project is developed on. The workflow installs the optional dependencies the

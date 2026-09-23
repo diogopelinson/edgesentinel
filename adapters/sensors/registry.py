@@ -1,4 +1,3 @@
-from typing import Type
 
 from adapters.sensors.base import BaseSensor
 from adapters.sensors.cpu_temp import CpuTemperatureSensor
@@ -7,7 +6,7 @@ from adapters.sensors.memory_usage import MemoryUsageSensor
 
 
 # Mapa: type do YAML → classe do sensor
-_REGISTRY: dict[str, Type[BaseSensor]] = {
+_REGISTRY: dict[str, type[BaseSensor]] = {
     "cpu_temperature": CpuTemperatureSensor,
     "cpu_usage":       CpuUsageSensor,
     "memory_usage":    MemoryUsageSensor,

@@ -1,3 +1,5 @@
+import itertools
+
 import pytest
 
 from adapters.inference.onnx import ONNXInferenceAdapter
@@ -10,7 +12,7 @@ def score_of(adapter: ONNXInferenceAdapter, value: float) -> float:
 
 
 def strictly_increasing(values: list[float]) -> bool:
-    return all(a < b for a, b in zip(values, values[1:]))
+    return all(a < b for a, b in itertools.pairwise(values))
 
 
 @pytest.fixture

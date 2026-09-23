@@ -6,10 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 import application.engine
 from core.rules import Rule, Condition, Severity
-from core.entities import SensorReading, AnomalyScore, ActionContext
+from core.entities import SensorReading, ActionContext, Event
 from core.incidents import Incident, IncidentState
 from core.ports import ActionPort, EventPort, IncidentPort, StatePort
 from application.engine import RuleEngine
@@ -304,7 +304,7 @@ class TestRuleEngineEventRecording:
             severity=Severity.CRITICAL,
         )
 
-    def _recorded(self, store) -> "Event":
+    def _recorded(self, store) -> Event:
         store.append.assert_called_once()
         return store.append.call_args.args[0]
 
@@ -485,7 +485,7 @@ class TestRuleEngineIncidents:
         engine.evaluate(self.reading(90.0))
 
         (incident,) = incidents.open_incidents()
-        recorded = [call.args[0].incident_id for call in store.append.call_args_list]
+        recorded = [chamada.args[0].incident_id for chamada in store.append.call_args_list]
         assert recorded == [incident.incident_id, incident.incident_id]
 
     def test_a_reading_past_the_margin_resolves_it(self, rule, incidents):

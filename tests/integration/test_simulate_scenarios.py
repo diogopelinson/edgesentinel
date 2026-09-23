@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import MagicMock
 from core.ports import ActionPort
 from core.rules import Rule, Condition

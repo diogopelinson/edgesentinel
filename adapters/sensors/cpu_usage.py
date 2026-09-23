@@ -1,4 +1,3 @@
-import time
 from pathlib import Path
 
 from adapters.sensors.base import BaseSensor

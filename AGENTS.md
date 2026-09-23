@@ -28,6 +28,8 @@ python -m venv .venv
 | Whole suite | `.venv\Scripts\python.exe -m pytest tests/ -q` |
 | One file | `.venv\Scripts\python.exe -m pytest tests/core/test_rules.py -q` |
 | Coverage | `.venv\Scripts\python.exe -m pytest tests/ --cov=core --cov=application --cov-report=term-missing` |
+| Lint | `.venv\Scripts\python.exe -m ruff check .` |
+| Types | `.venv\Scripts\python.exe -m mypy` |
 | Run without hardware | `.venv\Scripts\python.exe -m cli.main simulate --scenario stress` |
 | Inspect the environment | `.venv\Scripts\python.exe -m cli.main doctor` |
 
@@ -134,8 +136,16 @@ checks out the full history on purpose — `tests/test_roadmap.py` verifies
 installs `scikit-learn`, `skl2onnx`, `onnx` and `opencv-python-headless` so the
 model and payload tests actually run instead of skipping.
 
-`tests/test_ci_workflow.py` guards that file, so changing the matrix or the
-install list without updating it fails the suite.
+A third job runs `ruff check .` and `mypy`, both configured in
+`pyproject.toml` so the command in CI is the command you run locally.
+`ruff` covers the repository; `mypy` runs strict over `core/` and
+`application/` only — a type is a contract there, while in the adapters a
+library without stubs turns the check into noise. Three rules are off with
+reasons written next to them, `BLE001` among them: `except Exception` is
+deliberate here.
+
+`tests/test_ci_workflow.py` guards that file, so changing the matrix, the
+install list or the lint gate without updating it fails the suite.
 
 ## Before opening a pull request
 

@@ -143,9 +143,9 @@ class TestGraph:
             cor[node] = 1
             for dep in BY_ID[node]["depends_on"]:
                 if cor[dep] == 1:
-                    ciclos.append(" -> ".join(caminho + [node, dep]))
+                    ciclos.append(" -> ".join([*caminho, node, dep]))
                 elif cor[dep] == 0:
-                    visita(dep, caminho + [node])
+                    visita(dep, [*caminho, node])
             cor[node] = 2
 
         for fid in IDS:

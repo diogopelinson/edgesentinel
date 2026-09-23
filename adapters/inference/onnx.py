@@ -29,7 +29,7 @@ class ONNXInferenceAdapter(BaseInferenceAdapter):
         try:
             import onnxruntime as ort
         except ImportError:
-            raise ImportError("Execute: pip install onnxruntime")
+            raise ImportError("Execute: pip install onnxruntime") from None
 
         path = Path(model_path)
         if not path.exists():
