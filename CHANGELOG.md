@@ -45,8 +45,42 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
   step and an acknowledgement made by another process lands on the next
   cycle. A store that raises is logged and swallowed, as a history failure
   is — the alert still goes out, with `incident_id` left empty.
+- **Documentation in the [Diátaxis](https://diataxis.fr/) layout**, under
+  `docs/`: two tutorials, nine how-to guides, five reference pages, three
+  explanations and seven architecture decision records, each directory with
+  its own index. Everything in `USAGE-EN.md` moved there; the file remains as
+  a map of where each section went. `USAGE-PTBR.md` stays a single maintained
+  file and is the Portuguese entry point alongside `README-BR.md`.
+- **`AGENTS.md`** — instructions for AI coding agents, following the AGENTS.md
+  convention: build and test commands, the layout, the conventions of this
+  repository and the things that are not guessable from the code, such as the
+  schema version in the event database and the rule that the engine may not
+  read a clock. Kept under 300 lines, which a test enforces.
+- **`CONTRIBUTING.md`, `SECURITY.md`, `LICENSE`** and GitHub issue and pull
+  request templates. SECURITY.md lists what the agent assumes about its
+  network — an unauthenticated metrics endpoint, unsigned webhook payloads,
+  secrets in plain text in the config — rather than only how to report a
+  vulnerability. The MIT licence text had been claimed by the README since the
+  first commit and was never in the repository.
+- **`tests/test_roadmap.py`** — `docs/roadmap.json` is now verified by the
+  suite: fields present, dependency edges symmetric, no dependency in a later
+  milestone, no cycles, status derived from the graph rather than asserted,
+  and every `delivered_in` an actual commit.
 
 ### Fixed
+
+- **`python -m cli.main` did nothing.** The module had no `__main__` block, so
+  it was imported and the process exited 0 having printed nothing. It is the
+  documented way to run the CLI when a venv's console scripts break — they
+  embed the absolute path of the directory the venv was created in — so it now
+  runs, and a test pins both entry points to the same version string.
+- **`simulate` read every sensor twice per tick**, printing one value and
+  evaluating another: 81.82 on screen against 82.02 in the alert, close enough
+  to look like rounding. The simulated sensors also advanced two steps per
+  tick, so the scenario curve ran at double speed.
+- **The JSON output of `edgesentinel events` was missing `incident_id`.** The
+  record predates incidents and was never revisited, so grouping the events of
+  an episode meant opening the database by hand.
 
 - **A rule could fire twice at once.** The engine compared and then wrote
   `rule._last_triggered` in separate steps, while pipelines run on executor
@@ -70,6 +104,16 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
 
 ### Changed
 
+- **The README is an entry point rather than a manual.** It was 582 lines and
+  served as tutorial, reference, guide and rationale at once; it now covers
+  what the project is, why it exists, a quickstart, and a map into `docs/`.
+  Nothing was deleted — each part has a page.
+- **`docs/roadmap.json` grew from 32 to 48 features** across three new
+  milestones: project health (documentation, CI, linting, packaging, a
+  container image), field operation (hot reload, action retries, notification
+  channels, maintenance windows, health endpoints, a systemd unit) and
+  composite rules (expressions across sensors, rates of change). Every
+  feature, old and new, gained two one-line fields: `does` and `adds`.
 - **The event database migrates to schema 2 when it is first opened** — an
   `incidents` table and an `incident_id` column on `events`. An existing
   `data/events.db` is migrated in place and keeps its events; nothing to do
