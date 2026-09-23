@@ -71,7 +71,16 @@ def test_no_job_runs_a_python_older_than_supported(workflow):
     assert antigas == [], f"matriz testa versões não suportadas: {antigas}"
 
 
-@pytest.mark.parametrize("job", ["linux", "windows"])
+def jobs_do_workflow() -> list[str]:
+    """Derivado do arquivo: job novo entra na verificação por existir."""
+    return sorted(carrega()["jobs"])
+
+
+def comandos(workflow: dict, job: str) -> str:
+    return "\n".join(str(passo.get("run", "")) for passo in workflow["jobs"][job]["steps"])
+
+
+@pytest.mark.parametrize("job", jobs_do_workflow())
 def test_every_job_checks_out_the_full_history(workflow, job):
     """
     Sem fetch-depth 0 o clone é raso, e tests/test_roadmap.py se ignora por não
@@ -85,21 +94,33 @@ def test_every_job_checks_out_the_full_history(workflow, job):
     assert checkout.get("with", {}).get("fetch-depth") == 0
 
 
-@pytest.mark.parametrize("job", ["linux", "windows"])
-def test_every_job_installs_the_optional_dependencies_the_tests_need(workflow, job):
+@pytest.mark.parametrize("job", jobs_do_workflow())
+def test_every_job_that_runs_the_suite_installs_what_it_needs(workflow, job):
     """
     Sem sklearn, skl2onnx, onnx e cv2, dezoito testes de modelo e de payload
     se ignoram — e um job verde com 18 testes a menos não avisa ninguém.
     """
-    instalacao = "\n".join(
-        str(passo.get("run", "")) for passo in workflow["jobs"][job]["steps"]
-    )
+    instalacao = comandos(workflow, job)
+    if "pytest tests/" not in instalacao:
+        pytest.skip(f"job '{job}' não roda a suíte")
+
     faltando = [
         pacote for pacote in ("scikit-learn", "skl2onnx", "onnx", "opencv-python-headless")
         if pacote not in instalacao
     ]
 
     assert faltando == [], f"job '{job}' não instala: {faltando}"
+
+
+def test_some_job_runs_ruff_and_mypy(workflow):
+    """
+    O gate de estilo e de tipos só vale se rodar sozinho. Rodado à mão, ele é
+    uma recomendação — e recomendação de lint é lint desligado.
+    """
+    tudo = "\n".join(comandos(workflow, job) for job in workflow["jobs"])
+
+    assert "ruff check" in tudo, "nenhum job roda o ruff"
+    assert "mypy" in tudo, "nenhum job roda o mypy"
 
 
 def test_the_readmes_point_at_this_workflow():
