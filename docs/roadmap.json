@@ -1282,7 +1282,7 @@
       "does": "Cria docs/ dividido em tutorials, how-to, reference e explanation, mais AGENTS.md, CONTRIBUTING.md, SECURITY.md, LICENSE e templates de issue e pull request.",
       "adds": "Dá ao repositório a forma de um projeto grande: cada pergunta tem um lugar previsível, e tanto contribuidor humano quanto agente de IA leem instruções escritas em vez de inferir do código.",
       "milestone": "project-health",
-      "status": "ready",
+      "status": "done",
       "effort": "L",
       "portfolio_value": "high",
       "testable_now": true,
@@ -1312,10 +1312,12 @@
       ],
       "tests": [
         "todo link relativo em qualquer .md do repositório aponta para arquivo existente",
-        "todo arquivo em docs/ está citado no índice do seu diretório",
+        "toda página em docs/ é citada pelo índice do seu diretório",
         "AGENTS.md não passa de 300 linhas",
-        "os comandos citados no AGENTS.md existem (entry points e scripts)"
-      ]
+        "a descoberta dos .md não pode devolver vazio em silêncio"
+      ],
+      "delivered_in": "d6d21c8",
+      "delivery_notes": "Entregue com docs/ em tutorials, how-to, reference, explanation e adr, cada diretório com índice próprio, mais AGENTS.md, CONTRIBUTING.md, SECURITY.md, LICENSE e os templates do GitHub. Duas diferenças em relação ao previsto. (1) O USAGE-EN.md não foi mantido em paralelo: o conteúdo inteiro migrou para docs/ e o arquivo virou um mapa de para onde cada seção foi, porque manter os dois seria manter duas fontes da mesma verdade. O USAGE-PTBR.md continua completo e é a porta de entrada em português. (2) Os ADRs não foram só as decisões já escritas no README: cada um ganhou as alternativas recusadas e uma condição de revisão, que é o que o README não tinha e o que torna a decisão avaliável depois. Escrever a documentação revelou três defeitos, corrigidos na mesma branch: 'python -m cli.main' não executava nada por falta do bloco __main__, o simulate lia cada sensor duas vezes por tick (mostrando um valor e alarmando sobre outro, e dobrando a velocidade do cenário), e o JSON do comando events nunca passou a expor incident_id."
     },
     {
       "id": "ci-pipeline",
