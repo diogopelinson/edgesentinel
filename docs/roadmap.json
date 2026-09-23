@@ -1370,7 +1370,7 @@
       "does": "Verifica estilo com ruff no repositório inteiro e tipos com mypy em core/ e application/.",
       "adds": "Põe o contrato das portas sob verificação automática: hoje um Optional mal declarado só aparece quando o código roda.",
       "milestone": "project-health",
-      "status": "ready",
+      "status": "done",
       "effort": "M",
       "portfolio_value": "medium",
       "testable_now": true,
@@ -1392,9 +1392,12 @@
         "as duas verificações rodam no mesmo workflow da suíte"
       ],
       "tests": [
-        "job falha quando um tipo do core é violado de propósito",
-        "job falha em erro de lint introduzido de propósito"
-      ]
+        "algum job do CI roda ruff e mypy",
+        "todo job do workflow faz checkout do histórico completo (lista derivada do arquivo)",
+        "a suíte continua verde depois das correções automáticas"
+      ],
+      "delivered_in": "b1cc796",
+      "delivery_notes": "mypy estrito em core/ e application/ passou limpo de primeira, mas só depois de remover um __init__.py vazio na raiz do repositório: com ele, a própria pasta do projeto era um pacote, cada módulo tinha dois nomes (core.entities e edgesentinel.core.entities) e o mypy se recusava a rodar. O ruff apontou 138 avisos; 89 eram correção automática segura (import não usado, f-string sem placeholder, arquivo sem newline final) e o resto foi feito à mão, com achado real: nove exceções levantadas dentro de except sem encadear a causa, três zip() sem declarar expectativa de comprimento, uma variável morta no adapter remoto e dois testes que afirmavam menos do que pareciam — um esperava Exception onde queria FrozenInstanceError, outro sombreava unittest.mock.call. Três regras ficaram desligadas com o motivo ao lado: E501 (alinhamento de colunas é deliberado), BLE001 ('except Exception' é decisão de arquitetura) e C408 nos testes. O commit mecânico tocou 40 arquivos de uma vez — exceção explicada à regra de um arquivo por commit, que existe para revisão e não para contagem."
     },
     {
       "id": "packaging-pypi",
