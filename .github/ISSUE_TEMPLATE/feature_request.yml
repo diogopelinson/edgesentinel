@@ -1,0 +1,56 @@
+name: Feature request
+description: Propose something the agent should be able to do
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The backlog lives in
+        [docs/roadmap.json](https://github.com/diogopelinson/edgesentinel/blob/main/docs/roadmap.json),
+        with 48 features, their dependencies and their status. Please check
+        whether yours is already there — if it is, comment on the entry
+        instead of opening a new issue.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: >
+        What you are trying to do today, and where it stops. A concrete
+        situation argues better than a feature name.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you propose
+      description: If it involves configuration, show the YAML you would like to write.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Which part it touches
+      options:
+        - A new sensor
+        - A new action or notification channel
+        - Rules and conditions
+        - Incidents
+        - Storage or history
+        - Metrics and dashboards
+        - Camera and inference
+        - Fleet, identity or remote management
+        - Packaging, CI or documentation
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried instead
+      description: >
+        Including the workaround you are using now, if any. It usually
+        says more about the shape of the solution than the request does.
