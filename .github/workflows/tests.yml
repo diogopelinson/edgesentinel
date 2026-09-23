@@ -12,6 +12,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  quality:
+    name: lint & types
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[onnx]"
+          pip install ruff mypy
+
+      # a configuração dos dois vive no pyproject.toml: o que roda aqui é o
+      # mesmo que roda na máquina de quem escreveu
+      - name: Ruff
+        run: ruff check .
+
+      - name: Mypy
+        run: mypy
+
   linux:
     name: ubuntu · python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
