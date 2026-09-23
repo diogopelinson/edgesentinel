@@ -8,6 +8,7 @@ Ele lê sensores, pontua as leituras com um modelo local, avalia regras, agrupa
 alarmes repetidos em incidentes, guarda o próprio histórico e exporta
 métricas — e continua fazendo tudo isso quando a rede cai.
 
+[![tests](https://github.com/diogopelinson/edgesentinel/actions/workflows/tests.yml/badge.svg)](https://github.com/diogopelinson/edgesentinel/actions/workflows/tests.yml)
 [![Licença: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 [![Versão 0.3.0](https://img.shields.io/badge/version-0.3.0-orange.svg)](CHANGELOG.md)
