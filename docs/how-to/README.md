@@ -5,6 +5,10 @@ these assume you know what you want and skip the explanations — when you want
 the reasoning, it is in [Explanation](../explanation/README.md), and the exact
 values are in [Reference](../reference/README.md).
 
+## Contributing
+
+- **[Submit a pull request](submit-a-pull-request.md)** — a worked example, from the failing test to the filled-in template, using a change that is in this repository's history.
+
 ## Running it
 
 - **[Run the agent](run-the-agent.md)** — with real hardware and without it, and how to read the history it records.
