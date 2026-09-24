@@ -569,7 +569,7 @@
       "does": "Comandos para listar, reconhecer e resolver incidentes pelo terminal.",
       "adds": "Fecha o ciclo na prática: sem uma forma de reconhecer, o estado ACKNOWLEDGED existe no banco e é inalcançável pelo operador.",
       "milestone": "v0.4",
-      "status": "ready",
+      "status": "done",
       "effort": "S",
       "portfolio_value": "high",
       "testable_now": true,
@@ -591,10 +591,14 @@
         "id inexistente produz mensagem clara, não stack trace"
       ],
       "tests": [
-        "ack altera o estado no store",
-        "processo de monitoramento lê o novo estado no ciclo seguinte (integração)",
-        "id inválido sai com código de erro e mensagem legível"
-      ]
+        "ack altera o estado no store e a listagem reflete",
+        "o engine em execução respeita o ack no ciclo seguinte (integração com store real)",
+        "id inexistente sai com código 1 e mensagem que nomeia o id",
+        "reconhecer duas vezes é idempotente; reconhecer resolvido é recusado",
+        "listar sem banco sai 0; mudar estado sem banco sai 1"
+      ],
+      "delivered_in": "3084923",
+      "delivery_notes": "Três comandos como previsto, mais duas coisas que o plano não dizia. (1) A consulta de incidentes — leitura por id, filtros, contagem de disparos em uma consulta só — entrou no adapter SQLite e não na IncidentPort: a porta carrega o que o engine precisa, e o engine não precisa de filtro nem de paginação. (2) Dois módulos comuns nasceram do comando novo: cli/store.py, para 'config ilegível' e 'store desabilitado' falharem igual nos dois comandos, e cli/render.py, para a cor de severidade e o formato de duração não divergirem. Decisões de comportamento que ficaram escritas em teste: reconhecer duas vezes sai 0 (idempotente, para script não quebrar porque alguém chegou antes), reconhecer incidente resolvido sai 1 (o ciclo não volta atrás), listar sem banco é 'nada ainda' com 0 e mudar estado sem banco é erro. O tutorial deixou de ensinar UPDATE na mão; a sessão dele foi regravada duas vezes porque com intervalo de 2s o pico dura dois ticks e o ack caía depois do último disparo — sem o disparo seguinte, a página não mostrava o efeito que ela explica."
     },
     {
       "id": "incident-metrics",
