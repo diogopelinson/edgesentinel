@@ -62,6 +62,15 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
   secrets in plain text in the config — rather than only how to report a
   vulnerability. The MIT licence text had been claimed by the README since the
   first commit and was never in the repository.
+- **`edgesentinel incidents`, `ack` and `resolve`.** The acknowledged state
+  existed in the database and was unreachable from the terminal — the tutorial
+  told the reader to open SQLite and write an `UPDATE` by hand. The listing
+  shows state, severity, rule, sensor, when it opened, how long it has been open
+  and how many firings it grouped, with `--all`, `--severity`, `--rule`,
+  `--last`, `--limit` and `--json`. The transitions go through the store, so a
+  running agent picks them up on its next evaluation with no signal and no
+  restart. Acknowledging twice is not an error; acknowledging a resolved
+  incident is refused, because the cycle does not go backwards.
 - **The suite runs on arm64**, on a native runner, with Python 3.12. The
   project targets Raspberry Pi and had only ever been tested on x86_64, which
   left out the difference most likely to bite: a wheel that does not exist for
@@ -171,6 +180,14 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
 
 ### Changed
 
+- **The store can read and filter incidents** — by id, with filters, and
+  counting the firings of several incidents in one query. These are methods on
+  the SQLite adapter rather than on `IncidentPort`: the port carries what the
+  engine needs, and the engine needs neither filters nor pagination.
+- **The commands share how they reach the database.** `cli/store.py` turns a
+  config path into a database path with one set of error messages, and
+  `cli/render.py` holds the severity colours and the duration format. Two
+  commands disagreeing about what critical looks like is worse than no colour.
 - **The repository root is no longer an importable package.** An empty
   `__init__.py` from the first structural commit made the project directory
   itself a package, so every module had two names — `core.entities` and
