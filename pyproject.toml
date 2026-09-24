@@ -79,3 +79,11 @@ ignore = [
 # tipo é contrato no core; nos adapters, biblioteca externa sem stub vira ruído
 files = ["core", "application"]
 strict = true
+
+[tool.coverage.report]
+# Piso de cobertura do núcleo — core/ e application/, as camadas sem dependência
+# externa, onde não há desculpa de ambiente. Hoje estão em 97%; o piso entra
+# abaixo disso de propósito, para um refactor legítimo não virar discussão de
+# meio ponto. Nos adapters não há piso: cobrir hardware ausente seria teatro.
+fail_under = 95
+show_missing = true

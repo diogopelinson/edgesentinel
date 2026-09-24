@@ -231,7 +231,7 @@ pytest tests/ -q
 pytest tests/ --cov=core --cov=application --cov-report=term-missing
 ```
 
-**384 testes, zero falhas**, e nenhum deles precisa de hardware, rede ou
+**390 testes, zero falhas**, e nenhum deles precisa de hardware, rede ou
 relógio.
 
 | Camada | Cobertura |
@@ -245,6 +245,11 @@ relógio.
 | `cli/events` | 99% |
 | `config/loader` | 95% |
 | `adapters/store/sqlite` | 94% |
+
+O CI reprova se `core/` e `application/` caírem abaixo de **95%** — o piso é
+declarado uma vez, no `pyproject.toml`, e um teste exige que esta página cite
+o mesmo número. Nos adapters não há piso: cobrir hardware que não existe
+seria teatro.
 
 Os testes vêm antes do código, e um teste novo só vale depois de quebrar de
 propósito o código que ele cobre — teste que continua verde com o código
@@ -271,7 +276,7 @@ edgesentinel/
 ├── dashboards/                 # edgesentinel_dashboard_v2.json para Grafana
 ├── docs/                       # tutoriais, guias, referência, explicações, ADRs
 ├── data/                       # events.db — gerado em execução, fora do git
-└── tests/                      # unitários + integração (384 testes)
+└── tests/                      # unitários + integração (390 testes)
 ```
 
 ## Decisões de design

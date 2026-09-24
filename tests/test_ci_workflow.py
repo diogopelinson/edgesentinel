@@ -188,6 +188,41 @@ class TestOutrosWorkflows:
         assert sem_grupo == [], f"atualizações sem agrupamento: {sem_grupo}"
 
 
+class TestPisoDeCobertura:
+    """
+    O piso existe para os números escritos no README não apodrecerem em
+    silêncio. Isso só funciona se ele for medido por alguém que reprova, e se
+    estiver declarado num lugar só.
+    """
+
+    def piso(self) -> float:
+        import tomli
+
+        config = tomli.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        return float(config["tool"]["coverage"]["report"]["fail_under"])
+
+    def test_a_job_measures_the_core_coverage(self, workflow):
+        tudo = "\n".join(comandos(workflow, job) for job in workflow["jobs"])
+
+        assert "--cov=core" in tudo and "--cov=application" in tudo, (
+            "nenhum job mede a cobertura do núcleo"
+        )
+
+    def test_the_floor_is_below_what_the_core_has_today(self):
+        """
+        Piso igual à cobertura atual transforma qualquer refactor legítimo em
+        discussão de meio ponto.
+        """
+        assert 50 <= self.piso() <= 97, f"piso implausível: {self.piso()}"
+
+    @pytest.mark.parametrize("readme", ["README.md", "README-BR.md"])
+    def test_the_readmes_cite_the_declared_floor(self, readme):
+        texto = (ROOT / readme).read_text(encoding="utf-8")
+        piso = f"{self.piso():g}%"
+
+        assert piso in texto, f"{readme} não cita o piso declarado ({piso})"
+
+
 def test_the_readmes_point_at_this_workflow():
     """Badge apontando para workflow inexistente é pior que badge nenhum."""
     nome = WORKFLOW.name

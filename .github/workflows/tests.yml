@@ -70,13 +70,47 @@ jobs:
           pip install scikit-learn skl2onnx onnx opencv-python-headless
 
       - name: Tests
+        run: pytest tests/ -q
+
+  coverage:
+    name: coverage · core floor
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
         run: |
-          pytest tests/ -q \
-            --cov=core --cov=application --cov=adapters --cov=config --cov=cli \
-            --cov-report=term-missing --cov-report=xml
+          python -m pip install --upgrade pip
+          pip install -e ".[onnx]"
+          pip install pytest pytest-mock pytest-cov tomli setuptools
+          pip install scikit-learn skl2onnx onnx opencv-python-headless
+
+      # O piso vem de [tool.coverage.report] no pyproject.toml, declarado uma
+      # vez: medir aqui e afirmar outro número no README seria ter dois pisos.
+      # Ele vale para core/ e application/, não para o repositório inteiro —
+      # média global esconde justamente a queda que interessa.
+      - name: Core coverage
+        run: |
+          pytest tests/ -q --cov=core --cov=application \
+            --cov-report=term-missing --cov-report=xml | tee coverage.txt
+
+      - name: Summary
+        if: always()
+        run: |
+          echo '### Cobertura do núcleo' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          sed -n '/Name  *Stmts/,/^Required\|^TOTAL/p' coverage.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Coverage report
-        if: matrix.python-version == '3.12'
         uses: actions/upload-artifact@v7
         with:
           name: coverage
