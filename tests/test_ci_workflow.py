@@ -168,6 +168,28 @@ class TestOutrosWorkflows:
             "a auditoria passaria a bloquear pull request"
         )
 
+    def test_code_scanning_can_write_its_alerts(self):
+        """
+        Sem a permissão security-events o CodeQL roda e não consegue publicar
+        nada: job verde, aba de segurança vazia. É a falha mais silenciosa
+        possível num workflow de análise.
+        """
+        codeql = yaml.safe_load((WORKFLOWS / "codeql.yml").read_text(encoding="utf-8"))
+        job = codeql["jobs"]["codeql"]
+
+        assert job.get("permissions", {}).get("security-events") == "write"
+
+    def test_code_scanning_runs_on_pull_request_and_on_a_schedule(self):
+        """
+        No pull request para pegar o código novo; agendado porque as regras do
+        CodeQL mudam sem o código mudar.
+        """
+        codeql = yaml.safe_load((WORKFLOWS / "codeql.yml").read_text(encoding="utf-8"))
+        gatilhos = codeql.get("on") or codeql[True]
+
+        assert "pull_request" in gatilhos
+        assert "schedule" in gatilhos
+
     def test_dependabot_watches_the_code_and_the_actions(self):
         """
         As actions entram junto com o pip porque foi nelas que a primeira
