@@ -62,6 +62,13 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
   secrets in plain text in the config — rather than only how to report a
   vulnerability. The MIT licence text had been claimed by the README since the
   first commit and was never in the repository.
+- **Dependency watching** — Dependabot for the agent, the AI service and the
+  GitHub Actions themselves, weekly and grouped; plus `pip-audit` on a schedule
+  in its own workflow, so an advisory published after the last commit is still
+  noticed. The audit reports and does not gate: a CVE in a transitive dependency
+  must not block a pull request that has nothing to do with it. `SECURITY.md`
+  describes both, including the limit — without a lockfile, the audit describes
+  a fresh install rather than what is running on a device.
 - **A smoke check that boots the agent** (`scripts/smoke.py`, run by CI on every
   push). It writes a config, starts the real process, waits for `/metrics` to
   answer and for a rule to reach the database, then sends SIGTERM — what systemd
