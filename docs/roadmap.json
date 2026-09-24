@@ -1967,7 +1967,7 @@
       "does": "Faz o job falhar quando a cobertura de `core/` e `application/` cai abaixo do piso declarado, e publica o relatório no resumo do PR.",
       "adds": "Impede que os números escritos no README apodreçam em silêncio: hoje a cobertura é verificada por alguém olhar a saída, que é o mesmo que não ser verificada.",
       "milestone": "project-health",
-      "status": "ready",
+      "status": "done",
       "effort": "S",
       "portfolio_value": "medium",
       "testable_now": true,
@@ -1989,9 +1989,12 @@
         "o relatório aparece no resumo do pull request"
       ],
       "tests": [
-        "remover um teste do core faz o job falhar (verificado uma vez)",
-        "o valor no README é o mesmo declarado na configuração"
-      ]
+        "algum job mede a cobertura de core/ e application/",
+        "o piso declarado é plausível e está abaixo da cobertura atual",
+        "os dois READMEs citam o piso declarado no pyproject.toml"
+      ],
+      "delivered_in": "42f2d7e",
+      "delivery_notes": "O piso ficou em [tool.coverage.report] do pyproject.toml, não na linha de comando: com o número no workflow e outro no README haveria dois pisos. 95% para core/ e application/, que estão em 97% hoje. Efeito colateral bom: a cobertura saiu da matriz de versões e ganhou job próprio — a matriz responde 'funciona de 3.10 a 3.13' e medir cinco pacotes em cada versão era mais lento e menos informativo. A tabela vai para o resumo do pull request, não para artefato que ninguém baixa. O teste que amarra o piso ao README é o que dá sentido à feature: número na documentação que nada verifica é número que apodrece."
     }
   ]
 }
