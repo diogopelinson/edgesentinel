@@ -54,7 +54,7 @@ them:
 ## 2. Watch the incident open
 
 ```bash
-edgesentinel simulate --scenario spike --config tutorial.yaml --interval 2
+edgesentinel simulate --scenario spike --config tutorial.yaml --interval 1
 ```
 
 The `spike` scenario holds the temperature near 55 °C and throws a spike every
@@ -63,12 +63,12 @@ what an incident is meant to describe.
 
 ```
 [tick 001]
-  CPU Temperature        80.42 °C
-2026-09-23 00:15:55 [INFO] edgesentinel.engine: Incidente #1 aberto para 'hot' [warning].
-2026-09-23 00:15:55 [INFO] edgesentinel.engine: Regra 'hot' [warning] disparada para sensor 'cpu_temp'.
-2026-09-23 00:15:55 [WARNING] edgesentinel.action.log: Regra 'hot' disparada | sensor=cpu_temp value=80.42°C
-  CPU Usage              41.82 %
-  Memory Usage           52.73 %
+  CPU Temperature        80.28 °C
+2026-09-23 23:55:32 [INFO] edgesentinel.engine: Incidente #1 aberto para 'hot' [warning].
+2026-09-23 23:55:32 [INFO] edgesentinel.engine: Regra 'hot' [warning] disparada para sensor 'cpu_temp'.
+2026-09-23 23:55:32 [WARNING] edgesentinel.action.log: Regra 'hot' disparada | sensor=cpu_temp value=80.28°C
+  CPU Usage              40.05 %
+  Memory Usage           50.17 %
 ```
 
 Three lines, three different things: the incident opened, the rule fired, the
@@ -81,27 +81,40 @@ Leave it running and go to the next step in a second terminal.
 
 Acknowledging means "I have seen this, stop telling me" — the problem is still
 happening, so the history must keep recording it, but the actions stop firing.
-The CLI command for this is still a roadmap entry, so do it directly in the
-database. With the agent still running:
+With the agent still running, in the second terminal:
 
 ```bash
-python - <<'PY'
-import sqlite3, time
-db = sqlite3.connect("data/tutorial.db")
-db.execute("UPDATE incidents SET state = 'acknowledged', acknowledged_at = ? "
-           "WHERE state = 'triggered'", (time.time(),))
-db.commit()
-PY
+edgesentinel incidents --config tutorial.yaml
 ```
 
-Now watch the terminal where the agent is running. On the next spike:
+```
+#  ESTADO     SEVERIDADE  REGRA  SENSOR    ABERTO               DURAÇÃO  DISPAROS
+1  TRIGGERED  WARNING     hot    cpu_temp  2026-09-23 23:55:32  1s              2
+
+1 incidente(s) aberto(s)
+```
+
+Two firings already grouped under incident 1, one second old. Acknowledge it by
+id:
+
+```bash
+edgesentinel ack 1 --config tutorial.yaml
+```
+
+```
+Incidente #1 de 'hot' [warning] reconhecido após 1s aberto.
+O agente para de repetir as ações dessa regra no próximo ciclo; os disparos continuam indo para o histórico.
+```
+
+Now watch the terminal where the agent is running. The spike is still going,
+so the rule matches again two seconds later:
 
 ```
 [tick 003]
-  CPU Temperature        58.33 °C
-2026-09-23 00:15:59 [INFO] edgesentinel.engine: Regra 'hot' [warning] disparada para sensor 'cpu_temp'.
-  CPU Usage              45.48 %
-  Memory Usage           55.81 %
+  CPU Temperature        80.96 °C
+2026-09-23 23:55:34 [INFO] edgesentinel.engine: Regra 'hot' [warning] disparada para sensor 'cpu_temp'.
+  CPU Usage              43.75 %
+  Memory Usage           52.39 %
 ```
 
 Compare it with tick 001. The rule fired — the `INFO` line is there and the
@@ -118,9 +131,11 @@ the lifecycle survives a restart.
 Keep watching. When the spike passes:
 
 ```
-[tick 006]
-  CPU Temperature        53.24 °C
-2026-09-23 00:16:05 [INFO] edgesentinel.engine: Incidente #1 de 'hot' resolvido em 53.24°C.
+[tick 010]
+  CPU Temperature        55.76 °C
+2026-09-23 23:55:42 [INFO] edgesentinel.engine: Incidente #1 de 'hot' resolvido em 55.76°C.
+  CPU Usage              41.76 %
+  Memory Usage           51.06 %
 ```
 
 An acknowledged incident still resolves: acknowledging says someone is on it,
@@ -128,35 +143,42 @@ not that the problem is over. Now stop the agent with Ctrl+C.
 
 ## 5. Look at the episodes
 
+`incidents` shows the open ones; `--all` includes what already closed:
+
 ```bash
-python - <<'PY'
-import sqlite3
-from datetime import datetime
-
-db = sqlite3.connect("data/tutorial.db")
-print(f"{'#':>2}  {'RULE':<8} {'STATE':<10} {'OPENED':<10} {'CLOSED':<10} FIRINGS")
-for row in db.execute("""
-    SELECT i.incident_id, i.rule_name, i.state, i.opened_at, i.resolved_at,
-           (SELECT COUNT(*) FROM events e WHERE e.incident_id = i.incident_id)
-    FROM incidents i ORDER BY i.incident_id
-"""):
-    incident_id, rule, state, opened, closed, firings = row
-    hhmmss = lambda ts: datetime.fromtimestamp(ts).strftime("%H:%M:%S") if ts else "-"
-    print(f"{incident_id:>2}  {rule:<8} {state:<10} {hhmmss(opened):<10} {hhmmss(closed):<10} {firings}")
-PY
+edgesentinel incidents --all --config tutorial.yaml
 ```
 
 ```
- #  RULE     STATE      OPENED     CLOSED     FIRINGS
- 1  hot      resolved   00:15:55   00:16:05   2
- 2  hot      resolved   00:16:15   00:16:25   2
- 3  hot      resolved   00:16:35   00:16:45   2
+#  ESTADO     SEVERIDADE  REGRA  SENSOR    ABERTO               DURAÇÃO  DISPAROS
+4  TRIGGERED  WARNING     hot    cpu_temp  2026-09-23 23:56:18  1s              1
+3  RESOLVED   WARNING     hot    cpu_temp  2026-09-23 23:56:13  2s              2
+2  RESOLVED   WARNING     hot    cpu_temp  2026-09-23 23:55:53  10s             6
+1  RESOLVED   WARNING     hot    cpu_temp  2026-09-23 23:55:32  9s              5
+
+4 incidente(s)
 ```
 
-Three spikes, three incidents, six firings grouped under them — and the twenty
-seconds between one episode and the next are visible in the timestamps.
-Without incidents this would be six independent alerts, with nothing saying
-which ones described the same event.
+Four spikes, four incidents, fourteen firings grouped under them — and the
+twenty seconds between one episode and the next are visible in the timestamps.
+Without incidents this would be fourteen independent alerts, with nothing saying
+which ones described the same event. Incident 4 is still `TRIGGERED` because the
+spike was in progress when the agent stopped; incident 3 lasted two seconds,
+which is what a spike that barely crossed the threshold looks like.
+
+`--json` gives the same rows one object per line, including the
+`acknowledged_at` of the one you acknowledged:
+
+```bash
+edgesentinel incidents --all --json --config tutorial.yaml
+```
+
+```json
+{"incident_id": 1, "state": "resolved", "severity": "warning", "rule_name": "hot", "sensor_id": "cpu_temp", "opened": "2026-09-23T23:55:32-03:00", "opened_at": 1790218532.7863784, "acknowledged_at": 1790218534.6851783, "resolved_at": 1790218542.0397637, "duration_seconds": 9.253, "firings": 5}
+```
+
+`acknowledged_at` is filled in and `resolved_at` came nine seconds after it
+opened: the whole episode, in one row.
 
 ## 6. Why 56 and not 58
 
