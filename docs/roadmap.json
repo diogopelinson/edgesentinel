@@ -1938,7 +1938,7 @@
       "does": "CodeQL para Python em push e pull request, com os alertas na aba de segurança do repositório.",
       "adds": "Procura a classe de defeito que teste não pega — injeção de comando, caminho não sanitizado, uso inseguro de subprocess — na base que lê arquivo de sistema e executa ações com efeito físico.",
       "milestone": "project-health",
-      "status": "ready",
+      "status": "done",
       "effort": "S",
       "portfolio_value": "medium",
       "testable_now": true,
@@ -1957,9 +1957,11 @@
         "o volume inicial de alertas é triado e registrado"
       ],
       "tests": [
-        "o workflow roda verde no PR que o adiciona",
-        "um padrão inseguro introduzido de propósito gera alerta (verificado uma vez)"
-      ]
+        "o job mantém a permissão security-events: write",
+        "a análise roda em pull request e em agendamento"
+      ],
+      "delivered_in": "e2dde93",
+      "delivery_notes": "Conjunto de consultas security-extended, não o padrão nem o security-and-quality: regra de manutenção junto com regra de segurança, antes de o volume de qualquer uma ser conhecido, é como lista de alerta vira lista que ninguém abre. Roda também agendado, porque as regras do CodeQL mudam sem o código mudar — repositório que só escaneia em push deixa de ser escaneado no dia em que fica quieto. O teste fixa a permissão security-events: write, que é a falha mais silenciosa possível aqui: sem ela a análise roda, o job fica verde e a aba de segurança fica vazia."
     },
     {
       "id": "ci-coverage-gate",
