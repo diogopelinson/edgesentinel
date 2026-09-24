@@ -308,6 +308,76 @@ class SQLiteEventStore(EventPort, IncidentPort):
 
         return [self._to_incident(row) for row in rows]
 
+    # --- consulta de incidentes (além da porta: quem usa é o terminal) ---
+
+    def incident(self, incident_id: int) -> Incident | None:
+        """
+        Lê um incidente por id, ou None. Não levanta: quem chama é que sabe o
+        que dizer ao operador sobre um id que não existe.
+        """
+        sql = f"SELECT {_INCIDENT_COLUMNS} FROM incidents WHERE incident_id = ?"
+        with self._connection() as conn:
+            row = conn.execute(sql, (incident_id,)).fetchone()
+
+        return self._to_incident(row) if row else None
+
+    def incidents(
+        self,
+        *,
+        include_resolved: bool = False,
+        severity: str | None = None,
+        rule_name: str | None = None,
+        since: float | None = None,
+        limit: int = 20,
+    ) -> list[Incident]:
+        """
+        Listagem para o terminal, mais recente primeiro. open_incidents() é a
+        visão do engine: sem filtro e sem limite, porque ele precisa de todos.
+        """
+        clausulas: list[str] = []
+        parametros: list[object] = []
+
+        if not include_resolved:
+            clausulas.append("state != ?")
+            parametros.append(IncidentState.RESOLVED.value)
+        if severity:
+            clausulas.append("severity = ?")
+            parametros.append(severity)
+        if rule_name:
+            clausulas.append("rule_name = ?")
+            parametros.append(rule_name)
+        if since is not None:
+            clausulas.append("opened_at >= ?")
+            parametros.append(since)
+
+        where = f"WHERE {' AND '.join(clausulas)}" if clausulas else ""
+        sql = (
+            f"SELECT {_INCIDENT_COLUMNS} FROM incidents {where} "
+            f"ORDER BY opened_at DESC, incident_id DESC LIMIT ?"
+        )
+        with self._connection() as conn:
+            rows = conn.execute(sql, (*parametros, limit)).fetchall()
+
+        return [self._to_incident(row) for row in rows]
+
+    def firings(self, incident_ids: list[int]) -> dict[int, int]:
+        """
+        Quantos eventos cada incidente agrupou, numa consulta só — uma por
+        linha de tabela seria N consultas para uma listagem de N.
+        """
+        if not incident_ids:
+            return {}
+
+        marcadores = ", ".join("?" * len(incident_ids))
+        sql = (
+            f"SELECT incident_id, COUNT(*) FROM events "
+            f"WHERE incident_id IN ({marcadores}) GROUP BY incident_id"
+        )
+        with self._connection() as conn:
+            contagem = dict(conn.execute(sql, incident_ids).fetchall())
+
+        return {incident_id: contagem.get(incident_id, 0) for incident_id in incident_ids}
+
     def _set_state(
         self,
         incident_id: int,
