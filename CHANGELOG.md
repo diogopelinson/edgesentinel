@@ -62,6 +62,10 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
   secrets in plain text in the config — rather than only how to report a
   vulnerability. The MIT licence text had been claimed by the README since the
   first commit and was never in the repository.
+- **The suite runs on arm64**, on a native runner, with Python 3.12. The
+  project targets Raspberry Pi and had only ever been tested on x86_64, which
+  left out the difference most likely to bite: a wheel that does not exist for
+  the architecture, or a native library built differently.
 - **Static analysis with CodeQL**, on every pull request and weekly, with the
   `security-extended` queries. It covers what tests do not: a path built from
   YAML, a request assembled from config, a call with physical effect. Alerts go
