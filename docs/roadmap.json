@@ -1872,7 +1872,7 @@
       "does": "Acrescenta um job em runner arm64 à matriz, rodando a suíte na mesma arquitetura dos dispositivos alvo.",
       "adds": "Hoje o projeto é testado só em x86_64 e implantado em ARM — a diferença que mais importa é justamente a que ninguém exercita.",
       "milestone": "project-health",
-      "status": "ready",
+      "status": "done",
       "effort": "S",
       "portfolio_value": "high",
       "testable_now": true,
@@ -1892,9 +1892,11 @@
         "o teste do workflow passa a exigir o job de arm"
       ],
       "tests": [
-        "tests/test_ci_workflow.py exige um job em runner arm",
-        "o job roda verde no PR que o adiciona"
-      ]
+        "algum job do workflow roda em runner arm",
+        "a suíte inteira passa em arm64 (verificado na primeira execução)"
+      ],
+      "delivered_in": "aebed17",
+      "delivery_notes": "Runner arm64 nativo do GitHub (ubuntu-24.04-arm), disponível para repositório público, com Python 3.12. Resultado empírico da primeira execução: a suíte inteira passa em arm64 em 1m32s e nenhuma dependência precisou compilar da fonte — numpy, onnxruntime, scikit-learn, skl2onnx e opencv-python-headless todos tinham wheel para a arquitetura. Era exatamente a dúvida que a feature existia para responder, e a resposta agora é fato em vez de suposição. O teste do workflow pede 'algum job em arm', sem fixar o rótulo do runner: assim ele sobrevive ao GitHub renomear a imagem e ainda falha se a cobertura de ARM desaparecer."
     },
     {
       "id": "ci-dependency-audit",
