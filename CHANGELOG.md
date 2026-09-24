@@ -62,6 +62,13 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
   secrets in plain text in the config — rather than only how to report a
   vulnerability. The MIT licence text had been claimed by the README since the
   first commit and was never in the repository.
+- **A coverage floor on the core.** CI fails when `core/` and `application/`
+  fall below 95%, which is where they sit today at 97%. The floor is declared
+  once, in `pyproject.toml`, and a test requires both READMEs to cite the same
+  number — the point is that the figures printed in the documentation cannot rot
+  quietly. The adapters have no floor: covering absent hardware would be
+  theatre. Coverage moved out of the version matrix into its own job, so the
+  matrix runs faster and measures compatibility only.
 - **Dependency watching** — Dependabot for the agent, the AI service and the
   GitHub Actions themselves, weekly and grouped; plus `pip-audit` on a schedule
   in its own workflow, so an advisory published after the last commit is still
