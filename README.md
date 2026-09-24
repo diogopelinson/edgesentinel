@@ -66,6 +66,7 @@ pip install -e .[onnx]
 edgesentinel doctor                        # what your machine can and cannot do
 edgesentinel simulate --scenario stress    # the real pipeline, simulated sensors
 edgesentinel events                        # what it recorded
+edgesentinel incidents                     # what is still open
 ```
 
 ```
@@ -99,7 +100,9 @@ that sets the log level and reaches every action.
 
 **Incidents.** The first firing of a rule opens an incident; later firings join
 it; it closes on its own when the sensor recovers, with a margin that prevents
-flapping. Acknowledging stops the alerts and keeps the recording.
+flapping. `edgesentinel incidents` lists what is open, and `ack` stops the
+alerts repeating while the history keeps recording — the running agent picks
+that up on its next cycle, with no signal and no restart.
 → [Incidents and hysteresis](docs/explanation/incidents.md)
 
 **Local history.** Every firing becomes a row in SQLite, written by a queue and
@@ -238,7 +241,7 @@ pytest tests/ -q
 pytest tests/ --cov=core --cov=application --cov-report=term-missing
 ```
 
-**395 tests, zero failures**, none of which need hardware, a network or a
+**439 tests, zero failures**, none of which need hardware, a network or a
 clock.
 
 | Layer | Coverage |
@@ -276,14 +279,14 @@ edgesentinel/
 │   ├── store/                  # SQLite: events and incidents
 │   └── state/                  # cooldowns (in-memory; Redis later)
 ├── application/                # RuleEngine, Pipeline, MonitorLoop
-├── cli/                        # run / simulate / doctor / events
+├── cli/                        # run / simulate / doctor / events / incidents / ack / resolve
 ├── ai-inference-service/       # FastAPI with containerized YOLO/ONNX
 ├── scripts/                    # train_model.py
 ├── infra/docker/               # docker-compose, MediaMTX, OTel, Prometheus, Grafana
 ├── dashboards/                 # edgesentinel_dashboard_v2.json for Grafana
 ├── docs/                       # tutorials, how-to, reference, explanation, ADRs
 ├── data/                       # events.db — created at runtime, not tracked
-└── tests/                      # unit + integration (395 tests)
+└── tests/                      # unit + integration (439 tests)
 ```
 
 ## Design decisions
