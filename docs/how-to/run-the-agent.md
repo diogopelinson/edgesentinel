@@ -33,25 +33,34 @@ Both `run` and `simulate` record every fired rule in `data/events.db` (SQLite), 
 
 The same run also records incidents. The first firing of a rule opens one, every later firing joins it, and it closes when the sensor comes back past the resolution margin — the threshold minus 10%, or `resolve_threshold` when the rule names its own point. Events and incidents share the database, and each event carries the `incident_id` of the episode it belongs to.
 
-There is no `edgesentinel incidents` command yet — listing and acknowledging from the terminal is its own entry in [the roadmap](../roadmap.json). Until then SQLite answers directly:
+Three commands cover the cycle, and they work while the agent is running:
 
 ```bash
 # what is open right now
-sqlite3 data/events.db "SELECT incident_id, rule_name, state, \
-    datetime(opened_at, 'unixepoch', 'localtime') AS opened \
-    FROM incidents WHERE state != 'resolved' ORDER BY opened_at;"
+edgesentinel incidents
 
-# how many firings each episode grouped
-sqlite3 data/events.db "SELECT i.incident_id, i.rule_name, COUNT(e.event_id) AS firings \
-    FROM incidents i LEFT JOIN events e ON e.incident_id = i.incident_id \
-    GROUP BY i.incident_id ORDER BY firings DESC;"
+# everything, including what already resolved, from the last day
+edgesentinel incidents --all --last 24h
 
-# acknowledge one by hand: the history keeps recording, the actions stop repeating
-sqlite3 data/events.db "UPDATE incidents SET state = 'acknowledged', \
-    acknowledged_at = strftime('%s', 'now') WHERE incident_id = 7;"
+# someone is on it: stop repeating the actions, keep recording
+edgesentinel ack 7
+
+# close it by hand, without waiting for the reading to come back
+edgesentinel resolve 7
 ```
 
-The agent picks that acknowledgement up on the next evaluation — it reads the open incidents from the database every time instead of keeping them in memory, which is also why the lifecycle survives a restart with no loading step.
+```
+#  ESTADO     SEVERIDADE  REGRA  SENSOR    ABERTO               DURAÇÃO  DISPAROS
+1  TRIGGERED  WARNING     hot    cpu_temp  2026-09-23 23:49:50  5s              3
+
+1 incidente(s) aberto(s)
+```
+
+`DISPAROS` is how many firings that incident grouped. The agent picks an
+acknowledgement up on its next evaluation — no signal, no restart — because it
+reads the open incidents from the database every time instead of keeping them in
+memory, which is also why the lifecycle survives a restart. Every option is in
+the [command reference](../reference/cli.md).
 
 ## Query the history
 

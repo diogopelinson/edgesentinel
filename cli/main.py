@@ -20,6 +20,10 @@ def main() -> None:
         _cmd_doctor(args)
     elif args.command == "events":
         _cmd_events(args)
+    elif args.command == "incidents":
+        _cmd_incidents(args)
+    elif args.command in ("ack", "resolve"):
+        _cmd_transition(args)
 
 
 def _cmd_run(args) -> None:
@@ -64,6 +68,26 @@ def _cmd_events(args) -> None:
         limit=args.limit,
         as_json=args.json,
     ))
+
+
+def _cmd_incidents(args) -> None:
+    from cli.incidents import run_incidents
+    sys.exit(run_incidents(
+        config_path=args.config,
+        include_resolved=args.all,
+        severity=args.severity,
+        rule=args.rule,
+        window_seconds=args.last,
+        limit=args.limit,
+        as_json=args.json,
+    ))
+
+
+def _cmd_transition(args) -> None:
+    """ack e resolve diferem só no destino — o resto é o mesmo caminho."""
+    from cli.incidents import run_ack, run_resolve
+    comando = run_ack if args.command == "ack" else run_resolve
+    sys.exit(comando(config_path=args.config, incident_id=args.incident_id))
 
 
 def _duration_arg(text: str) -> float:
@@ -141,6 +165,46 @@ def _parse_args() -> argparse.Namespace:
     )
     ev_p.add_argument("--json", action="store_true", help="Uma linha JSON por evento")
     ev_p.add_argument("--log-level", "-l", choices=["DEBUG","INFO","WARNING","ERROR"], default="WARNING")
+
+    # --- subcomando: incidents ---
+    inc_p = sub.add_parser("incidents", help="Lista incidentes abertos")
+    inc_p.add_argument("--config", "-c", type=Path, default=Path("config.yaml"))
+    inc_p.add_argument(
+        "--all", "-a",
+        action="store_true",
+        help="Inclui os já resolvidos (o padrão mostra só os abertos)",
+    )
+    inc_p.add_argument(
+        "--severity", "-s",
+        type=str.lower,
+        choices=["info", "warning", "critical"],
+        help="Só incidentes desse nível",
+    )
+    inc_p.add_argument("--rule", "-r", help="Só incidentes dessa regra")
+    inc_p.add_argument(
+        "--last",
+        type=_duration_arg,
+        metavar="DURAÇÃO",
+        help="Abertos nesta janela até agora: 30m, 24h, 7d",
+    )
+    inc_p.add_argument(
+        "--limit", "-n",
+        type=_positive_int,
+        default=20,
+        help="Máximo de incidentes, mais recentes primeiro (padrão: 20)",
+    )
+    inc_p.add_argument("--json", action="store_true", help="Uma linha JSON por incidente")
+    inc_p.add_argument("--log-level", "-l", choices=["DEBUG","INFO","WARNING","ERROR"], default="WARNING")
+
+    # --- subcomandos: ack e resolve ---
+    for nome, ajuda in (
+        ("ack",     "Reconhece um incidente: para de repetir as ações, segue registrando"),
+        ("resolve", "Fecha um incidente à mão, sem esperar a leitura recuar"),
+    ):
+        p = sub.add_parser(nome, help=ajuda)
+        p.add_argument("incident_id", type=_positive_int, metavar="ID", help="Id do incidente")
+        p.add_argument("--config", "-c", type=Path, default=Path("config.yaml"))
+        p.add_argument("--log-level", "-l", choices=["DEBUG","INFO","WARNING","ERROR"], default="WARNING")
 
     return parser.parse_args()
 

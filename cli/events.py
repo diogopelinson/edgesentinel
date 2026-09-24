@@ -6,10 +6,9 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-import yaml
-
 from adapters.store.sqlite import SQLiteEventStore
-from config.loader import load
+from cli.render import COLORS, RESET
+from cli.store import StoreIndisponivel, store_path
 from core.entities import Event
 
 _UNIT_SECONDS = {"s": 1, "m": 60, "h": 3600, "d": 86400}
@@ -17,13 +16,6 @@ _DURATION     = re.compile(r"^(\d+)([smhd])$")
 
 _HEADERS     = ("QUANDO", "SEVERIDADE", "REGRA", "SENSOR", "VALOR", "SCORE")
 _RIGHT_ALIGN = {4, 5}      # colunas numéricas
-
-_COLORS = {
-    "critical": "\033[91m",
-    "warning":  "\033[93m",
-    "info":     "\033[96m",
-}
-_RESET = "\033[0m"
 
 
 def parse_duration(text: str) -> float:
@@ -55,19 +47,11 @@ def run_events(
     para o stderr, para que `--json | jq` nunca receba texto solto.
     """
     try:
-        config = load(config_path)
-    except (OSError, ValueError, yaml.YAMLError) as e:
-        _status(f"Erro: {e}")
+        path = store_path(config_path)
+    except StoreIndisponivel as e:
+        _status(str(e))
         return 1
 
-    if not config.event_store.enabled:
-        _status(
-            f"Event Store desabilitado em {config_path} — "
-            f"não há histórico para consultar."
-        )
-        return 1
-
-    path = Path(config.event_store.path)
     if not path.exists():
         # checado antes de abrir: sqlite3.connect criaria um arquivo vazio
         _status(f"Nenhum evento registrado ainda — {path} não existe.")
@@ -135,8 +119,8 @@ def format_table(events: list[Event], color: bool = False) -> str:
             for i, (cell, width) in enumerate(zip(cells, widths, strict=True))
         ]
         # cor aplicada depois do alinhamento: escape ANSI não ocupa coluna
-        if color and severity in _COLORS:
-            padded[1] = f"{_COLORS[severity]}{padded[1]}{_RESET}"
+        if color and severity in COLORS:
+            padded[1] = f"{COLORS[severity]}{padded[1]}{RESET}"
         return "  ".join(padded).rstrip()
 
     lines = [render(_HEADERS)]

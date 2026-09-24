@@ -166,6 +166,96 @@ class TestEventsPointAtIncidents:
         assert len(grouped) == 2
 
 
+class TestQuerying:
+    """
+    O operador precisa achar um incidente para reconhecê-lo. open_incidents()
+    serve ao engine — só os abertos, sem filtro; o terminal precisa de leitura
+    por id, de filtro e de contagem de disparos.
+    """
+
+    def test_reads_one_incident_by_id(self, store):
+        aberto = store.open_incident(make_incident())
+
+        lido = store.incident(aberto.incident_id)
+
+        assert lido == aberto
+
+    def test_an_unknown_id_reads_none(self, store):
+        """Quem chama decide o que dizer ao operador — o store não levanta."""
+        assert store.incident(9999) is None
+
+    def test_lists_only_open_incidents_by_default(self, store):
+        aberto = store.open_incident(make_incident(rule_name="aberta"))
+        resolvido = store.open_incident(make_incident(rule_name="resolvida"))
+        store.resolve_incident(resolvido.incident_id, at=time.time())
+
+        listados = [i.rule_name for i in store.incidents()]
+
+        assert listados == ["aberta"]
+        assert aberto.rule_name in listados
+
+    def test_include_resolved_lists_everything(self, store):
+        store.open_incident(make_incident(rule_name="aberta"))
+        resolvido = store.open_incident(make_incident(rule_name="resolvida"))
+        store.resolve_incident(resolvido.incident_id, at=time.time())
+
+        listados = {i.rule_name for i in store.incidents(include_resolved=True)}
+
+        assert listados == {"aberta", "resolvida"}
+
+    def test_filters_by_severity_and_by_rule(self, store):
+        store.open_incident(make_incident(rule_name="temp", severity="critical"))
+        store.open_incident(make_incident(rule_name="cpu", severity="warning"))
+
+        criticos = [i.rule_name for i in store.incidents(severity="critical")]
+        por_regra = [i.rule_name for i in store.incidents(rule_name="cpu")]
+
+        assert criticos == ["temp"]
+        assert por_regra == ["cpu"]
+
+    def test_filters_by_when_it_opened(self, store):
+        agora = time.time()
+        store.open_incident(make_incident(rule_name="antiga", opened_at=agora - 7200))
+        store.open_incident(make_incident(rule_name="recente", opened_at=agora - 60))
+
+        recentes = [i.rule_name for i in store.incidents(since=agora - 600)]
+
+        assert recentes == ["recente"]
+
+    def test_the_newest_come_first_and_the_limit_is_respected(self, store):
+        agora = time.time()
+        for minutos in (30, 20, 10):
+            store.open_incident(make_incident(rule_name=f"r{minutos}", opened_at=agora - minutos * 60))
+
+        listados = [i.rule_name for i in store.incidents(limit=2)]
+
+        assert listados == ["r10", "r20"]
+
+    def test_counts_the_firings_of_several_incidents_at_once(self, store):
+        """
+        Uma consulta, não uma por linha da tabela: a listagem do terminal
+        mostra a contagem de disparos de cada incidente.
+        """
+        um = store.open_incident(make_incident(rule_name="um"))
+        dois = store.open_incident(make_incident(rule_name="dois"))
+        for _ in range(3):
+            store.append(make_event(incident_id=um.incident_id))
+        store.append(make_event(incident_id=dois.incident_id))
+        assert store.flush()
+
+        contagem = store.firings([um.incident_id, dois.incident_id])
+
+        assert contagem == {um.incident_id: 3, dois.incident_id: 1}
+
+    def test_an_incident_with_no_firing_counts_zero(self, store):
+        sozinho = store.open_incident(make_incident())
+
+        assert store.firings([sozinho.incident_id]) == {sozinho.incident_id: 0}
+
+    def test_counting_nothing_asks_the_database_nothing(self, store):
+        assert store.firings([]) == {}
+
+
 class TestSchema:
 
     def test_the_schema_version_is_two(self, store, tmp_path):

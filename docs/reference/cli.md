@@ -1,7 +1,7 @@
 # Command line
 
 ```
-edgesentinel [--version] {run,simulate,doctor,events} [options]
+edgesentinel [--version] {run,simulate,doctor,events,incidents,ack,resolve} [options]
 ```
 
 Installing the package puts `edgesentinel` on the path. `python -m cli.main`
@@ -63,6 +63,90 @@ It covers the Python version, the optional dependencies, the config file and
 what it declares, which sensors are actually available on this machine, and
 which inference backends can be built. Paste its output into a bug report.
 
+## `incidents`
+
+Lists incidents. Open ones by default, newest first.
+
+```bash
+edgesentinel incidents
+edgesentinel incidents --all --last 24h
+edgesentinel incidents --severity critical --json
+```
+
+```
+#  ESTADO     SEVERIDADE  REGRA  SENSOR    ABERTO               DURAÇÃO  DISPAROS
+1  TRIGGERED  WARNING     hot    cpu_temp  2026-09-23 23:49:50  5s              3
+
+1 incidente(s) aberto(s)
+```
+
+| Option | Effect |
+|---|---|
+| `--all/-a` | Include resolved incidents |
+| `--severity/-s {info,warning,critical}` | Only that level |
+| `--rule/-r NAME` | Only that rule |
+| `--last DURATION` | Opened within this window: `30m`, `24h`, `7d` |
+| `--limit/-n N` | At most N incidents, newest first. Default 20 |
+| `--json` | One JSON object per line |
+
+`DURAÇÃO` is time since it opened for an open incident, and total lifetime for a
+resolved one. `DISPAROS` is how many firings the incident grouped — the column
+that shows what grouping bought.
+
+### The JSON record
+
+```json
+{"incident_id": 1, "state": "resolved", "severity": "warning", "rule_name": "hot", "sensor_id": "cpu_temp", "opened": "2026-09-23T23:49:50-03:00", "opened_at": 1790218190.0679913, "acknowledged_at": 1790218196.6063614, "resolved_at": 1790218200.237579, "duration_seconds": 10.17, "firings": 3}
+```
+
+## `ack`
+
+Acknowledges an incident: someone has seen it, so the actions stop repeating
+while the history keeps recording.
+
+```bash
+edgesentinel ack 7
+```
+
+```
+Incidente #1 de 'hot' [warning] reconhecido após 6s aberto.
+O agente para de repetir as ações dessa regra no próximo ciclo; os disparos continuam indo para o histórico.
+```
+
+The running agent needs no signal and no restart: it rereads the open incidents
+on every evaluation, so the change lands on its next cycle. That is also why
+this works while the agent is writing to the same database.
+
+Acknowledging twice is not an error — a script that acknowledges an id should
+not fail because someone got there first. Acknowledging a **resolved** incident
+is refused: the cycle does not go backwards, and the next firing opens a new
+incident instead.
+
+## `resolve`
+
+Closes an incident by hand, without waiting for the reading to come back past
+the margin.
+
+```bash
+edgesentinel resolve 7
+```
+
+An acknowledged incident can be resolved; resolving twice is not an error. After
+it is resolved, the next firing of that rule opens a different incident.
+
+### Exit codes for both
+
+| Code | Meaning |
+|---|---|
+| `0` | Done, or already in that state |
+| `1` | Bad config, disabled store, no database, unknown id, or a transition the cycle forbids |
+| `2` | An invalid option, such as `ack 0` |
+
+```
+$ edgesentinel ack 4242
+Erro: não existe incidente #4242. Use 'edgesentinel incidents' para ver os abertos.
+```
+
 ## `events`
 
 Reads the history. It never prunes and never creates the database.
@@ -106,6 +190,6 @@ broke" by the exit code alone.
 
 ## Not here yet
 
-There is no `incidents` command: listing, acknowledging and resolving from the
-terminal is `cli-incidents-ack` in [the roadmap](../roadmap.json). Until it
-lands, the SQL is in [Run the agent](../how-to/run-the-agent.md).
+No command exports the history to CSV, and none edits the config. Metrics for
+incidents — open by severity, time to acknowledge — are not exported either;
+that is `incident-metrics` in [the roadmap](../roadmap.json).
