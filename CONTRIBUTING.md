@@ -49,6 +49,13 @@ leaves is worth reading rather than silencing, and if a rule genuinely fights
 the design, turn it off in the config with the reason next to it — that is how
 `E501`, `BLE001` and `C408` came to be off.
 
+**A passing smoke check, if you touched the way the agent starts or stops.**
+`python scripts/smoke.py` boots the real process, waits for it to serve
+metrics and record a firing, then stops it with SIGTERM and requires a clean
+exit. It needs Linux and takes about fifteen seconds. CI runs it on every
+push; running it yourself is worth it whenever the change is in `cli/`,
+`application/monitor.py` or anything about shutdown.
+
 **A green pipeline.** Every push and pull request runs the suite on Ubuntu
 with Python 3.10 through 3.13, and on Windows with 3.10 — the version this
 project is developed on. The workflow installs the optional dependencies the

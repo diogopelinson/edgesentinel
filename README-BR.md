@@ -231,7 +231,7 @@ pytest tests/ -q
 pytest tests/ --cov=core --cov=application --cov-report=term-missing
 ```
 
-**378 testes, zero falhas**, e nenhum deles precisa de hardware, rede ou
+**380 testes, zero falhas**, e nenhum deles precisa de hardware, rede ou
 relógio.
 
 | Camada | Cobertura |
@@ -271,7 +271,7 @@ edgesentinel/
 ├── dashboards/                 # edgesentinel_dashboard_v2.json para Grafana
 ├── docs/                       # tutoriais, guias, referência, explicações, ADRs
 ├── data/                       # events.db — gerado em execução, fora do git
-└── tests/                      # unitários + integração (378 testes)
+└── tests/                      # unitários + integração (380 testes)
 ```
 
 ## Decisões de design

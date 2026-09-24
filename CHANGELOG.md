@@ -62,6 +62,15 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
   secrets in plain text in the config — rather than only how to report a
   vulnerability. The MIT licence text had been claimed by the README since the
   first commit and was never in the repository.
+- **A smoke check that boots the agent** (`scripts/smoke.py`, run by CI on every
+  push). It writes a config, starts the real process, waits for `/metrics` to
+  answer and for a rule to reach the database, then sends SIGTERM — what systemd
+  and Docker send — and requires exit code 0 with the history intact. Eight
+  checks in about fifteen seconds. The suite covers functions; this covers the
+  program, which is where the last two defects hid: `python -m cli.main`
+  printing nothing at all, and `simulate` reading every sensor twice per tick.
+  Mutation-checked, including one mutation it deliberately does not catch, with
+  the reason written in the script.
 - **ruff and mypy, enforced by CI.** `ruff check .` over the repository with
   E, W, F, UP, B, C4, SIM and RUF, and `mypy --strict` over `core/` and
   `application/`, both configured in `pyproject.toml` so the command in the

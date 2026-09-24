@@ -30,6 +30,7 @@ python -m venv .venv
 | Coverage | `.venv\Scripts\python.exe -m pytest tests/ --cov=core --cov=application --cov-report=term-missing` |
 | Lint | `.venv\Scripts\python.exe -m ruff check .` |
 | Types | `.venv\Scripts\python.exe -m mypy` |
+| Smoke, the whole process (Linux) | `python scripts/smoke.py` |
 | Run without hardware | `.venv\Scripts\python.exe -m cli.main simulate --scenario stress` |
 | Inspect the environment | `.venv\Scripts\python.exe -m cli.main doctor` |
 
@@ -144,8 +145,16 @@ library without stubs turns the check into noise. Three rules are off with
 reasons written next to them, `BLE001` among them: `except Exception` is
 deliberate here.
 
+A fourth job runs `scripts/smoke.py`: it boots the agent as a process with a
+config written on the spot, waits for `/metrics` to answer and for a rule to
+reach the database, then sends SIGTERM — the signal systemd and Docker use —
+and requires exit code 0. The suite covers functions; this covers the
+program, which is the class of defect that passes a green suite. It needs
+Linux (`/proc` and POSIX signals) and skips elsewhere.
+
 `tests/test_ci_workflow.py` guards that file, so changing the matrix, the
-install list or the lint gate without updating it fails the suite.
+install list, the lint gate or the smoke job without updating it fails the
+suite.
 
 ## Before opening a pull request
 

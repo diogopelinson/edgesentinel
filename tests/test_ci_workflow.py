@@ -123,6 +123,19 @@ def test_some_job_runs_ruff_and_mypy(workflow):
     assert "mypy" in tudo, "nenhum job roda o mypy"
 
 
+def test_some_job_boots_the_agent_as_a_process(workflow):
+    """
+    A suíte cobre funções; o smoke cobre o processo. Sem ele, a classe de
+    defeito que passa verde e só aparece rodando o comando não tem quem pegue —
+    foi assim com o 'python -m' que não executava nada.
+    """
+    tudo = "\n".join(comandos(workflow, job) for job in workflow["jobs"])
+    script = ROOT / "scripts" / "smoke.py"
+
+    assert "scripts/smoke.py" in tudo, "nenhum job roda a verificação de fumaça"
+    assert script.exists(), "o workflow chama um script que não existe"
+
+
 def test_the_readmes_point_at_this_workflow():
     """Badge apontando para workflow inexistente é pior que badge nenhum."""
     nome = WORKFLOW.name
