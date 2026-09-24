@@ -14,7 +14,9 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW = ROOT / ".github" / "workflows" / "tests.yml"
+WORKFLOWS = ROOT / ".github" / "workflows"
+WORKFLOW = WORKFLOWS / "tests.yml"
+DEPENDABOT = ROOT / ".github" / "dependabot.yml"
 
 
 def carrega() -> dict:
@@ -134,6 +136,56 @@ def test_some_job_boots_the_agent_as_a_process(workflow):
 
     assert "scripts/smoke.py" in tudo, "nenhum job roda a verificação de fumaça"
     assert script.exists(), "o workflow chama um script que não existe"
+
+
+class TestOutrosWorkflows:
+    """
+    Todo arquivo em .github/workflows é configuração que só executa no GitHub.
+    Um erro de YAML ali não aparece em nenhum comando local.
+    """
+
+    def test_every_workflow_file_parses(self):
+        arquivos = sorted(WORKFLOWS.glob("*.yml"))
+
+        assert len(arquivos) >= 2, f"esperava mais de um workflow, achei {arquivos}"
+        for arquivo in arquivos:
+            conteudo = yaml.safe_load(arquivo.read_text(encoding="utf-8"))
+            assert isinstance(conteudo, dict), f"{arquivo.name} não é um mapeamento"
+            assert conteudo.get("jobs"), f"{arquivo.name} não declara job"
+
+    def test_the_audit_never_gates_a_pull_request(self):
+        """
+        Auditoria é aviso, não portão: uma CVE numa dependência transitiva não
+        pode travar um pull request que não tem nada a ver com ela. Por isso o
+        gatilho é agendado e manual — e precisa continuar assim.
+        """
+        audit = yaml.safe_load((WORKFLOWS / "audit.yml").read_text(encoding="utf-8"))
+        gatilhos = audit.get("on") or audit[True]
+
+        assert "schedule" in gatilhos, "a auditoria não roda sozinha"
+        assert "workflow_dispatch" in gatilhos, "a auditoria não pode ser disparada à mão"
+        assert "push" not in gatilhos and "pull_request" not in gatilhos, (
+            "a auditoria passaria a bloquear pull request"
+        )
+
+    def test_dependabot_watches_the_code_and_the_actions(self):
+        """
+        As actions entram junto com o pip porque foi nelas que a primeira
+        defasagem apareceu: Node 20 depreciado sob checkout@v4.
+        """
+        config = yaml.safe_load(DEPENDABOT.read_text(encoding="utf-8"))
+        vigiados = {(u["package-ecosystem"], u["directory"]) for u in config["updates"]}
+
+        assert ("pip", "/") in vigiados
+        assert ("pip", "/ai-inference-service") in vigiados
+        assert ("github-actions", "/") in vigiados
+
+    def test_dependabot_groups_its_pull_requests(self):
+        """Pull request demais vira pull request ignorado."""
+        config = yaml.safe_load(DEPENDABOT.read_text(encoding="utf-8"))
+        sem_grupo = [u["directory"] for u in config["updates"] if not u.get("groups")]
+
+        assert sem_grupo == [], f"atualizações sem agrupamento: {sem_grupo}"
 
 
 def test_the_readmes_point_at_this_workflow():
