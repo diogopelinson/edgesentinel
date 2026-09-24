@@ -238,7 +238,7 @@ pytest tests/ -q
 pytest tests/ --cov=core --cov=application --cov-report=term-missing
 ```
 
-**384 tests, zero failures**, none of which need hardware, a network or a
+**390 tests, zero failures**, none of which need hardware, a network or a
 clock.
 
 | Layer | Coverage |
@@ -252,6 +252,11 @@ clock.
 | `cli/events` | 99% |
 | `config/loader` | 95% |
 | `adapters/store/sqlite` | 94% |
+
+CI gates `core/` and `application/` at **95%** — the floor is declared once,
+in `pyproject.toml`, and a test requires this page to cite the same number.
+The adapters have no floor: covering hardware that is not there would be
+theatre.
 
 Tests are written before the code, and a new test is checked by breaking the
 code it covers on purpose — a test that stays green against broken code is
@@ -278,7 +283,7 @@ edgesentinel/
 ├── dashboards/                 # edgesentinel_dashboard_v2.json for Grafana
 ├── docs/                       # tutorials, how-to, reference, explanation, ADRs
 ├── data/                       # events.db — created at runtime, not tracked
-└── tests/                      # unit + integration (384 tests)
+└── tests/                      # unit + integration (390 tests)
 ```
 
 ## Design decisions
