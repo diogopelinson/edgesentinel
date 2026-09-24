@@ -1837,7 +1837,7 @@
       "does": "Job que roda o `simulate` por alguns segundos no CI e verifica o que ele produziu: evento no banco, incidente aberto e /metrics respondendo.",
       "adds": "Cobre a lacuna entre 'os testes passam' e 'o programa funciona' — o processo inteiro, com sinal, encerramento e I/O reais, que nenhum teste unitário exercita.",
       "milestone": "project-health",
-      "status": "ready",
+      "status": "done",
       "effort": "M",
       "portfolio_value": "high",
       "testable_now": true,
@@ -1859,9 +1859,12 @@
         "falha se o processo não sair limpo no encerramento"
       ],
       "tests": [
-        "o próprio job é o teste; roda verde no PR que o adiciona",
-        "quebra proposital no simulate faz o job falhar (verificado uma vez)"
-      ]
+        "algum job do CI roda scripts/smoke.py, e o script existe",
+        "o smoke reprova sem o bloco __main__ (verificado por mutação)",
+        "o smoke reprova quando o exporter não sobe (verificado por mutação)"
+      ],
+      "delivered_in": "324ca16",
+      "delivery_notes": "Virou scripts/smoke.py, rodável à mão além do CI, e usa o 'run' de verdade em vez do simulate: no runner Linux o cpu_usage e o memory_usage estão disponíveis, e a regra dispara em qualquer leitura (memory_usage > 0) para a verificação ser do processo e não de um limiar. O encerramento é por SIGTERM, não Ctrl+C, porque é o que systemd e Docker enviam — e o MonitorLoop já tratava os dois. Oito verificações em cerca de quinze segundos. A checagem de mutação em Linux mostrou o limite do smoke e ele ficou escrito no script: remover o bloco __main__ e não subir o exporter fazem falhar, mas desligar o close() do store não — a thread de escrita drena em lote, então no instante do sinal a fila já está vazia. Essa garantia continua sendo do teste unitário que provoca a condição com uma escrita lenta."
     },
     {
       "id": "ci-arm-runner",
