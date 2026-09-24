@@ -66,6 +66,7 @@ pip install -e .[onnx]
 edgesentinel doctor                        # o que sua máquina consegue e o que não
 edgesentinel simulate --scenario stress    # o pipeline real, sensores simulados
 edgesentinel events                        # o que ele registrou
+edgesentinel incidents                     # o que continua aberto
 ```
 
 ```
@@ -98,7 +99,9 @@ modelo local. Cada regra carrega uma severidade — `info`, `warning`,
 
 **Incidentes.** O primeiro disparo de uma regra abre um incidente; os seguintes
 entram nele; ele fecha sozinho quando o sensor volta, com uma margem que evita
-flapping. Reconhecer para o alerta e mantém o registro.
+flapping. `edgesentinel incidents` lista os abertos, e `ack` para a repetição do
+alerta mantendo o registro — o agente em execução vê isso no ciclo seguinte, sem
+sinal e sem restart.
 
 **Histórico local.** Todo disparo vira uma linha em SQLite, gravada por uma
 fila e uma thread dedicada — o disco nunca atrasa uma leitura —, consultável no
@@ -231,7 +234,7 @@ pytest tests/ -q
 pytest tests/ --cov=core --cov=application --cov-report=term-missing
 ```
 
-**395 testes, zero falhas**, e nenhum deles precisa de hardware, rede ou
+**439 testes, zero falhas**, e nenhum deles precisa de hardware, rede ou
 relógio.
 
 | Camada | Cobertura |
@@ -269,14 +272,14 @@ edgesentinel/
 │   ├── store/                  # SQLite: eventos e incidentes
 │   └── state/                  # cooldown (em memória; Redis depois)
 ├── application/                # RuleEngine, Pipeline, MonitorLoop
-├── cli/                        # run / simulate / doctor / events
+├── cli/                        # run / simulate / doctor / events / incidents / ack / resolve
 ├── ai-inference-service/       # FastAPI com YOLO/ONNX containerizado
 ├── scripts/                    # train_model.py
 ├── infra/docker/               # docker-compose, MediaMTX, OTel, Prometheus, Grafana
 ├── dashboards/                 # edgesentinel_dashboard_v2.json para Grafana
 ├── docs/                       # tutoriais, guias, referência, explicações, ADRs
 ├── data/                       # events.db — gerado em execução, fora do git
-└── tests/                      # unitários + integração (395 testes)
+└── tests/                      # unitários + integração (439 testes)
 ```
 
 ## Decisões de design
