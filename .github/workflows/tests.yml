@@ -83,6 +83,31 @@ jobs:
           path: coverage.xml
           retention-days: 14
 
+  smoke:
+    name: smoke · the agent as a process
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      # sobe o agente de verdade, olha o que ele produziu e encerra por SIGTERM.
+      # A suíte cobre funções; isto cobre o processo — os dois defeitos que
+      # passaram por suíte verde eram desse tipo.
+      - name: Smoke
+        run: python scripts/smoke.py --seconds 30
+
   windows:
     name: windows · python 3.10
     runs-on: windows-latest
