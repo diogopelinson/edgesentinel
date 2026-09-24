@@ -141,3 +141,80 @@ def test_a_resolved_incident_is_followed_by_a_new_one(store):
 
     (second,) = store.open_incidents()
     assert second.incident_id != first.incident_id
+
+
+class TestOperatorFromTheTerminal:
+    """
+    O operador usa o terminal enquanto o agente roda. São dois processos sem
+    canal entre eles: o único acordo é o banco, e o engine relê os incidentes
+    abertos a cada avaliação. É o que estes testes provam de ponta a ponta,
+    com o comando de verdade e não com o store direto.
+    """
+
+    @pytest.fixture
+    def config(self, tmp_path):
+        """config.yaml apontando para o mesmo banco do agente."""
+        arquivo = tmp_path / "config.yaml"
+        arquivo.write_text(f"""
+edgesentinel:
+  sensors: []
+  rules: []
+  actions: []
+  event_store:
+    path: "{(tmp_path / 'events.db').as_posix()}"
+""", encoding="utf-8")
+        return arquivo
+
+    def test_acknowledging_from_the_cli_stops_the_actions_on_the_next_cycle(
+        self, store, config, capsys
+    ):
+        from cli.incidents import run_ack
+
+        action = MagicMock(spec=ActionPort)
+        engine = engine_with(store, action)
+
+        engine.evaluate(reading(85.0))
+        (incidente,) = store.open_incidents()
+        assert action.execute.call_count == 1
+
+        assert run_ack(config, incidente.incident_id) == 0
+        capsys.readouterr()
+
+        engine.evaluate(reading(90.0))           # a regra ainda casa
+
+        assert action.execute.call_count == 1, "a ação repetiu depois do ack"
+        assert store.query(limit=10)[0].incident_id == incidente.incident_id, (
+            "o disparo deixou de ir para o histórico"
+        )
+
+    def test_resolving_from_the_cli_lets_the_next_firing_open_another(
+        self, store, config, capsys
+    ):
+        from cli.incidents import run_resolve
+
+        engine = engine_with(store)
+        engine.evaluate(reading(85.0))
+        (primeiro,) = store.open_incidents()
+
+        assert run_resolve(config, primeiro.incident_id) == 0
+        capsys.readouterr()
+        assert store.open_incidents() == []
+
+        engine.evaluate(reading(86.0))
+        (segundo,) = store.open_incidents()
+
+        assert segundo.incident_id != primeiro.incident_id
+        assert store.incident(primeiro.incident_id).state is IncidentState.RESOLVED
+
+    def test_the_listing_shows_what_the_agent_opened(self, store, config, capsys):
+        from cli.incidents import run_incidents
+
+        engine = engine_with(store)
+        engine.evaluate(reading(85.0))
+        assert store.flush()
+
+        assert run_incidents(config) == 0
+
+        saida = capsys.readouterr().out
+        assert "temperatura_critica" in saida
+        assert "CRITICAL" in saida
