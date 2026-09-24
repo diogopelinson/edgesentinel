@@ -74,6 +74,14 @@ history — the failing test, the two commits, the mutation check and the filled
 in template — is in
 [Submit a pull request](docs/how-to/submit-a-pull-request.md).
 
+## What `main` will not accept
+
+The default branch carries a ruleset: it cannot be force-pushed and it cannot be
+deleted, and a set of CI checks has to be green — lint and types, the coverage
+floor, the smoke run, and the suite on Ubuntu 3.10, on arm64 and on Windows. The
+rules apply to everyone, the owner included: rulesets have no implicit admin
+bypass.
+
 ## Conventions
 
 **Commits are one file each.** It reads oddly at first and pays for itself on
