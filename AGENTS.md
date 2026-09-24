@@ -131,7 +131,8 @@ matters more than defending the original entry.
 ## Continuous integration
 
 `.github/workflows/tests.yml` runs the suite on every push and pull request:
-Ubuntu with Python 3.10, 3.11, 3.12 and 3.13, plus Windows with 3.10. It
+Ubuntu with Python 3.10, 3.11, 3.12 and 3.13, an arm64 runner with 3.12 —
+the architecture the project deploys to — plus Windows with 3.10. It
 checks out the full history on purpose — `tests/test_roadmap.py` verifies
 `delivered_in` against real commits and skips itself on a shallow clone — and
 installs `scikit-learn`, `skl2onnx`, `onnx` and `opencv-python-headless` so the

@@ -114,6 +114,19 @@ def test_every_job_that_runs_the_suite_installs_what_it_needs(workflow, job):
     assert faltando == [], f"job '{job}' não instala: {faltando}"
 
 
+def test_some_job_runs_on_the_target_architecture(workflow):
+    """
+    O alvo declarado do projeto é Raspberry Pi. Testar só em x86_64 deixa de
+    fora exatamente a diferença que importa: wheel inexistente para arm64,
+    biblioteca nativa compilada de outro jeito.
+    """
+    arquiteturas = [str(job.get("runs-on", "")) for job in workflow["jobs"].values()]
+
+    assert any("arm" in alvo for alvo in arquiteturas), (
+        f"nenhum job roda em arm64: {arquiteturas}"
+    )
+
+
 def test_some_job_runs_ruff_and_mypy(workflow):
     """
     O gate de estilo e de tipos só vale se rodar sozinho. Rodado à mão, ele é

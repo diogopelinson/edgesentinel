@@ -72,6 +72,35 @@ jobs:
       - name: Tests
         run: pytest tests/ -q
 
+  arm:
+    # A arquitetura de destino do projeto é ARM — Raspberry Pi. Até aqui tudo
+    # rodava só em x86_64, então a diferença que mais importa era a única que
+    # ninguém exercitava: wheel que não existe para arm64, numpy e onnxruntime
+    # compilados de outro jeito. Runner nativo, sem QEMU: emulação deixaria o
+    # job lento o bastante para ser ignorado.
+    name: ubuntu arm64 · python 3.12
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[onnx]"
+          pip install pytest pytest-mock pytest-cov tomli setuptools
+          pip install scikit-learn skl2onnx onnx opencv-python-headless
+
+      - name: Tests
+        run: pytest tests/ -q
+
   coverage:
     name: coverage · core floor
     runs-on: ubuntu-latest
