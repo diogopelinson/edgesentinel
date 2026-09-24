@@ -1,0 +1,40 @@
+name: audit
+
+# Agendado, não por push: uma CVE publicada depois do último commit precisa ser
+# vista mesmo que ninguém toque no repositório por semanas. E de propósito fora
+# do workflow de testes — auditoria vermelha avisa, não bloqueia pull request de
+# código que não tem nada a ver com a dependência.
+on:
+  schedule:
+    - cron: "17 6 * * 1"      # segunda-feira, 06:17 UTC
+  workflow_dispatch:
+
+jobs:
+  pip-audit:
+    name: vulnerabilidades conhecidas
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[onnx,otel,gpio]"
+          pip install pip-audit
+
+      # Audita o que uma instalação nova traz hoje. Sem lockfile, isto não diz
+      # o que está rodando num dispositivo instalado há meses: essa pergunta só
+      # tem resposta com versões travadas, que é assunto do empacotamento.
+      # O extra de câmera fica fora porque arrasta torch, e o tflite porque não
+      # tem wheel para toda versão — os dois entram pela análise do serviço.
+      - name: Agente
+        run: pip-audit --skip-editable
+
+      - name: AI Inference Service
+        run: pip-audit -r ai-inference-service/requirements.txt

@@ -11,6 +11,28 @@ Expect an acknowledgement within a week. This is a single-maintainer project,
 so fixes are best effort, and you will be told plainly if a report is going to
 take a while or is not going to be fixed.
 
+## How dependencies are watched
+
+Two automations, because a vulnerability usually arrives through a dependency
+rather than through this code.
+
+**Dependabot** opens a weekly pull request for Python dependencies — the agent
+and the AI service separately — and for the GitHub Actions the pipeline uses.
+Grouped and weekly on purpose: a flood of pull requests is a flood nobody
+reads. The actions are watched too, because that is where the first drift
+actually appeared, with `checkout@v4` still targeting a deprecated Node.
+
+**`pip-audit`** runs on a schedule (`.github/workflows/audit.yml`), not on
+push, so an advisory published after the last commit is still noticed. A failure
+there is a notice, not a gate: it does not block a pull request that has nothing
+to do with the dependency. It can also be triggered by hand from the Actions
+tab.
+
+One honest limit: without a lockfile, the audit tells you what a fresh install
+gets today, not what is running on a device installed months ago. Answering that
+needs pinned versions, which belongs to packaging (`packaging-pypi` in
+[the roadmap](docs/roadmap.json)).
+
 ## Supported versions
 
 The latest release on `main` is the only supported version. Fixes go into the

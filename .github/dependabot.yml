@@ -1,0 +1,41 @@
+version: 2
+
+# Semanal e agrupado de propósito: pull request demais vira pull request
+# ignorado, e o ponto de ter isso é a atualização ser lida.
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      python:
+        patterns: ["*"]
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: pip
+    directory: "/ai-inference-service"
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      ai-service:
+        patterns: ["*"]
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(deps)"
+
+  # as actions entram aqui porque foi nelas que a primeira defasagem apareceu:
+  # checkout@v4 e setup-python@v5 miravam Node 20 depois de depreciado
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci(deps)"
