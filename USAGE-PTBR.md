@@ -60,25 +60,32 @@ Tanto `run` quanto `simulate` gravam cada regra disparada em `data/events.db` (S
 
 A mesma execução também registra incidentes. O primeiro disparo de uma regra abre um, cada disparo seguinte entra nele, e ele fecha quando o sensor volta além da margem de resolução — o threshold menos 10%, ou o `resolve_threshold` quando a regra diz onde fecha. Eventos e incidentes ficam no mesmo banco, e cada evento carrega o `incident_id` do episódio a que pertence.
 
-Ainda não existe o comando `edgesentinel incidents` — listar e reconhecer pelo terminal é uma entrada própria no [docs/roadmap.json](docs/roadmap.json). Até lá, o SQLite responde direto:
+Três comandos cobrem o ciclo, e funcionam com o agente rodando:
 
 ```bash
 # o que está aberto agora
-sqlite3 data/events.db "SELECT incident_id, rule_name, state, \
-    datetime(opened_at, 'unixepoch', 'localtime') AS aberto_em \
-    FROM incidents WHERE state != 'resolved' ORDER BY opened_at;"
+edgesentinel incidents
 
-# quantos disparos cada episódio agrupou
-sqlite3 data/events.db "SELECT i.incident_id, i.rule_name, COUNT(e.event_id) AS disparos \
-    FROM incidents i LEFT JOIN events e ON e.incident_id = i.incident_id \
-    GROUP BY i.incident_id ORDER BY disparos DESC;"
+# tudo, inclusive o que já resolveu, do último dia
+edgesentinel incidents --all --last 24h
 
-# reconhecer um na mão: o histórico continua, as ações param de repetir
-sqlite3 data/events.db "UPDATE incidents SET state = 'acknowledged', \
-    acknowledged_at = strftime('%s', 'now') WHERE incident_id = 7;"
+# alguém assumiu: para de repetir as ações, segue registrando
+edgesentinel ack 7
+
+# fecha à mão, sem esperar a leitura recuar
+edgesentinel resolve 7
 ```
 
-O agente enxerga esse reconhecimento na avaliação seguinte — ele lê os incidentes abertos do banco a cada vez, em vez de guardar em memória, que é também o motivo de o ciclo sobreviver a um restart sem etapa de carga.
+```
+#  ESTADO     SEVERIDADE  REGRA  SENSOR    ABERTO               DURAÇÃO  DISPAROS
+1  TRIGGERED  WARNING     hot    cpu_temp  2026-09-23 23:55:32  1s              2
+
+1 incidente(s) aberto(s)
+```
+
+A coluna `DISPAROS` mostra quantos disparos aquele incidente agrupou, e `DURAÇÃO` conta desde a abertura enquanto ele está aberto. Reconhecer duas vezes não é erro; reconhecer um incidente já resolvido é recusado, porque o ciclo não volta atrás — o próximo disparo abre outro.
+
+O agente enxerga o reconhecimento na avaliação seguinte — ele lê os incidentes abertos do banco a cada vez, em vez de guardar em memória, que é também o motivo de o ciclo sobreviver a um restart sem etapa de carga. Com `--json`, cada linha é um objeto completo, pronto para `jq`.
 
 ### Consultar o histórico
 
