@@ -1902,7 +1902,7 @@
       "does": "Dependabot abrindo PR para dependências de pip e para as actions do próprio CI, mais `pip-audit` num job semanal contra o conjunto instalado.",
       "adds": "Fecha o ciclo que o SECURITY.md abre: o arquivo diz como reportar uma falha, isso avisa quando a falha chega pelas dependências.",
       "milestone": "project-health",
-      "status": "ready",
+      "status": "done",
       "effort": "S",
       "portfolio_value": "medium",
       "testable_now": true,
@@ -1924,9 +1924,13 @@
         "SECURITY.md cita o processo"
       ],
       "tests": [
-        "pip-audit falha contra uma versão sabidamente vulnerável (verificado uma vez)",
-        "o arquivo do Dependabot é YAML válido e cobre os dois ecossistemas"
-      ]
+        "todo arquivo em .github/workflows é YAML válido e declara job",
+        "a auditoria não tem gatilho de push nem de pull_request",
+        "o Dependabot vigia o agente, o serviço de IA e as actions",
+        "as atualizações do Dependabot são agrupadas"
+      ],
+      "delivered_in": "2d727bf",
+      "delivery_notes": "Dependabot cobre três frentes em vez de duas: o agente, o ai-inference-service (que tem requirements próprio) e as actions do CI. O pip-audit ficou em workflow próprio, agendado e disparável à mão, sem gatilho de push — auditoria vermelha avisa, não bloqueia PR de código que não tem relação com a dependência. Rodar o pip-audit antes de escrever o job expôs um limite que virou texto no SECURITY.md: auditar arquivo de requisitos com faixas abertas resolve para a versão mais nova e não encontra nada, enquanto o ambiente instalado desta máquina acusou quatro pacotes com advisory. Sem lockfile, a auditoria descreve instalação nova, não o dispositivo que roda há meses — pergunta que só o empacotamento responde. O extra de câmera ficou fora do job porque arrasta torch para uma execução semanal, e o tflite porque não tem wheel para toda versão."
     },
     {
       "id": "ci-code-scanning",
