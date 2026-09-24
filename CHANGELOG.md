@@ -62,6 +62,12 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
   secrets in plain text in the config — rather than only how to report a
   vulnerability. The MIT licence text had been claimed by the README since the
   first commit and was never in the repository.
+- **Static analysis with CodeQL**, on every pull request and weekly, with the
+  `security-extended` queries. It covers what tests do not: a path built from
+  YAML, a request assembled from config, a call with physical effect. Alerts go
+  to the Security tab and do not gate a merge yet — the volume has to be known
+  first. A test asserts the job keeps its `security-events: write` permission,
+  without which the analysis runs green and publishes nothing.
 - **A coverage floor on the core.** CI fails when `core/` and `application/`
   fall below 95%, which is where they sit today at 97%. The floor is declared
   once, in `pyproject.toml`, and a test requires both READMEs to cite the same
