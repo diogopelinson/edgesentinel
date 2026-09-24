@@ -11,6 +11,18 @@ Expect an acknowledgement within a week. This is a single-maintainer project,
 so fixes are best effort, and you will be told plainly if a report is going to
 take a while or is not going to be fixed.
 
+## Static analysis
+
+CodeQL runs on every pull request and on a weekly schedule
+(`.github/workflows/codeql.yml`), with the `security-extended` query set. The
+schedule matters as much as the pull request trigger: CodeQL's rules change
+without this code changing.
+
+It looks for the class of defect tests do not — a path built from YAML, a
+request assembled out of config values, a system call fed by external input.
+Alerts land in the repository's Security tab and do not block a merge while the
+volume is still unknown: a gate switched on too early is a gate switched off.
+
 ## How dependencies are watched
 
 Two automations, because a vulnerability usually arrives through a dependency
