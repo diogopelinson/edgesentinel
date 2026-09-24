@@ -152,9 +152,15 @@ and requires exit code 0. The suite covers functions; this covers the
 program, which is the class of defect that passes a green suite. It needs
 Linux (`/proc` and POSIX signals) and skips elsewhere.
 
+A fifth job measures coverage of `core/` and `application/` and fails below
+the floor in `[tool.coverage.report]` of `pyproject.toml` — declared there
+once, cited in both READMEs, and a test compares the two. The version matrix
+no longer measures coverage: a repository-wide average hides the drop that
+matters.
+
 `tests/test_ci_workflow.py` guards that file, so changing the matrix, the
-install list, the lint gate or the smoke job without updating it fails the
-suite.
+install list, the lint gate, the smoke job or the coverage floor without
+updating it fails the suite.
 
 ## Before opening a pull request
 
