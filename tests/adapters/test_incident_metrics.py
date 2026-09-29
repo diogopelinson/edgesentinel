@@ -371,6 +371,8 @@ class TestOTelIncidentMetrics:
 
     def collected(self, reader) -> dict[str, object]:
         dados = reader.get_metrics_data()
+        if dados is None:      # nenhum instrumento produziu ponto nesta coleta
+            return {}
         metricas = {}
         for resource in dados.resource_metrics:
             for scope in resource.scope_metrics:
@@ -413,11 +415,18 @@ class TestOTelIncidentMetrics:
         }
 
     def test_a_failing_store_does_not_break_the_collection(self, sdk):
-        _, reader = self.build(sdk, FakeIncidents(failing=True))
+        """
+        A callback roda dentro da coleta: se ela levantar, o SDK perde o
+        ciclo inteiro e as outras métricas vão embora junto. O contador é
+        alimentado aqui justamente para provar que o resto da coleta saiu.
+        """
+        exporter, reader = self.build(sdk, FakeIncidents(failing=True))
+        exporter.record_incident_opened(incident())
 
-        metrica = self.collected(reader)["edgesentinel.incidents.open"]
+        coletado = self.collected(reader)
 
-        assert list(metrica.data.data_points) == []
+        assert "edgesentinel.incidents.total" in coletado
+        assert "edgesentinel.incidents.open" not in coletado
 
     def test_without_a_store_the_gauge_is_not_created(self, sdk):
         _, reader = self.build(sdk, None)
