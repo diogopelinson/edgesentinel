@@ -932,6 +932,49 @@ class TestRuleEngineIncidentMetrics:
 
         assert "exporter fora do ar" in caplog.text
 
+    def test_a_broken_exporter_does_not_look_like_a_failed_open(
+        self, rule, incidents, caplog,
+    ):
+        """
+        Achado por mutação: contar a abertura vinha dentro do try que protege
+        a loja, e uma métrica que levantasse caía naquele except. O banco já
+        tinha aberto o incidente, mas o engine devolvia None — o evento
+        daquele disparo saía sem incident_id e o log dizia que a abertura
+        falhou. Contar é depois de abrir, não dentro.
+        """
+        store = MagicMock(spec=EventPort)
+        engine = RuleEngine(
+            rules=[rule], actions={}, events=store,
+            incidents=incidents, metrics=FakeMetrics(failing=True),
+        )
+
+        with caplog.at_level(logging.ERROR):
+            engine.evaluate(self.reading(85.0))
+
+        (incident,) = incidents.open_incidents()
+        assert store.append.call_args.args[0].incident_id == incident.incident_id
+        assert "Falha ao abrir incidente" not in caplog.text
+
+    def test_a_broken_exporter_does_not_look_like_a_failed_resolve(
+        self, rule, incidents, caplog,
+    ):
+        """
+        O mesmo no fechamento: o incidente fecha no banco e o log não pode
+        dizer que o fechamento falhou, ou o operador vai procurar um
+        incidente que já está resolvido.
+        """
+        engine = RuleEngine(
+            rules=[rule], actions={},
+            incidents=incidents, metrics=FakeMetrics(failing=True),
+        )
+        engine.evaluate(self.reading(85.0))
+
+        with caplog.at_level(logging.ERROR):
+            engine.evaluate(self.reading(70.0))
+
+        assert incidents.open_incidents() == []
+        assert "Falha ao resolver incidente" not in caplog.text
+
     def test_without_a_metrics_port_the_engine_works_the_same(self, rule, incidents):
         engine = RuleEngine(rules=[rule], actions={}, incidents=incidents)
 
