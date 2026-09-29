@@ -101,14 +101,22 @@ modelo local. Cada regra carrega uma severidade — `info`, `warning`,
 entram nele; ele fecha sozinho quando o sensor volta, com uma margem que evita
 flapping. `edgesentinel incidents` lista os abertos, e `ack` para a repetição do
 alerta mantendo o registro — o agente em execução vê isso no ciclo seguinte, sem
-sinal e sem restart.
+sinal e sem restart. O ciclo também aparece no painel do Grafana, como um gauge
+do que está aberto agora.
 
 **Histórico local.** Todo disparo vira uma linha em SQLite, gravada por uma
 fila e uma thread dedicada — o disco nunca atrasa uma leitura —, consultável no
 terminal com `edgesentinel events`.
 
 **OpenTelemetry.** O agente e o AI Service exportam para o mesmo Collector; o
-Prometheus coleta e o Grafana mostra dois serviços num painel só.
+Prometheus coleta e o Grafana mostra dois serviços num painel só. Valores de
+sensor, score de anomalia, latência do pipeline e o ciclo de incidentes saem
+com os mesmos nomes em qualquer um dos dois exportadores.
+
+**Incidentes no painel.** O `edgesentinel_incidents_open` é lido do banco na
+hora do scrape, não acumulado no processo — então está certo depois de um
+restart e se move quando alguém reconhece um incidente em outro terminal. É o
+que torna possível um painel de "aberto e ninguém olhou ainda".
 
 ## Arquitetura
 
@@ -234,7 +242,7 @@ pytest tests/ -q
 pytest tests/ --cov=core --cov=application --cov-report=term-missing
 ```
 
-**439 testes, zero falhas**, e nenhum deles precisa de hardware, rede ou
+**483 testes, zero falhas**, e nenhum deles precisa de hardware, rede ou
 relógio.
 
 | Camada | Cobertura |
@@ -279,7 +287,7 @@ edgesentinel/
 ├── dashboards/                 # edgesentinel_dashboard_v2.json para Grafana
 ├── docs/                       # tutoriais, guias, referência, explicações, ADRs
 ├── data/                       # events.db — gerado em execução, fora do git
-└── tests/                      # unitários + integração (439 testes)
+└── tests/                      # unitários + integração (483 testes)
 ```
 
 ## Decisões de design
