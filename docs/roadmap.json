@@ -606,7 +606,7 @@
       "does": "Exporta incidentes abertos por severidade e por regra como métricas OTel.",
       "adds": "Leva o ciclo de incidentes ao Grafana que já existe, em painel de estado atual em vez de contagem de disparos.",
       "milestone": "v0.4",
-      "status": "ready",
+      "status": "done",
       "effort": "S",
       "portfolio_value": "high",
       "testable_now": true,
@@ -616,11 +616,18 @@
       ],
       "unlocks": [],
       "touches": [
+        "core/ports.py",
+        "application/engine.py",
+        "adapters/exporter/incidents.py",
+        "adapters/exporter/metrics.py",
         "adapters/exporter/otel.py",
         "adapters/exporter/prometheus.py",
-        "dashboards/edgesentinel_dashboard_v2.json"
+        "cli/builder.py",
+        "cli/simulate.py",
+        "dashboards/edgesentinel_dashboard_v2.json",
+        "scripts/smoke.py"
       ],
-      "design_notes": "Gauge edgesentinel_incidents_open rotulado por severity e rule, counter edgesentinel_incidents_total por transição, histogram edgesentinel_incident_duration_seconds no fechamento. Precisa entrar nos dois exporters — Prometheus legacy e OTel — porque ambos seguem suportados.",
+      "design_notes": "Gauge edgesentinel_incidents_open rotulado por rule, severity e state, counter edgesentinel_incidents_total por transição e histogram edgesentinel_incident_duration_seconds no fechamento. Entrou nos dois exportadores — Prometheus legacy e OTel — porque ambos seguem suportados, com os mesmos nomes depois da conversão do reader.",
       "acceptance": [
         "as três métricas aparecem em /metrics",
         "gauge de abertos reflete o estado real após ack e resolve",
@@ -630,7 +637,9 @@
         "gauge incrementa ao abrir e decrementa ao resolver",
         "histogram registra duração no fechamento",
         "métricas presentes tanto no exporter OTel quanto no Prometheus"
-      ]
+      ],
+      "delivered_in": "0b56264",
+      "delivery_notes": "O plano dizia rotular o gauge por severity e rule; entrou também o state, e é o rótulo que paga: sum(edgesentinel_incidents_open{state=\"triggered\"}) é 'aberto e ninguém olhou ainda', o número que pede ação. `resolved` nunca aparece — resolvido não está aberto.\n\nA decisão que não estava no plano: o gauge é lido da loja a cada scrape, não acumulado no processo. Um contador em memória estaria errado depois de um restart, com o incidente ainda aberto no disco, e cego a um `edgesentinel ack`, que roda em outro processo. Virou um Collector no Prometheus e um observable gauge no OTel, sobre uma função de agrupamento só. Dois preços, ambos documentados: a série é esparsa, então painel que soma precisa de `or vector(0)`, e banco travado durante o scrape publica nada naquele scrape com o erro no log — levantar derrubaria todas as outras métricas do endpoint.\n\nO counter e o histogram ficaram de processo porque a tabela não serve: o prune() apaga incidente resolvido depois da retenção, e uma contagem derivada de SQL cairia a cada ciclo, o que o Prometheus lê como reset. A consequência é que `transition` só assume opened e resolved: reconhecer acontece na CLI, num processo sem endpoint de métricas. Um ack move o gauge no scrape seguinte e nunca chega ao counter. Fica registrado como limite, não como bug.\n\nA checagem de mutação achou um defeito real que não era desta feature: contabilizar a abertura estava dentro do try que protege a loja de incidentes, então uma métrica que levantasse caía naquele except — o banco já tinha aberto o incidente, o engine devolvia None, o evento saía sem incident_id e o log dizia que a abertura falhou. Remover a guarda deixava a suíte verde, e foi isso que expôs o problema. O try agora cobre a chamada da loja e só ela.\n\nTrês correções pré-existentes saíram da mesma área: disable_created_metrics() era descrito por um comentário e nunca chamado, desregistrar os collectors padrão não era idempotente, e o simulate nunca foi ligado a nada disso — o que importa mais ali, porque é como o dashboard é exercitado sem hardware.\n\nO smoke ganhou duas verificações e foi de oito para dez: o incidente aberto aparecendo no /metrics e a transição chegando ao counter. É a única cobertura da fiação builder -> exportador -> store. Provado, não assumido: tirar `incidents=events` do builder deixa os 483 testes unitários verdes e faz o smoke falhar em vinte segundos. tests/test_dashboard.py confere cada métrica citada pelos painéis contra os instrumentos declarados no código, então renomear uma não deixa mais um painel vazio em silêncio."
     },
     {
       "id": "detection-entity",
