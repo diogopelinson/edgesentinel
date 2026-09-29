@@ -517,6 +517,25 @@ Se aparecer "Successfully queried the Prometheus API", está funcionando.
 4. Seleciona o datasource Prometheus criado no passo anterior
 5. Clica **Import**
 
+O dashboard abre em duas linhas: **Visão geral**, com os números do momento, e
+**Incidentes**, que é a primeira para se olhar. Ela traz incidentes abertos,
+abertos que ninguém reconheceu, a duração P95 dos que fecharam, abertos por
+severidade ao longo do tempo, quais regras estão em alarme e a taxa de abertura
+e fechamento.
+
+Para ver isso com dado e sem hardware, roda o cenário `spike` por alguns
+minutos:
+
+```bash
+edgesentinel simulate --scenario spike --interval 1
+```
+
+Cada pico abre um incidente e o fecha quando a temperatura recua, então os
+painéis se preenchem com episódios reais. Reconhece um deles em outro terminal
+com `edgesentinel ack <id>` e observa o gráfico por severidade mover uma série
+de `triggered` para `acknowledged` no scrape seguinte — o agente não recebe
+sinal e não reinicia.
+
 **4. Queries PromQL úteis para criar painéis próprios**
 
 ```promql
@@ -537,7 +556,54 @@ histogram_quantile(0.95, rate(ai_service_inference_latency_ms_milliseconds_bucke
 
 # taxa de inferências por segundo por modelo
 rate(ai_service_inference_total[1m])
+
+# incidentes abertos agora, zero incluído -- o gauge é esparso, e o
+# 'or vector(0)' é o que faz "nenhum aberto" aparecer como 0 em vez de "No data"
+sum(edgesentinel_incidents_open) or vector(0)
+
+# abertos e ainda sem reconhecimento: o número que pede ação
+sum(edgesentinel_incidents_open{state="triggered"}) or vector(0)
+
+# abertos por severidade
+sum by (severity) (edgesentinel_incidents_open)
+
+# incidentes abertos por minuto
+sum(rate(edgesentinel_incidents_total{transition="opened"}[5m])) * 60
+
+# P95 da duração de um incidente, por severidade
+histogram_quantile(0.95, sum by (le, severity)
+  (rate(edgesentinel_incident_duration_seconds_bucket[30m])))
 ```
+
+### As três métricas de incidente
+
+| Métrica | Tipo | Rótulos | O que guarda |
+|---|---|---|---|
+| `edgesentinel_incidents_open` | Gauge | `rule`, `severity`, `state` | Incidentes abertos agora |
+| `edgesentinel_incidents_total` | Counter | `rule`, `severity`, `transition` | Transições que este agente fez |
+| `edgesentinel_incident_duration_seconds` | Histogram | `severity` | Quanto durou cada incidente fechado |
+
+As três não são construídas do mesmo jeito, e a diferença importa antes de
+montar um painel.
+
+O gauge é **lido do banco a cada scrape**, não acumulado no processo. Um
+contador em memória estaria errado nos dois casos que mais importam: depois de
+um restart, com o incidente ainda aberto no disco, e depois de um
+`edgesentinel ack`, que roda em outro processo. Ler a loja acerta os dois sem
+etapa de reconciliação. Em troca, a série é **esparsa**: sem nada aberto não há
+rótulo publicado, então um `sum()` devolve vazio em vez de zero — daí o
+`or vector(0)`.
+
+O rótulo `state` só assume `triggered` ou `acknowledged`; `resolved` nunca
+aparece, porque incidente resolvido não está aberto.
+
+O counter e o histogram são **de processo**, e isso é deliberado: derivá-los da
+tabela quebraria a monotonicidade, já que o `prune()` apaga incidente resolvido
+depois da retenção e o Prometheus leria cada ciclo de retenção como um reset de
+contador. O preço está dito: `transition` assume `opened` e `resolved` e nada
+mais, porque o reconhecimento acontece na CLI, num processo sem endpoint de
+métricas. Um `ack` move o gauge no scrape seguinte e nunca chega ao counter, e
+um `resolve` feito pelo terminal também não chega ao histogram.
 
 ---
 
@@ -699,6 +765,29 @@ O `SQLiteEventStore` implementa esta porta junto com a `EventPort`, então event
 Duas regras que qualquer implementação tem de manter, ambas cobertas por `tests/adapters/test_sqlite_incidents.py`: uma regra tem no máximo um incidente aberto — no SQLite isso é um índice único parcial, `UNIQUE (rule_name) WHERE state != 'resolved'`, então a abertura concorrente é recusada pelo armazenamento e não por um lock no engine — e `open_incidents()` devolve também os reconhecidos, porque reconhecer não fecha nada.
 
 Para passar uma implementação: `RuleEngine(..., incidents=meu_store)`. Sem nenhuma, o engine continua avaliando, alertando e registrando: os eventos vão para o histórico com o `incident_id` vazio. Uma loja que lança exceção recebe o mesmo tratamento, porque o incidente é contexto do alarme e não pode silenciá-lo.
+
+### `IncidentMetricsPort`
+
+```python
+class IncidentMetricsPort(ABC):
+    def record_incident_opened(self, incident: Incident) -> None: ...
+    def record_incident_resolved(
+        self, incident: Incident, duration_seconds: float,
+    ) -> None: ...
+```
+
+Contabiliza as transições do ciclo. Separada da `ExporterPort` porque lá se
+registra uma leitura e aqui um episódio — o engine recebe esta e não a outra,
+já que ele não tem leitura para exportar, só a transição que acabou de fazer.
+
+Não existe método para "quantos estão abertos agora". Esse número é estado
+atual e vem da loja de incidentes na hora da coleta, pela mesma razão que o
+engine relê os abertos a cada avaliação.
+
+Os dois exportadores implementam a porta. Para passar: `RuleEngine(...,
+metrics=meu_exportador)`. Sem nenhuma, o engine avalia igual. Uma
+implementação que lança exceção é logada e engolida, como as ações e o
+histórico: a métrica é observação do alarme, não o alarme.
 
 ### `SensorReading`
 
