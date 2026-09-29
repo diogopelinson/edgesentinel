@@ -188,8 +188,15 @@ Data goes to stdout and status messages to stderr, so `--json | jq` never
 receives loose text and "nothing matched" is distinguishable from "something
 broke" by the exit code alone.
 
+Both commands change what the dashboard shows, but not in the same way. An
+`ack` or a `resolve` moves `edgesentinel_incidents_open` on the agent's next
+scrape, because that gauge is read from the database rather than kept in the
+process. Neither reaches `edgesentinel_incidents_total`: the agent counts the
+transitions it performs, and these happen here, in a process with no metrics
+endpoint. See [Metrics](metrics.md).
+
 ## Not here yet
 
-No command exports the history to CSV, and none edits the config. Metrics for
-incidents — open by severity, time to acknowledge — are not exported either;
-that is `incident-metrics` in [the roadmap](../roadmap.json).
+No command exports the history to CSV, and none edits the config. Time to
+acknowledge is not a metric — the agent never performs the acknowledgement, so
+it has nothing to measure.
