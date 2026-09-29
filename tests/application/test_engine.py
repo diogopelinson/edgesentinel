@@ -11,7 +11,13 @@ import application.engine
 from core.rules import Rule, Condition, Severity
 from core.entities import SensorReading, ActionContext, Event
 from core.incidents import Incident, IncidentState
-from core.ports import ActionPort, EventPort, IncidentPort, StatePort
+from core.ports import (
+    ActionPort,
+    EventPort,
+    IncidentMetricsPort,
+    IncidentPort,
+    StatePort,
+)
 from application.engine import RuleEngine
 
 
@@ -768,5 +774,168 @@ class TestRuleEngineSurvivesAnIncidentStoreFailure:
 
         incidents.failing = None
         engine.evaluate(self.reading(69.0))
+
+        assert incidents.open_incidents() == []
+
+
+class FakeMetrics(IncidentMetricsPort):
+    """Registra o que foi contabilizado, para o teste comparar com o ciclo."""
+
+    def __init__(self, failing: bool = False) -> None:
+        self.opened: list[Incident] = []
+        self.resolved: list[tuple[Incident, float]] = []
+        self.failing = failing
+
+    def record_incident_opened(self, incident: Incident) -> None:
+        if self.failing:
+            raise RuntimeError("exporter fora do ar")
+        self.opened.append(incident)
+
+    def record_incident_resolved(self, incident: Incident, duration_seconds: float) -> None:
+        if self.failing:
+            raise RuntimeError("exporter fora do ar")
+        self.resolved.append((incident, duration_seconds))
+
+
+class TestRuleEngineIncidentMetrics:
+    """
+    O engine é quem vê as transições, então é dele que sai a contagem. O
+    gauge de abertos não passa por aqui: quem publica lê a loja no scrape,
+    porque o engine não guarda incidente em memória.
+    """
+
+    @pytest.fixture
+    def incidents(self) -> FakeIncidents:
+        return FakeIncidents()
+
+    @pytest.fixture
+    def metrics(self) -> FakeMetrics:
+        return FakeMetrics()
+
+    @pytest.fixture
+    def rule(self) -> Rule:
+        # resolve em 72.0 (80 menos 10%)
+        return Rule(
+            name="alta_temp",
+            condition=Condition(sensor_id="cpu_temp", operator=">", threshold=80.0),
+            action_ids=["log"],
+            severity=Severity.CRITICAL,
+        )
+
+    def engine_for(self, rule, incidents, metrics) -> RuleEngine:
+        return RuleEngine(
+            rules=[rule], actions={}, incidents=incidents, metrics=metrics,
+        )
+
+    def reading(self, value: float, timestamp: float | None = None) -> SensorReading:
+        reading = SensorReading("cpu_temp", "CPU Temperature", value, "°C")
+        if timestamp is None:
+            return reading
+        return dataclasses.replace(reading, timestamp=timestamp)
+
+    def test_opening_an_incident_is_counted(self, rule, incidents, metrics):
+        engine = self.engine_for(rule, incidents, metrics)
+
+        engine.evaluate(self.reading(85.0))
+
+        (contado,) = metrics.opened
+        assert contado.rule_name == "alta_temp"
+        assert contado.severity == "critical"
+
+    def test_a_firing_that_joins_an_incident_is_not_counted_again(
+        self, rule, incidents, metrics,
+    ):
+        """
+        O contador conta episódios, não disparos — o disparo já tem o seu em
+        edgesentinel_rule_triggered_total. Contar aqui de novo faria a taxa
+        de abertura seguir a frequência de leitura.
+        """
+        engine = self.engine_for(rule, incidents, metrics)
+
+        engine.evaluate(self.reading(85.0))
+        engine.evaluate(self.reading(90.0))
+
+        assert len(metrics.opened) == 1
+
+    def test_resolving_is_counted_with_the_duration(self, rule, incidents, metrics):
+        engine = self.engine_for(rule, incidents, metrics)
+
+        engine.evaluate(self.reading(85.0, timestamp=1_000.0))
+        engine.evaluate(self.reading(70.0, timestamp=1_045.0))
+
+        (contado, duracao) = metrics.resolved[0]
+        assert contado.rule_name == "alta_temp"
+        assert duracao == 45.0
+
+    def test_the_duration_is_measured_from_the_readings_not_the_clock(
+        self, rule, incidents, metrics,
+    ):
+        """
+        A duração do incidente é a distância entre as duas leituras que o
+        abriram e o fecharam. Medir com o relógio da avaliação daria o tempo
+        que o engine levou para rodar, não o que o problema durou.
+        """
+        engine = self.engine_for(rule, incidents, metrics)
+
+        engine.evaluate(self.reading(85.0, timestamp=5_000.0))
+        engine.evaluate(self.reading(60.0, timestamp=5_120.0))
+
+        assert metrics.resolved[0][1] == 120.0
+
+    def test_a_failed_resolve_is_not_counted(self, rule, metrics):
+        """
+        Contabilizar um fechamento que o banco recusou faria a soma de
+        abertos menos fechados divergir do que está no disco.
+        """
+        incidents = BrokenIncidents("resolve_incident")
+        engine = self.engine_for(rule, incidents, metrics)
+
+        engine.evaluate(self.reading(85.0))
+        engine.evaluate(self.reading(70.0))
+
+        assert metrics.resolved == []
+
+    def test_a_failed_open_is_not_counted(self, rule, metrics):
+        incidents = BrokenIncidents("open_incident")
+        engine = self.engine_for(rule, incidents, metrics)
+
+        engine.evaluate(self.reading(85.0))
+
+        assert metrics.opened == []
+
+    def test_a_broken_exporter_does_not_cost_the_alert(self, rule, incidents):
+        """
+        Métrica é observação do alarme, não o alarme. Um exportador que
+        levanta não pode impedir a ação de rodar nem o incidente de abrir.
+        """
+        log_action = make_action()
+        engine = RuleEngine(
+            rules=[rule],
+            actions={"log": log_action},
+            incidents=incidents,
+            metrics=FakeMetrics(failing=True),
+        )
+
+        engine.evaluate(self.reading(85.0))
+
+        log_action.execute.assert_called_once()
+        assert len(incidents.open_incidents()) == 1
+
+    def test_a_broken_exporter_is_logged(self, rule, incidents, caplog):
+        engine = RuleEngine(
+            rules=[rule], actions={}, incidents=incidents,
+            metrics=FakeMetrics(failing=True),
+        )
+
+        with caplog.at_level(logging.ERROR):
+            engine.evaluate(self.reading(85.0))
+
+        assert "exporter fora do ar" in caplog.text
+
+    def test_without_a_metrics_port_the_engine_works_the_same(self, rule, incidents):
+        engine = RuleEngine(rules=[rule], actions={}, incidents=incidents)
+
+        engine.evaluate(self.reading(85.0))
+        engine.evaluate(self.reading(70.0))
 
         assert incidents.open_incidents() == []
