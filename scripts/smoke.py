@@ -13,8 +13,9 @@ O que é verificado, em ordem:
   1. o agente sobe com um config escrito agora e não morre nos primeiros segundos
   2. o endpoint de métricas responde e traz a métrica de leitura de sensor
   3. uma regra dispara, o evento vai para o banco e um incidente é aberto
-  4. SIGTERM — o sinal que systemd e Docker enviam — encerra com código 0
-  5. o que estava na fila foi gravado antes de sair
+  4. o incidente aberto aparece no /metrics, com a regra e a severidade certas
+  5. SIGTERM — o sinal que systemd e Docker enviam — encerra com código 0
+  6. o que estava na fila foi gravado antes de sair
 
 Uso:
     python scripts/smoke.py [--seconds 20]
@@ -155,9 +156,24 @@ def roda(segundos: float) -> list[str]:
         levou = espera("incidente aberto", lambda: conta(banco, "incidents") > 0, segundos)
         relata(f"o disparo abriu um incidente ({levou:.1f}s)")
 
+        # 4. o gauge de abertos é lido do banco durante o scrape, então ele só
+        # aparece se a fiação builder -> exportador -> store estiver de pé.
+        # Nenhum teste unitário pega isso: cada peça passa sozinha e o
+        # exportador do processo real fica sem loja para consultar
+        alvo = 'edgesentinel_incidents_open{rule="smoke_memoria",severity="warning",state="triggered"} 1.0'
+        levou = espera("incidente no /metrics", lambda: alvo in metricas(porta), segundos)
+        relata(f"o incidente aberto aparece no /metrics ({levou:.1f}s)")
+
+        if "edgesentinel_incidents_total" not in metricas(porta):
+            raise Falha(
+                "o incidente abriu e edgesentinel_incidents_total não apareceu "
+                "— o engine não está contabilizando a transição."
+            )
+        relata("a abertura foi contabilizada em edgesentinel_incidents_total")
+
         antes = conta(banco, "events")
 
-        # 4. SIGTERM: o sinal de systemd e Docker, não Ctrl+C
+        # 5. SIGTERM: o sinal de systemd e Docker, não Ctrl+C
         processo.terminate()
         try:
             codigo = processo.wait(timeout=15)
@@ -172,7 +188,7 @@ def roda(segundos: float) -> list[str]:
             )
         relata("SIGTERM encerrou o agente com código 0")
 
-        # 5. nada se perdeu no caminho
+        # 6. nada se perdeu no caminho
         depois = conta(banco, "events")
         if depois < antes:
             raise Falha(f"o histórico encolheu no encerramento: {antes} -> {depois}")
