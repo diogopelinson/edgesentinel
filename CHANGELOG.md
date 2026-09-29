@@ -124,9 +124,59 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
   suite: fields present, dependency edges symmetric, no dependency in a later
   milestone, no cycles, status derived from the graph rather than asserted,
   and every `delivered_in` an actual commit.
+- **The incident lifecycle is now exported as metrics**, in both exporters,
+  under the same names either way: `edgesentinel_incidents_open`
+  (gauge, labelled `rule`, `severity`, `state`),
+  `edgesentinel_incidents_total` (counter, labelled `rule`, `severity`,
+  `transition`) and `edgesentinel_incident_duration_seconds` (histogram,
+  labelled `severity`, bucketed from five seconds to a day). The `state` label
+  is what makes "open, and nobody has acknowledged it" expressible, which is
+  the number that asks for action.
+- **The open-incident gauge is read from the database at scrape time**, not
+  accumulated in the process — a Prometheus collector on one side, an OTel
+  observable gauge on the other, both over the same grouping function. That is
+  the only way it can be right in the two cases that matter: after a restart,
+  when the incident is still open on disk, and after an `edgesentinel ack`,
+  which runs in a different process. The consequence is documented rather than
+  hidden: the series is sparse, so a panel summing it needs `or vector(0)`, and
+  a database that cannot be read during a scrape publishes nothing for that
+  scrape with the error in the agent log. The counter and the histogram stay in
+  the process because `prune()` deletes resolved incidents after the retention
+  window, and a count derived from the table would read as a counter reset every
+  cycle.
+- **`IncidentMetricsPort`** — the contract the engine counts through. It has no
+  "how many are open" method by design; that number is current state and comes
+  from the store. A raising implementation is logged and swallowed, like the
+  actions and the event store: the metric is an observation of the alarm, not
+  the alarm.
+- **An incidents row on the Grafana dashboard** — open incidents, open with no
+  acknowledgement, P95 duration, open by severity over time, which rules are in
+  alarm, and the rate of openings and closings. It sits directly under the
+  overview, because what is open right now is the first question an operator
+  asks. `tests/test_dashboard.py` checks every metric the panels cite against
+  the instruments the code declares, so renaming one can no longer leave a
+  panel silently empty.
 
 ### Fixed
 
+- **A raising exporter no longer looks like a failed incident store.** Counting
+  a transition sat inside the `try` that protects the store, so a metric that
+  raised landed in that handler: the database had already opened the incident,
+  but the engine returned `None`, the event for that firing was written with no
+  `incident_id`, and the log said the open had failed. The `try` now covers the
+  store call and nothing else. Found by the mutation check, not by reading the
+  code.
+- **`disable_created_metrics()` is actually called.** A comment in the
+  Prometheus exporter claimed it kept the `_created` series out of Grafana, and
+  nothing ever called it, so every counter has been publishing a companion
+  series all along.
+- **Unregistering the default collectors is idempotent.** In a process with two
+  exporters the second `start()` raised `KeyError` on a collector the first had
+  already removed.
+- **`simulate` gets the same incident metrics as `run`.** It assembles its own
+  objects instead of going through the builder, so none of this reached it —
+  which matters most there, since `simulate` is how the dashboard is exercised
+  without hardware.
 - **Exceptions raised while handling another now say so.** Nine sites gained
   `from None` or `from e` — `from None` where a missing optional package is
   re-raised with install instructions, `from e` in the remote adapter and the
