@@ -147,6 +147,40 @@ class IncidentPort(ABC):
         ...
 
 
+class IncidentMetricsPort(ABC):
+    """
+    Contrato para contabilizar as transições do ciclo de incidente.
+
+    Separado do ExporterPort de propósito: lá se registra uma leitura, aqui
+    um episódio. O engine recebe esta porta e não a outra — ele não tem
+    leitura para exportar, só a transição que acabou de fazer.
+
+    Não há método para 'quantos estão abertos agora'. Esse número é estado
+    atual e vem da loja de incidentes na hora da coleta, porque o engine não
+    guarda incidente em memória e um contador de processo estaria errado
+    depois de um restart.
+
+    Toda implementação é observação, nunca alarme: quem chama engole a falha.
+    """
+
+    @abstractmethod
+    def record_incident_opened(self, incident: Incident) -> None:
+        """Conta a abertura de um episódio — uma vez por incidente, não por disparo."""
+        ...
+
+    @abstractmethod
+    def record_incident_resolved(
+        self, incident: Incident, duration_seconds: float,
+    ) -> None:
+        """
+        Conta o fechamento e registra quanto durou.
+
+        A duração vem de fora porque o incidente recebido é o que estava
+        aberto: quem fecha é que conhece o instante da leitura que fechou.
+        """
+        ...
+
+
 class ExporterPort(ABC):
     """Contrato para qualquer exportador de métricas."""
 
