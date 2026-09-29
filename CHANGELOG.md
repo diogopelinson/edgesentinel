@@ -98,8 +98,10 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
 - **A smoke check that boots the agent** (`scripts/smoke.py`, run by CI on every
   push). It writes a config, starts the real process, waits for `/metrics` to
   answer and for a rule to reach the database, then sends SIGTERM — what systemd
-  and Docker send — and requires exit code 0 with the history intact. Eight
-  checks in about fifteen seconds. The suite covers functions; this covers the
+  and Docker send — and requires exit code 0 with the history intact. It also
+  requires the open incident to appear on `/metrics`, which is the only place
+  the builder-to-exporter-to-store wiring is exercised. Ten checks in about
+  fifteen seconds. The suite covers functions; this covers the
   program, which is where the last two defects hid: `python -m cli.main`
   printing nothing at all, and `simulate` reading every sensor twice per tick.
   Mutation-checked, including one mutation it deliberately does not catch, with
