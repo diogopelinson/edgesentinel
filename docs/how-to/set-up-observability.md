@@ -94,6 +94,25 @@ If you see "Successfully queried the Prometheus API", it's working.
 4. Under **Prometheus**, select the datasource from the previous step
 5. Click **Import**
 
+The dashboard opens on two rows: **Visão geral**, the current numbers, and
+**Incidentes**, which is the one to look at first. It carries open incidents,
+open incidents nobody has acknowledged, the P95 duration of the ones that
+closed, open incidents by severity over time, which rules are in alarm, and the
+rate of openings and closings.
+
+To see it with data and no hardware, run the agent against the `spike`
+scenario and leave it for a couple of minutes:
+
+```bash
+edgesentinel simulate --scenario spike --interval 1
+```
+
+Each spike opens an incident and closes it when the temperature falls back, so
+the incident panels fill in with real episodes. Acknowledge one from a second
+terminal with `edgesentinel ack <id>` and watch the severity graph move a
+series from `triggered` to `acknowledged` on the next scrape — the agent is not
+signalled and not restarted.
+
 **4. Useful PromQL queries for building custom panels**
 
 ```promql
@@ -114,6 +133,23 @@ histogram_quantile(0.95, rate(ai_service_inference_latency_ms_milliseconds_bucke
 
 # inference rate per second per model
 rate(ai_service_inference_total[1m])
+
+# open incidents, zero included -- the gauge is sparse, so the fallback
+# is what makes "none open" show as 0 instead of "No data"
+sum(edgesentinel_incidents_open) or vector(0)
+
+# open and not acknowledged: the number that asks for action
+sum(edgesentinel_incidents_open{state="triggered"}) or vector(0)
+
+# open by severity
+sum by (severity) (edgesentinel_incidents_open)
+
+# incidents opened per minute
+sum(rate(edgesentinel_incidents_total{transition="opened"}[5m])) * 60
+
+# p95 of incident duration, by severity
+histogram_quantile(0.95, sum by (le, severity)
+  (rate(edgesentinel_incident_duration_seconds_bucket[30m])))
 ```
 
 ---
