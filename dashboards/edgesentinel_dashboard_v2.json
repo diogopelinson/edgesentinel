@@ -1,7 +1,9 @@
 {
   "__inputs": [],
   "__requires": [],
-  "annotations": { "list": [] },
+  "annotations": {
+    "list": []
+  },
   "description": "edgesentinel — observabilidade de hardware, ML e câmeras em tempo real",
   "editable": true,
   "fiscalYearStartMonth": 0,
@@ -9,273 +11,911 @@
   "id": null,
   "links": [],
   "panels": [
-
-    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
-      "id": 100, "title": "Visão geral", "type": "row" },
-
     {
-      "id": 1, "type": "stat",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "title": "Visão geral",
+      "type": "row"
+    },
+    {
+      "id": 1,
+      "type": "stat",
       "title": "Anomaly Score — CPU Temp",
-      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
       "options": {
-        "colorMode": "background", "graphMode": "area",
+        "colorMode": "background",
+        "graphMode": "area",
         "justifyMode": "center",
-        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
         "textMode": "auto"
       },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 0.5 },
-              { "color": "red", "value": 0.8 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 0.8
+              }
             ]
           },
-          "unit": "percentunit", "min": 0, "max": 1, "decimals": 2
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "decimals": 2
         }
       },
-      "targets": [{
-        "expr": "edgesentinel_anomaly_score{sensor_id=\"cpu_temp\"}",
-        "legendFormat": "cpu_temp", "refId": "A"
-      }]
+      "targets": [
+        {
+          "expr": "edgesentinel_anomaly_score{sensor_id=\"cpu_temp\"}",
+          "legendFormat": "cpu_temp",
+          "refId": "A"
+        }
+      ]
     },
-
     {
-      "id": 2, "type": "stat",
+      "id": 2,
+      "type": "stat",
       "title": "Anomaly Score — CPU Usage",
-      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
       "options": {
-        "colorMode": "background", "graphMode": "area",
+        "colorMode": "background",
+        "graphMode": "area",
         "justifyMode": "center",
-        "reduceOptions": { "calcs": ["lastNotNull"] }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 0.5 },
-              { "color": "red", "value": 0.8 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 0.8
+              }
             ]
           },
-          "unit": "percentunit", "min": 0, "max": 1, "decimals": 2
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "decimals": 2
         }
       },
-      "targets": [{
-        "expr": "edgesentinel_anomaly_score{sensor_id=\"cpu_usage\"}",
-        "legendFormat": "cpu_usage", "refId": "A"
-      }]
+      "targets": [
+        {
+          "expr": "edgesentinel_anomaly_score{sensor_id=\"cpu_usage\"}",
+          "legendFormat": "cpu_usage",
+          "refId": "A"
+        }
+      ]
     },
-
     {
-      "id": 3, "type": "stat",
+      "id": 3,
+      "type": "stat",
       "title": "Anomalias detectadas (rate 5m)",
-      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
       "options": {
-        "colorMode": "background", "graphMode": "area",
+        "colorMode": "background",
+        "graphMode": "area",
         "justifyMode": "center",
-        "reduceOptions": { "calcs": ["lastNotNull"] }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 0.01 },
-              { "color": "red", "value": 0.05 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.01
+              },
+              {
+                "color": "red",
+                "value": 0.05
+              }
             ]
           },
-          "unit": "short", "decimals": 4
+          "unit": "short",
+          "decimals": 4
         }
       },
-      "targets": [{
-        "expr": "rate(edgesentinel_anomaly_total[5m])",
-        "legendFormat": "anomalias/s", "refId": "A"
-      }]
+      "targets": [
+        {
+          "expr": "rate(edgesentinel_anomaly_total[5m])",
+          "legendFormat": "anomalias/s",
+          "refId": "A"
+        }
+      ]
     },
-
     {
-      "id": 4, "type": "stat",
+      "id": 4,
+      "type": "stat",
       "title": "Inferências AI Service (5m)",
-      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
       "options": {
-        "colorMode": "background", "graphMode": "area",
+        "colorMode": "background",
+        "graphMode": "area",
         "justifyMode": "center",
-        "reduceOptions": { "calcs": ["lastNotNull"] }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
-            "steps": [{ "color": "blue", "value": null }]
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
           },
           "unit": "short"
         }
       },
-      "targets": [{
-        "expr": "increase(ai_service_inference_total[5m])",
-        "legendFormat": "inferências", "refId": "A"
-      }]
+      "targets": [
+        {
+          "expr": "increase(ai_service_inference_total[5m])",
+          "legendFormat": "inferências",
+          "refId": "A"
+        }
+      ]
     },
-
     {
-      "id": 5, "type": "stat",
+      "id": 5,
+      "type": "stat",
       "title": "Latência Pipeline P95",
-      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
       "options": {
-        "colorMode": "background", "graphMode": "area",
+        "colorMode": "background",
+        "graphMode": "area",
         "justifyMode": "center",
-        "reduceOptions": { "calcs": ["lastNotNull"] }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 0.1 },
-              { "color": "red", "value": 0.5 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.1
+              },
+              {
+                "color": "red",
+                "value": 0.5
+              }
             ]
           },
-          "unit": "s", "decimals": 3
+          "unit": "s",
+          "decimals": 3
         }
       },
-      "targets": [{
-        "expr": "histogram_quantile(0.95, rate(edgesentinel_pipeline_latency_seconds_bucket[5m]))",
-        "legendFormat": "P95", "refId": "A"
-      }]
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(edgesentinel_pipeline_latency_seconds_bucket[5m]))",
+          "legendFormat": "P95",
+          "refId": "A"
+        }
+      ]
     },
-
     {
-      "id": 6, "type": "stat",
+      "id": 6,
+      "type": "stat",
       "title": "Temperatura Atual",
-      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
       "options": {
-        "colorMode": "background", "graphMode": "area",
+        "colorMode": "background",
+        "graphMode": "area",
         "justifyMode": "center",
-        "reduceOptions": { "calcs": ["lastNotNull"] }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 65 },
-              { "color": "orange", "value": 75 },
-              { "color": "red", "value": 85 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 65
+              },
+              {
+                "color": "orange",
+                "value": 75
+              },
+              {
+                "color": "red",
+                "value": 85
+              }
             ]
           },
-          "unit": "celsius", "decimals": 1
+          "unit": "celsius",
+          "decimals": 1
         }
       },
-      "targets": [{
-        "expr": "edgesentinel_sensor_value{sensor_id=\"cpu_temp\"}",
-        "legendFormat": "CPU Temp", "refId": "A"
-      }]
+      "targets": [
+        {
+          "expr": "edgesentinel_sensor_value{sensor_id=\"cpu_temp\"}",
+          "legendFormat": "CPU Temp",
+          "refId": "A"
+        }
+      ]
     },
-
-    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
-      "id": 101, "title": "Sensores de hardware", "type": "row" },
-
     {
-      "id": 10, "type": "timeseries",
-      "title": "Temperatura CPU",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 105,
+      "title": "Incidentes",
+      "type": "row"
+    },
+    {
+      "id": 50,
+      "type": "stat",
+      "title": "Incidentes abertos",
+      "description": "Série esparsa: sem incidente aberto o agente não publica rótulo nenhum, por isso o 'or vector(0)'.",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 6
+      },
       "options": {
-        "legend": { "calcs": ["lastNotNull","max","min"], "displayMode": "table", "placement": "bottom" },
-        "tooltip": { "mode": "multi" }
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 3
+              }
+            ]
+          },
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(edgesentinel_incidents_open) or vector(0)",
+          "legendFormat": "abertos",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 51,
+      "type": "stat",
+      "title": "Ninguém reconheceu",
+      "description": "Abertos que ainda estão em 'triggered'. É o número que pede ação: um incidente reconhecido já tem alguém nele.",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 6
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 3
+              }
+            ]
+          },
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(edgesentinel_incidents_open{state=\"triggered\"}) or vector(0)",
+          "legendFormat": "sem ack",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 52,
+      "type": "stat",
+      "title": "Duração P95 (1h)",
+      "description": "Quantil sobre os incidentes que fecharam. Conta o que este processo fechou: um resolve feito pela CLI não entra no histograma.",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 6
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 300
+              },
+              {
+                "color": "red",
+                "value": 3600
+              }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(edgesentinel_incident_duration_seconds_bucket[1h])))",
+          "legendFormat": "P95",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 53,
+      "type": "timeseries",
+      "title": "Incidentes abertos por severidade",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
-            "lineWidth": 2, "fillOpacity": 15,
-            "gradientMode": "opacity", "showPoints": "auto",
-            "thresholdsStyle": { "mode": "line" }
+            "lineWidth": 2,
+            "fillOpacity": 25,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "lineInterpolation": "stepAfter",
+            "stacking": {
+              "mode": "normal"
+            }
+          },
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (severity) (edgesentinel_incidents_open)",
+          "legendFormat": "{{severity}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 54,
+      "type": "bargauge",
+      "title": "Abertos por regra",
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 0,
+        "y": 10
+      },
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "showUnfilled": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 3
+              }
+            ]
+          },
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (rule, state) (edgesentinel_incidents_open)",
+          "legendFormat": "{{rule}} ({{state}})",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 55,
+      "type": "timeseries",
+      "title": "Abertura e fechamento (por minuto)",
+      "description": "Transições que este agente fez. Um ack vem da CLI, em outro processo, e aparece só no gauge de abertos.",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "showPoints": "auto"
+          },
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (transition) (rate(edgesentinel_incidents_total[5m])) * 60",
+          "legendFormat": "{{transition}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 56,
+      "type": "timeseries",
+      "title": "Duração dos incidentes fechados — P50 / P95",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "showPoints": "auto"
+          },
+          "unit": "s"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le, severity) (rate(edgesentinel_incident_duration_seconds_bucket[30m])))",
+          "legendFormat": "P50 {{severity}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, severity) (rate(edgesentinel_incident_duration_seconds_bucket[30m])))",
+          "legendFormat": "P95 {{severity}}",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "id": 101,
+      "title": "Sensores de hardware",
+      "type": "row"
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Temperatura CPU",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 21
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "min"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "gradientMode": "opacity",
+            "showPoints": "auto",
+            "thresholdsStyle": {
+              "mode": "line"
+            }
           },
           "unit": "celsius",
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 75 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 75
+              }
             ]
           }
         }
       },
-      "targets": [{
-        "expr": "edgesentinel_sensor_value{sensor_id=\"cpu_temp\"}",
-        "legendFormat": "CPU Temperature", "refId": "A"
-      }]
+      "targets": [
+        {
+          "expr": "edgesentinel_sensor_value{sensor_id=\"cpu_temp\"}",
+          "legendFormat": "CPU Temperature",
+          "refId": "A"
+        }
+      ]
     },
-
     {
-      "id": 11, "type": "timeseries",
+      "id": 11,
+      "type": "timeseries",
       "title": "CPU Usage e Memória",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 21
+      },
       "options": {
-        "legend": { "calcs": ["lastNotNull","max","mean"], "displayMode": "table", "placement": "bottom" },
-        "tooltip": { "mode": "multi" }
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
       },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "lineWidth": 2, "fillOpacity": 10,
-            "gradientMode": "opacity", "showPoints": "auto"
+          "color": {
+            "mode": "palette-classic"
           },
-          "unit": "percent", "min": 0, "max": 100
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "showPoints": "auto"
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
         }
       },
       "targets": [
         {
           "expr": "edgesentinel_sensor_value{sensor_id=\"cpu_usage\"}",
-          "legendFormat": "CPU Usage %", "refId": "A"
+          "legendFormat": "CPU Usage %",
+          "refId": "A"
         },
         {
           "expr": "edgesentinel_sensor_value{sensor_id=\"memory_usage\"}",
-          "legendFormat": "Memory Usage %", "refId": "B"
+          "legendFormat": "Memory Usage %",
+          "refId": "B"
         }
       ]
     },
-
-    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
-      "id": 102, "title": "Detecção de anomalias (ML)", "type": "row" },
-
     {
-      "id": 20, "type": "timeseries",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 29
+      },
+      "id": 102,
+      "title": "Detecção de anomalias (ML)",
+      "type": "row"
+    },
+    {
+      "id": 20,
+      "type": "timeseries",
       "title": "Anomaly Score em tempo real",
-      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 15 },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 0,
+        "y": 30
+      },
       "options": {
-        "legend": { "calcs": ["lastNotNull","max"], "displayMode": "table", "placement": "bottom" },
-        "tooltip": { "mode": "multi" }
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
       },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "lineWidth": 2, "fillOpacity": 20,
-            "gradientMode": "scheme", "showPoints": "auto",
-            "thresholdsStyle": { "mode": "line+area" }
+          "color": {
+            "mode": "palette-classic"
           },
-          "unit": "percentunit", "min": 0, "max": 1,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "gradientMode": "scheme",
+            "showPoints": "auto",
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 0.5 },
-              { "color": "red", "value": 0.8 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 0.8
+              }
             ]
           }
         }
@@ -283,207 +923,378 @@
       "targets": [
         {
           "expr": "edgesentinel_anomaly_score{sensor_id=\"cpu_temp\"}",
-          "legendFormat": "cpu_temp", "refId": "A"
+          "legendFormat": "cpu_temp",
+          "refId": "A"
         },
         {
           "expr": "edgesentinel_anomaly_score{sensor_id=\"cpu_usage\"}",
-          "legendFormat": "cpu_usage", "refId": "B"
+          "legendFormat": "cpu_usage",
+          "refId": "B"
         },
         {
           "expr": "edgesentinel_anomaly_score{sensor_id=\"memory_usage\"}",
-          "legendFormat": "memory_usage", "refId": "C"
+          "legendFormat": "memory_usage",
+          "refId": "C"
         }
       ]
     },
-
     {
-      "id": 21, "type": "gauge",
+      "id": 21,
+      "type": "gauge",
       "title": "Anomaly Score — gauge",
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 15 },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 30
+      },
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
         "orientation": "auto",
         "showThresholdLabels": true,
         "showThresholdMarkers": true
       },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 0.5 },
-              { "color": "orange", "value": 0.7 },
-              { "color": "red", "value": 0.9 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.5
+              },
+              {
+                "color": "orange",
+                "value": 0.7
+              },
+              {
+                "color": "red",
+                "value": 0.9
+              }
             ]
           },
-          "unit": "percentunit", "min": 0, "max": 1
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
         }
       },
       "targets": [
         {
           "expr": "edgesentinel_anomaly_score{sensor_id=\"cpu_temp\"}",
-          "legendFormat": "cpu_temp", "refId": "A"
+          "legendFormat": "cpu_temp",
+          "refId": "A"
         },
         {
           "expr": "edgesentinel_anomaly_score{sensor_id=\"cpu_usage\"}",
-          "legendFormat": "cpu_usage", "refId": "B"
+          "legendFormat": "cpu_usage",
+          "refId": "B"
         }
       ]
     },
-
-    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
-      "id": 103, "title": "AI Inference Service", "type": "row" },
-
     {
-      "id": 30, "type": "timeseries",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 38
+      },
+      "id": 103,
+      "title": "AI Inference Service",
+      "type": "row"
+    },
+    {
+      "id": 30,
+      "type": "timeseries",
       "title": "Latência AI Service (P50 / P95 / P99)",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 39
+      },
       "options": {
-        "legend": { "calcs": ["lastNotNull","max","mean"], "displayMode": "table", "placement": "bottom" },
-        "tooltip": { "mode": "multi" }
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
       },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "lineWidth": 2, "fillOpacity": 12, "gradientMode": "opacity" },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "opacity"
+          },
           "unit": "ms"
         }
       },
       "targets": [
         {
           "expr": "histogram_quantile(0.50, rate(ai_service_inference_latency_ms_milliseconds_bucket[5m]))",
-          "legendFormat": "P50", "refId": "A"
+          "legendFormat": "P50",
+          "refId": "A"
         },
         {
           "expr": "histogram_quantile(0.95, rate(ai_service_inference_latency_ms_milliseconds_bucket[5m]))",
-          "legendFormat": "P95", "refId": "B"
+          "legendFormat": "P95",
+          "refId": "B"
         },
         {
           "expr": "histogram_quantile(0.99, rate(ai_service_inference_latency_ms_milliseconds_bucket[5m]))",
-          "legendFormat": "P99", "refId": "C"
+          "legendFormat": "P99",
+          "refId": "C"
         }
       ]
     },
-
     {
-      "id": 31, "type": "timeseries",
+      "id": 31,
+      "type": "timeseries",
       "title": "Taxa de inferências por segundo",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 39
+      },
       "options": {
-        "legend": { "calcs": ["lastNotNull","sum"], "displayMode": "table", "placement": "bottom" },
-        "tooltip": { "mode": "multi" }
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
       },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "lineWidth": 2, "fillOpacity": 20, "gradientMode": "opacity" },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "gradientMode": "opacity"
+          },
           "unit": "reqps"
         }
       },
-      "targets": [{
-        "expr": "rate(ai_service_inference_total[1m])",
-        "legendFormat": "{{model_id}}", "refId": "A"
-      }]
+      "targets": [
+        {
+          "expr": "rate(ai_service_inference_total[1m])",
+          "legendFormat": "{{model_id}}",
+          "refId": "A"
+        }
+      ]
     },
-
-    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
-      "id": 104, "title": "Latência do pipeline (edgesentinel)", "type": "row" },
-
     {
-      "id": 40, "type": "timeseries",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 47
+      },
+      "id": 104,
+      "title": "Latência do pipeline (edgesentinel)",
+      "type": "row"
+    },
+    {
+      "id": 40,
+      "type": "timeseries",
       "title": "Latência pipeline por sensor — P50 / P95",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 33 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 48
+      },
       "options": {
-        "legend": { "calcs": ["lastNotNull","max"], "displayMode": "table", "placement": "bottom" },
-        "tooltip": { "mode": "multi" }
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
       },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "lineWidth": 2, "fillOpacity": 10, "gradientMode": "opacity" },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "gradientMode": "opacity"
+          },
           "unit": "s"
         }
       },
       "targets": [
         {
           "expr": "histogram_quantile(0.50, rate(edgesentinel_pipeline_latency_seconds_bucket[5m]))",
-          "legendFormat": "P50 — {{sensor_id}}", "refId": "A"
+          "legendFormat": "P50 — {{sensor_id}}",
+          "refId": "A"
         },
         {
           "expr": "histogram_quantile(0.95, rate(edgesentinel_pipeline_latency_seconds_bucket[5m]))",
-          "legendFormat": "P95 — {{sensor_id}}", "refId": "B"
+          "legendFormat": "P95 — {{sensor_id}}",
+          "refId": "B"
         }
       ]
     },
-
     {
-      "id": 41, "type": "timeseries",
+      "id": 41,
+      "type": "timeseries",
       "title": "Latência de inferência edgesentinel — P50 / P95",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 33 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 48
+      },
       "options": {
-        "legend": { "calcs": ["lastNotNull","max"], "displayMode": "table", "placement": "bottom" },
-        "tooltip": { "mode": "multi" }
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
       },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "lineWidth": 2, "fillOpacity": 10, "gradientMode": "opacity" },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "gradientMode": "opacity"
+          },
           "unit": "s"
         }
       },
       "targets": [
         {
           "expr": "histogram_quantile(0.50, rate(edgesentinel_inference_latency_seconds_bucket[5m]))",
-          "legendFormat": "P50 — {{sensor_id}}", "refId": "A"
+          "legendFormat": "P50 — {{sensor_id}}",
+          "refId": "A"
         },
         {
           "expr": "histogram_quantile(0.95, rate(edgesentinel_inference_latency_seconds_bucket[5m]))",
-          "legendFormat": "P95 — {{sensor_id}}", "refId": "B"
+          "legendFormat": "P95 — {{sensor_id}}",
+          "refId": "B"
         }
       ]
     },
-
     {
-      "id": 42, "type": "bargauge",
+      "id": 42,
+      "type": "bargauge",
       "title": "Detecções AI Service (5m)",
-      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 41 },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 56
+      },
       "options": {
         "displayMode": "gradient",
         "orientation": "horizontal",
-        "reduceOptions": { "calcs": ["sum"] },
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ]
+        },
         "showUnfilled": true
       },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 10 },
-              { "color": "red", "value": 50 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 10
+              },
+              {
+                "color": "red",
+                "value": 50
+              }
             ]
           },
           "unit": "short"
         }
       },
-      "targets": [{
-        "expr": "increase(ai_service_detections_total[5m])",
-        "legendFormat": "{{model_id}}", "refId": "A"
-      }]
+      "targets": [
+        {
+          "expr": "increase(ai_service_detections_total[5m])",
+          "legendFormat": "{{model_id}}",
+          "refId": "A"
+        }
+      ]
     }
-
   ],
   "refresh": "5s",
   "schemaVersion": 38,
-  "tags": ["edgesentinel", "edge", "ml", "observability"],
-  "templating": { "list": [] },
-  "time": { "from": "now-15m", "to": "now" },
+  "tags": [
+    "edgesentinel",
+    "edge",
+    "ml",
+    "observability"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
   "timepicker": {},
   "timezone": "browser",
   "title": "edgesentinel",
   "uid": "edgesentinel-main-v2",
-  "version": 1
+  "version": 2
 }

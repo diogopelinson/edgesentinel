@@ -63,16 +63,24 @@ def run_simulate(scenario: str, config_path: str, interval: float) -> None:
         model_path=str(config.inference.model_path) if config.inference.model_path else None,
     ) if config.inference.enabled else None
 
-    exporter  = PrometheusExporter(port=config.exporter.port)
-    exporter.start()
-
+    # o store vem antes do exportador: o gauge de incidentes abertos é lido
+    # dele na hora do scrape, como no build_monitor
     from cli.builder import build_event_store
     events = build_event_store(config)
     if events is not None:
         events.start()
         print(f"Eventos : {config.event_store.path}\n")
 
-    engine = RuleEngine(rules=rules, actions=actions, events=events, incidents=events)
+    exporter = PrometheusExporter(port=config.exporter.port, incidents=events)
+    exporter.start()
+
+    engine = RuleEngine(
+        rules=rules,
+        actions=actions,
+        events=events,
+        incidents=events,
+        metrics=exporter,
+    )
     pipelines = [
         Pipeline(sensor=sensor, engine=engine, inference=inference, exporter=exporter)
         for sensor in s["sensors"]

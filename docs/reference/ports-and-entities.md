@@ -68,6 +68,24 @@ Two rules any implementation has to keep, both covered by `tests/adapters/test_s
 
 Pass an implementation with `RuleEngine(..., incidents=my_store)`. With none, the engine still evaluates, alerts and records: events are written with `incident_id` empty. It treats a raising store the same way, since an incident is context around an alarm and must not be able to silence it.
 
+## `IncidentMetricsPort`
+
+```python
+class IncidentMetricsPort(ABC):
+    def record_incident_opened(self, incident: Incident) -> None: ...
+    def record_incident_resolved(
+        self, incident: Incident, duration_seconds: float,
+    ) -> None: ...
+```
+
+Counts the lifecycle transitions. Separate from `ExporterPort` because that contract takes a sensor reading and this one takes an episode — the engine gets this port and not the other, since it has no reading to export, only the transition it just made.
+
+There is no method for "how many are open right now". That is current state, and it is read from the incident store at collection time, for the same reason the engine rereads the open incidents on every evaluation: a count kept in the process would be wrong after a restart and blind to an acknowledgement made by the CLI. Both exporters do that with the store they are given — a collector in `PrometheusExporter`, an observable gauge in `OTelExporter`.
+
+`record_incident_opened` is called once per episode, not once per firing. `duration_seconds` is a parameter rather than something read off the incident, because the incident handed over is the one that was open: whoever closes it knows the timestamp of the reading that closed it.
+
+Pass an implementation with `RuleEngine(..., metrics=my_exporter)`. With none, the engine evaluates exactly the same. An implementation that raises is logged and swallowed, like the actions and the history: the metric is an observation of the alarm, not the alarm.
+
 ## `SensorReading`
 
 ```python

@@ -102,7 +102,8 @@ that sets the log level and reaches every action.
 it; it closes on its own when the sensor recovers, with a margin that prevents
 flapping. `edgesentinel incidents` lists what is open, and `ack` stops the
 alerts repeating while the history keeps recording — the running agent picks
-that up on its next cycle, with no signal and no restart.
+that up on its next cycle, with no signal and no restart. The lifecycle is on
+the Grafana dashboard too, as a gauge of what is open right now.
 → [Incidents and hysteresis](docs/explanation/incidents.md)
 
 **Local history.** Every firing becomes a row in SQLite, written by a queue and
@@ -115,8 +116,17 @@ severity. An action that fails is logged and swallowed: the next one still
 runs.
 
 **OpenTelemetry.** The agent and the AI Service export to the same Collector;
-Prometheus scrapes and Grafana plots two services on one dashboard.
+Prometheus scrapes and Grafana plots two services on one dashboard. Sensor
+values, anomaly scores, pipeline latency and the incident lifecycle all go out
+under the same names whichever exporter is configured.
 → [Metrics reference](docs/reference/metrics.md)
+
+**Incidents on the dashboard.** `edgesentinel_incidents_open` is read from the
+database at scrape time, not accumulated in the process — so it is correct
+after a restart, and it moves when someone acknowledges an incident from
+another terminal. That is what makes a panel of "open, and nobody has looked
+yet" possible.
+→ [Set up Prometheus and Grafana](docs/how-to/set-up-observability.md)
 
 ## Architecture
 
@@ -241,7 +251,7 @@ pytest tests/ -q
 pytest tests/ --cov=core --cov=application --cov-report=term-missing
 ```
 
-**439 tests, zero failures**, none of which need hardware, a network or a
+**483 tests, zero failures**, none of which need hardware, a network or a
 clock.
 
 | Layer | Coverage |
@@ -286,7 +296,7 @@ edgesentinel/
 ├── dashboards/                 # edgesentinel_dashboard_v2.json for Grafana
 ├── docs/                       # tutorials, how-to, reference, explanation, ADRs
 ├── data/                       # events.db — created at runtime, not tracked
-└── tests/                      # unit + integration (439 tests)
+└── tests/                      # unit + integration (483 tests)
 ```
 
 ## Design decisions

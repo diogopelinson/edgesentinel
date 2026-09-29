@@ -1,12 +1,14 @@
 from __future__ import annotations
 import logging
-from core.ports import ExporterPort
+from core.ports import ExporterPort, IncidentMetricsPort, IncidentPort
 from core.entities import SensorReading, AnomalyScore
+from core.incidents import Incident
+from adapters.exporter.incidents import LABELS, read_open
 
 logger = logging.getLogger("edgesentinel.exporter.otel")
 
 
-class OTelExporter(ExporterPort):
+class OTelExporter(ExporterPort, IncidentMetricsPort):
     """
     Exportador OpenTelemetry — instrumenta uma vez, exporta pra qualquer backend.
 
@@ -24,11 +26,13 @@ class OTelExporter(ExporterPort):
         endpoint: str = "http://localhost:4317",
         port: int = 8000,
         service_name: str = "edgesentinel",
+        incidents: IncidentPort | None = None,
     ) -> None:
         self._backend      = backend
         self._endpoint     = endpoint
         self._port         = port
         self._service_name = service_name
+        self._incidents    = incidents
         self._started      = False
 
         # métricas — inicializadas em start()
@@ -37,6 +41,8 @@ class OTelExporter(ExporterPort):
         self._anomaly_counter  = None
         self._infer_histogram  = None
         self._pipeline_histogram = None
+        self._incident_counter   = None
+        self._incident_histogram = None
 
     def start(self) -> None:
         if self._started:
@@ -93,6 +99,22 @@ class OTelExporter(ExporterPort):
             if score.is_anomaly:
                 self._anomaly_counter.add(1, score_labels)
 
+    def record_incident_opened(self, incident: Incident) -> None:
+        self._count_transition(incident, "opened")
+
+    def record_incident_resolved(
+        self, incident: Incident, duration_seconds: float,
+    ) -> None:
+        self._count_transition(incident, "resolved")
+
+        if self._incident_histogram:
+            self._incident_histogram.record(
+                # NTP acertando o relógio para trás dá duração negativa, e
+                # ela corromperia o quantil de todos os incidentes seguintes
+                max(duration_seconds, 0.0),
+                {"severity": incident.severity},
+            )
+
     def record_inference_latency(self, model_id: str, duration: float) -> None:
         if self._infer_histogram:
             self._infer_histogram.record(duration, {"model_id": model_id})
@@ -102,6 +124,32 @@ class OTelExporter(ExporterPort):
             self._pipeline_histogram.record(duration, {"sensor_id": sensor_id})
 
     # --- métodos privados ---
+
+    def _count_transition(self, incident: Incident, transition: str) -> None:
+        if not self._incident_counter:
+            return
+
+        self._incident_counter.add(1, {
+            "rule":       incident.rule_name,
+            "severity":   incident.severity,
+            "transition": transition,
+        })
+
+    def _observe_open_incidents(self, options) -> list:
+        """
+        Callback do gauge observável: o SDK a chama na hora de exportar, e é
+        ali que a loja é lida. É o equivalente OTel do collector do
+        Prometheus, pela mesma razão — estado atual acumulado no processo
+        estaria errado depois de um restart.
+        """
+        from opentelemetry.metrics import Observation
+
+        assert self._incidents is not None      # o gauge só existe com loja
+
+        return [
+            Observation(quantidade, dict(zip(LABELS, rotulos, strict=True)))
+            for rotulos, quantidade in read_open(self._incidents).items()
+        ]
 
     def _build_readers(self) -> list:
         readers = []
@@ -183,3 +231,27 @@ class OTelExporter(ExporterPort):
             description="Duração do ciclo completo sense→infer→act",
             unit="s",
         )
+
+        self._incident_counter = meter.create_counter(
+            name="edgesentinel.incidents.total",
+            description="Transições do ciclo de incidente feitas por este agente",
+            unit="1",
+        )
+
+        # unit='s' é o que faz o reader do Prometheus publicar
+        # edgesentinel_incident_duration_seconds, igual ao exportador legado
+        self._incident_histogram = meter.create_histogram(
+            name="edgesentinel.incident.duration",
+            description="Quanto durou cada incidente fechado",
+            unit="s",
+        )
+
+        # sem loja de incidentes não há o que observar, e um gauge observável
+        # sem dado é uma série vazia publicada para sempre
+        if self._incidents is not None:
+            meter.create_observable_gauge(
+                name="edgesentinel.incidents.open",
+                description="Incidentes abertos agora, por regra, severidade e estado",
+                unit="1",
+                callbacks=[self._observe_open_incidents],
+            )

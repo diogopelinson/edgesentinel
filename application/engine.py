@@ -3,7 +3,13 @@ import logging
 from core.rules import Rule
 from core.entities import SensorReading, AnomalyScore, ActionContext, Event
 from core.incidents import Incident, IncidentState
-from core.ports import ActionPort, EventPort, IncidentPort, StatePort
+from core.ports import (
+    ActionPort,
+    EventPort,
+    IncidentMetricsPort,
+    IncidentPort,
+    StatePort,
+)
 
 logger = logging.getLogger("edgesentinel.engine")
 
@@ -28,12 +34,14 @@ class RuleEngine:
         events: EventPort | None = None,
         state: StatePort | None = None,
         incidents: IncidentPort | None = None,
+        metrics: IncidentMetricsPort | None = None,
     ) -> None:
         self._rules = rules
         self._actions = actions
         self._events = events
         self._state = state if state is not None else self._default_state()
         self._incidents = incidents
+        self._metrics = metrics
 
     @staticmethod
     def _default_state() -> StatePort:
@@ -155,6 +163,10 @@ class RuleEngine:
         if self._incidents is None:
             return None
 
+        # o try cobre a loja e só ela. Com a contagem dentro, uma métrica que
+        # levantasse cairia neste except: o engine desistiria de um incidente
+        # que o banco já abriu, o evento sairia sem incident_id e o log diria
+        # que a abertura falhou
         try:
             incident = self._incidents.open_incident(Incident(
                 rule_name=rule.name,
@@ -162,14 +174,16 @@ class RuleEngine:
                 severity=rule.severity.value,
                 opened_at=reading.timestamp,
             ))
-            logger.info(
-                f"Incidente #{incident.incident_id} aberto para '{rule.name}' "
-                f"[{rule.severity.value}]."
-            )
-            return incident
         except Exception as e:
             logger.error(f"Falha ao abrir incidente de '{rule.name}': {e}")
             return None
+
+        logger.info(
+            f"Incidente #{incident.incident_id} aberto para '{rule.name}' "
+            f"[{rule.severity.value}]."
+        )
+        self._count_opened(incident)
+        return incident
 
     def _resolve(self, rule: Rule, incident: Incident, reading: SensorReading) -> None:
         """Fecha o incidente quando a leitura recua além da margem."""
@@ -182,12 +196,48 @@ class RuleEngine:
 
         try:
             self._incidents.resolve_incident(incident.incident_id, at=reading.timestamp)
-            logger.info(
-                f"Incidente #{incident.incident_id} de '{rule.name}' resolvido "
-                f"em {reading.value}{reading.unit}."
-            )
         except Exception as e:
             logger.error(f"Falha ao resolver incidente de '{rule.name}': {e}")
+            return
+
+        logger.info(
+            f"Incidente #{incident.incident_id} de '{rule.name}' resolvido "
+            f"em {reading.value}{reading.unit}."
+        )
+        # a duração é a distância entre as duas leituras, não o tempo que a
+        # avaliação levou — é o que o problema durou
+        self._count_resolved(incident, reading.timestamp - incident.opened_at)
+
+    def _count_opened(self, incident: Incident) -> None:
+        """
+        Contabiliza a abertura do episódio. Uma vez por incidente: o disparo
+        que se junta a um incidente já aberto não passa por aqui, ou a taxa
+        de abertura seguiria o intervalo de leitura em vez do problema.
+        """
+        if self._metrics is None:
+            return
+
+        try:
+            self._metrics.record_incident_opened(incident)
+        except Exception as e:
+            logger.error(f"Falha ao contabilizar a abertura do incidente: {e}")
+
+    def _count_resolved(self, incident: Incident, duration_seconds: float) -> None:
+        """
+        Contabiliza o fechamento. Só é chamado depois de a loja aceitar o
+        fechamento: contar um resolve que falhou faria abertos-menos-fechados
+        divergir do que está no disco.
+
+        Falha aqui é logada e engolida, como nas ações e no histórico — a
+        métrica é observação do alarme, não o alarme.
+        """
+        if self._metrics is None:
+            return
+
+        try:
+            self._metrics.record_incident_resolved(incident, duration_seconds)
+        except Exception as e:
+            logger.error(f"Falha ao contabilizar o fechamento do incidente: {e}")
 
     def _record(
         self,

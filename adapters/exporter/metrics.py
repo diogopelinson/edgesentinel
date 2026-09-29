@@ -30,6 +30,29 @@ RULE_TRIGGERED_TOTAL = Counter(
     labelnames=["rule_name"],
 )
 
+# --- Métricas de incidente ---
+
+# O gauge de incidentes abertos não está aqui: ele é lido da loja a cada
+# scrape, pelo OpenIncidentsCollector. Estas duas são de processo porque
+# contador e histograma precisam ser monotônicos, e a tabela não garante isso
+# — prune() apaga incidente resolvido depois da retenção.
+
+INCIDENTS_TOTAL = Counter(
+    name="edgesentinel_incidents_total",
+    documentation="Transições do ciclo de incidente feitas por este agente",
+    labelnames=["rule", "severity", "transition"],
+)
+
+INCIDENT_DURATION = Histogram(
+    name="edgesentinel_incident_duration_seconds",
+    documentation="Quanto durou cada incidente fechado, em segundos",
+    labelnames=["severity"],
+    # de segundos a um dia: um pico de CPU fecha em segundos, um disco cheio
+    # que ninguém viu dura o fim de semana. Escala linear jogaria os dois
+    # extremos no mesmo bucket
+    buckets=[5.0, 15.0, 60.0, 300.0, 900.0, 3_600.0, 21_600.0, 86_400.0],
+)
+
 # --- Métricas de performance ---
 
 INFERENCE_LATENCY = Histogram(

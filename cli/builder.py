@@ -1,4 +1,5 @@
 import logging
+from typing import TYPE_CHECKING
 
 from config.schema import EdgeSentinelConfig
 from config.mapper import to_rules
@@ -8,7 +9,10 @@ from adapters.actions.registry import build_actions
 from application.engine import RuleEngine
 from application.pipeline import Pipeline
 from application.monitor import MonitorLoop
-from core.ports import EventPort
+from core.ports import IncidentPort
+
+if TYPE_CHECKING:
+    from adapters.store.sqlite import SQLiteEventStore
 
 logger = logging.getLogger("edgesentinel.builder")
 
@@ -20,12 +24,20 @@ def build_monitor(config: EdgeSentinelConfig) -> MonitorLoop:
     yolo      = _build_yolo(config)
     actions   = build_actions(config.actions)
     rules     = to_rules(config)
-    exporter  = _build_exporter(config)
     events    = build_event_store(config)
+    # o exportador vem depois do store de propósito: o gauge de incidentes
+    # abertos é lido dele na hora do scrape, não acumulado no processo
+    exporter  = _build_exporter(config, incidents=events)
 
     # o mesmo store atende os dois contratos: histórico e incidentes. Sem
     # event_store habilitado não há incidente — o ciclo precisa ser durável
-    engine = RuleEngine(rules=rules, actions=actions, events=events, incidents=events)
+    engine = RuleEngine(
+        rules=rules,
+        actions=actions,
+        events=events,
+        incidents=events,
+        metrics=exporter,
+    )
 
     sensor_pipelines = [
         Pipeline(sensor=s, engine=engine, inference=inference, exporter=exporter)
@@ -53,10 +65,15 @@ def build_monitor(config: EdgeSentinelConfig) -> MonitorLoop:
     )
 
 
-def build_event_store(config: EdgeSentinelConfig) -> EventPort | None:
+def build_event_store(config: EdgeSentinelConfig) -> "SQLiteEventStore | None":
     """
     Só constrói — não abre nada. Quem decide quando o banco é criado é o
     MonitorLoop (ou o simulate), junto com o resto do ciclo de vida.
+
+    O tipo é a classe, não EventPort: quem recebe precisa dos dois contratos
+    que ela atende — histórico e incidentes — e Python não tem interseção de
+    tipos para dizer isso. O import fica sob TYPE_CHECKING para o caminho com
+    o store desabilitado continuar não carregando o módulo.
     """
     if not config.event_store.enabled:
         logger.info("Event Store desabilitado no config.")
@@ -69,7 +86,9 @@ def build_event_store(config: EdgeSentinelConfig) -> EventPort | None:
     )
 
 
-def _build_exporter(config: EdgeSentinelConfig):
+def _build_exporter(
+    config: EdgeSentinelConfig, incidents: IncidentPort | None = None,
+):
     if config.exporter.use_otel:
         from adapters.exporter.otel import OTelExporter
         exporter = OTelExporter(
@@ -77,6 +96,7 @@ def _build_exporter(config: EdgeSentinelConfig):
             endpoint=config.exporter.endpoint,
             port=config.exporter.port,
             service_name=config.exporter.service_name,
+            incidents=incidents,
         )
         logger.info(
             f"OTel exporter configurado — backend={config.exporter.backend} "
@@ -85,7 +105,7 @@ def _build_exporter(config: EdgeSentinelConfig):
         return exporter
 
     from adapters.exporter.prometheus import PrometheusExporter
-    exporter = PrometheusExporter(port=config.exporter.port)
+    exporter = PrometheusExporter(port=config.exporter.port, incidents=incidents)
     logger.info("Prometheus exporter configurado (legacy).")
     return exporter
 

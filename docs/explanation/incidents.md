@@ -95,6 +95,19 @@ it a property of the storage. Two pipeline threads racing to open the same
 incident produce one row and one refusal, with no lock in the application. The
 refusal is logged and swallowed, like any other storage failure.
 
+**The dashboard gets the same answer as the engine.** A gauge of open
+incidents could have been a number the process keeps up to date, incremented on
+open and decremented on close. It is a query instead, run when Prometheus
+scrapes, which means it is right in the two cases an in-memory counter is
+wrong: right after a restart, and right after someone acknowledged an incident
+from the CLI. The cost is that the series is sparse — with nothing open there
+is no series, so a panel has to say `or vector(0)` — and that a scrape pays for
+one query on a table with a handful of open rows.
+
+That is the whole argument for keeping the state in one place: three consumers
+— the engine, the terminal and the dashboard — read the same rows and cannot
+disagree.
+
 ## What it does not do
 
 An incident is context around an alert and must never be able to silence one.
@@ -112,3 +125,4 @@ whole system exists to prevent.
 - [ADR 0006](../adr/0006-incidents-with-a-resolution-margin.md) — the decision, dated, with what was rejected.
 - [Watching an incident open and close](../tutorials/first-incident.md) — the same ideas, on a running agent.
 - [Database reference](../reference/database.md) — the tables, the index and retention.
+- [Metrics reference](../reference/metrics.md) — the three incident metrics and what each one can and cannot see.
