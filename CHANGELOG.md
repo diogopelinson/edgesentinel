@@ -126,6 +126,14 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
   suite: fields present, dependency edges symmetric, no dependency in a later
   milestone, no cycles, status derived from the graph rather than asserted,
   and every `delivered_in` an actual commit.
+- **A load average sensor** (`type: load_average`), with a `window` param of
+  `1`, `5` or `15` minutes — the three the kernel publishes. It gives a rule the
+  time window `cpu_usage` cannot express: one reading at 100% is a reading, load
+  4 held for fifteen minutes on a single-core device is a problem. Declaring it
+  more than once watches more than one window. An invalid window fails at
+  startup and does so from the sensor rather than from the registry, which is the
+  division the params design implies — the registry knows which param names a
+  sensor takes, and only the sensor knows which values mean anything.
 - **An uptime sensor** (`type: uptime`), reading seconds since boot from
   `/proc/uptime`. It makes an unexpected reboot detectable as a rule —
   `uptime < 300` fires on a device that came up in the last five minutes — and
