@@ -5,6 +5,8 @@ from typing import Any
 from adapters.sensors.base import BaseSensor
 from adapters.sensors.cpu_temp import CpuTemperatureSensor
 from adapters.sensors.cpu_usage import CpuUsageSensor
+from adapters.sensors.disk_temperature import DiskTemperatureSensor
+from adapters.sensors.disk_usage import DiskUsageSensor
 from adapters.sensors.load_average import LoadAverageSensor
 from adapters.sensors.memory_usage import MemoryUsageSensor
 from adapters.sensors.uptime import UptimeSensor
@@ -17,6 +19,8 @@ _REGISTRY: dict[str, type[BaseSensor]] = {
     "memory_usage":    MemoryUsageSensor,
     "uptime":          UptimeSensor,
     "load_average":    LoadAverageSensor,
+    "disk_usage":       DiskUsageSensor,
+    "disk_temperature": DiskTemperatureSensor,
 }
 
 
