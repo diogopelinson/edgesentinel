@@ -114,7 +114,9 @@ def _build_sensors(config: EdgeSentinelConfig):
     sensors = []
     for sensor_config in config.sensors:
         try:
-            sensor = build_sensor(sensor_config.id, sensor_config.type)
+            sensor = build_sensor(
+                sensor_config.id, sensor_config.type, sensor_config.params,
+            )
             if not sensor.is_available():
                 logger.warning(
                     f"Sensor '{sensor_config.id}' ({sensor_config.type}) "
