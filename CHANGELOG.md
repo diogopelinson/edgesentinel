@@ -126,6 +126,23 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
   suite: fields present, dependency edges symmetric, no dependency in a later
   milestone, no cycles, status derived from the graph rather than asserted,
   and every `delivered_in` an actual commit.
+- **Each sensor can declare its own parameters** in a free `params` block under
+  its YAML entry, passed to the sensor class as keyword arguments. The
+  constructor signature is the config schema: there is no second list of
+  accepted keys, and `config/schema.py` no longer has to know every sensor type
+  — which was the bottleneck behind every hardware sensor in the backlog, since
+  a BME280 needs a bus and an address and a GPIO input needs a pin and a pull.
+  A `**kwargs` signature means the class accepts anything, which is how the
+  generic I2C and SPI adapters will declare themselves. YAML types survive: an
+  `int` stays an `int`.
+- **A param the sensor does not accept fails at startup**, naming the sensor id
+  from the file, every unknown param at once rather than the first, and what
+  that sensor does accept. The check runs *before* the constructor, which for
+  hardware is the difference between finding the mistake and finding it after a
+  GPIO pin was claimed; and it is a check rather than a `try/except TypeError`
+  so that a bug inside a sensor's constructor is still reported as a bug rather
+  than as a config error that sends someone to edit correct YAML. `sensor_id` in
+  `params` and a `params` that is not a mapping each get their own message.
 - **The incident lifecycle is now exported as metrics**, in both exporters,
   under the same names either way: `edgesentinel_incidents_open`
   (gauge, labelled `rule`, `severity`, `state`),

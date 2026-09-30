@@ -647,6 +647,37 @@ Todo sensor segue três regras, e o exemplo acima já cumpre as três:
 
 Herdando de `adapters.sensors.base.BaseSensor` em vez de `SensorPort`, o `is_available()` já vem pronto: ele tenta um `read()` e devolve `False` se a leitura levantar exceção.
 
+### Registrando e configurando
+
+A classe entra no `_REGISTRY` de `adapters/sensors/registry.py`, com a chave que você quer escrever no `type` do YAML:
+
+```python
+_REGISTRY: dict[str, type[BaseSensor]] = {
+    "cpu_temperature":    CpuTemperatureSensor,
+    "cpu_usage":          CpuUsageSensor,
+    "memory_usage":       MemoryUsageSensor,
+    "motor_temperature":  SensorTemperaturaMotor,
+}
+```
+
+Tudo o que vem depois do `sensor_id` no construtor sai do bloco `params`:
+
+```yaml
+sensors:
+  - id: motor_esquerdo
+    type: motor_temperature
+    params:
+      device_path: /dev/motor0
+```
+
+**A assinatura do seu construtor é o schema de config.** Não existe segundo lugar para declarar o que o sensor aceita, e nada para manter em sincronia — um param que não casa com nenhum parâmetro falha no boot, com mensagem nomeando o sensor, os params errados e os aceitos. Dê um default que funcione a cada param e uma entrada de YAML com só `id` e `type` continua valendo.
+
+A checagem acontece antes de o construtor rodar, então um sensor que toma um pino ou abre um barramento ainda não fez isso quando o config está errado. Se o sensor realmente aceita chaves arbitrárias — um adapter I2C ou SPI genérico —, declare `**kwargs` e a checagem libera tudo.
+
+O `sensor_id` é o único nome que não se tira de `params`: ele vem do campo `id:`, e pedi-lo ali é recusado em vez de sombrear calado o id do sensor.
+
+Os tipos do YAML são preservados: `17` chega como `int`, `0.5` como `float`, `true` como `bool`. Lista e mapa aninhado passam intactos.
+
 ---
 
 ## 7. Criando sua própria ação

@@ -40,4 +40,44 @@ Every sensor follows three rules, and the example above already meets all of the
 
 Inheriting from `adapters.sensors.base.BaseSensor` instead of `SensorPort` gives you `is_available()` for free: it attempts a `read()` and returns `False` if the read raises.
 
+## Registering it
+
+Add the class to `_REGISTRY` in `adapters/sensors/registry.py`, keyed by the `type` you want to write in the YAML:
+
+```python
+_REGISTRY: dict[str, type[BaseSensor]] = {
+    "cpu_temperature":    CpuTemperatureSensor,
+    "cpu_usage":          CpuUsageSensor,
+    "memory_usage":       MemoryUsageSensor,
+    "motor_temperature":  MotorTemperatureSensor,
+}
+```
+
+## Configuring it
+
+Everything after `sensor_id` in your constructor comes from the `params` block:
+
+```yaml
+sensors:
+  - id: motor_esquerdo
+    type: motor_temperature
+    params:
+      device_path: /dev/motor0
+```
+
+**Your constructor signature is the config schema.** There is no second place
+to declare what the sensor accepts, and nothing to keep in sync — a param no
+parameter matches fails at startup with a message naming the sensor, the
+offending params and the accepted ones. Give every param a default that works,
+and a YAML entry with just `id` and `type` will keep working.
+
+The check happens before your constructor runs, so a sensor that claims a pin
+or opens a bus has not done it yet when the config is wrong. If your sensor
+genuinely takes arbitrary keys — a generic I2C or SPI adapter — declare
+`**kwargs` and the check lets everything through.
+
+`sensor_id` is the one name you cannot take from `params`: it comes from the
+`id:` field, and asking for it there is refused rather than silently shadowing
+the sensor's own id.
+
 ---

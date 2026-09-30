@@ -93,6 +93,13 @@ duas conexões alimente quantos consumidores forem necessários.
 **Inferência de IA em contêiner.** YOLO e modelos ONNX ficam num serviço
 separado: se ele cair, o monitoramento de sensores continua.
 
+**Sensores que declaram a própria configuração.** A assinatura do construtor
+de um sensor *é* o schema de config dele: o que ele aceita chega de um bloco
+`params` livre no YAML, então acrescentar um que precise de pino, mountpoint ou
+endereço I2C não toca em arquivo compartilhado. Um param que o sensor não
+aceita falha no boot — antes de o construtor rodar, então nada tomou pino
+ainda — nomeando o sensor e o que ele aceita.
+
 **Motor de regras.** Comparações numéricas e o operador `anomaly`, apoiado no
 modelo local. Cada regra carrega uma severidade — `info`, `warning`,
 `critical` — que define o nível de log e chega a todas as ações.
@@ -242,7 +249,7 @@ pytest tests/ -q
 pytest tests/ --cov=core --cov=application --cov-report=term-missing
 ```
 
-**483 testes, zero falhas**, e nenhum deles precisa de hardware, rede ou
+**508 testes, zero falhas**, e nenhum deles precisa de hardware, rede ou
 relógio.
 
 | Camada | Cobertura |
@@ -287,7 +294,7 @@ edgesentinel/
 ├── dashboards/                 # edgesentinel_dashboard_v2.json para Grafana
 ├── docs/                       # tutoriais, guias, referência, explicações, ADRs
 ├── data/                       # events.db — gerado em execução, fora do git
-└── tests/                      # unitários + integração (483 testes)
+└── tests/                      # unitários + integração (508 testes)
 ```
 
 ## Decisões de design

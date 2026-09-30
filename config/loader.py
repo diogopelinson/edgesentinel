@@ -56,8 +56,36 @@ def _parse_sensors(raw: list[dict]) -> list[SensorConfig]:
     for item in raw:
         if "id" not in item or "type" not in item:
             raise ValueError(f"Sensor inválido — precisa de 'id' e 'type': {item}")
-        result.append(SensorConfig(id=item["id"], type=item["type"]))
+        result.append(SensorConfig(
+            id=item["id"],
+            type=item["type"],
+            params=_parse_sensor_params(item),
+        ))
     return result
+
+
+def _parse_sensor_params(item: dict) -> dict:
+    """
+    O bloco params vai adiante sem inspeção: o que cada sensor aceita está na
+    assinatura da classe, e conferir isso aqui exigiria o loader conhecer
+    todos os tipos de sensor.
+
+    Só a forma é checada. `params: 5` sobreviveria até o ** em build_sensor e
+    falharia com um TypeError que não diz qual sensor do arquivo está errado.
+    """
+    params = item.get("params")
+
+    # `params:` sem nada embaixo vira None no YAML, e None não se desempacota
+    if params is None:
+        return {}
+
+    if not isinstance(params, dict):
+        raise ValueError(
+            f"Sensor '{item['id']}': 'params' precisa ser um mapa de "
+            f"chave: valor, não {type(params).__name__}."
+        )
+
+    return params
 
 
 def _parse_inference(raw: dict) -> InferenceConfig:

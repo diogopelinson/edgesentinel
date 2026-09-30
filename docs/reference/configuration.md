@@ -45,11 +45,53 @@ sensors:
 |---|---|---|
 | `id` | yes | The name rules refer to, and the `sensor_id` label on every metric and event |
 | `type` | yes | Which implementation to build: `cpu_temperature`, `cpu_usage`, `memory_usage` |
+| `params` | no | Arguments for that sensor's constructor. Defaults to none |
 
 A sensor whose hardware is missing is not an error: it reports itself
-unavailable, is skipped with a warning, and the rest of the agent runs. There
-is no per-sensor parameter block yet — a pin number or an I2C address has
-nowhere to go (`sensor-params` in [the roadmap](../roadmap.json)).
+unavailable, is skipped with a warning, and the rest of the agent runs.
+
+### `params`
+
+Anything under `params` is passed to the sensor class as keyword arguments. The
+three sensors above take none; a sensor that needs a pin, a mountpoint or an
+I2C address declares it in its constructor and receives it from here.
+
+```yaml
+sensors:
+  - id: motor_temp
+    type: motor_temperature
+    params:
+      device_path: /dev/motor0
+      escala: 0.1
+```
+
+The block is intentionally not validated against a schema. The authority on
+what a sensor accepts is that class's constructor signature, and keeping a
+second list here would mean this file had to know every sensor type — which is
+the coupling `params` exists to remove.
+
+YAML types are preserved: `17` arrives as an `int`, `0.5` as a `float`, `true`
+as a `bool`. Lists and nested mappings pass through unchanged.
+
+A param the sensor does not accept fails at startup, naming the sensor, every
+unknown param at once, and what that sensor does accept:
+
+```
+Sensor 'motor_temp' (type 'motor_temperature') não aceita 'escalar', 'pino' em params. Aceita: device_path, escala.
+```
+
+The check runs **before** the sensor is constructed. That matters for hardware:
+a sensor that claims a GPIO pin or opens an I2C bus in its constructor must not
+have done it by the time the error appears.
+
+Two things `params` will not take. `sensor_id` belongs to the `id:` field and
+is refused here, so it cannot be declared twice. And `params: 5` — anything
+that is not a mapping — is refused by the loader with the sensor named, rather
+than surviving until the arguments are unpacked and failing with a message that
+does not say which entry in the file is wrong.
+
+One mistyped param stops that sensor, not the boot: it is logged as an error,
+skipped, and the remaining sensors still come up.
 
 ## `rules`
 

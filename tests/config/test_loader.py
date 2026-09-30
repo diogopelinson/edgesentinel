@@ -421,3 +421,109 @@ def test_accepts_a_resolve_threshold_equal_to_the_threshold(tmp_path):
 """))
 
     assert config.rules[0].condition.resolve_threshold == 80.0
+
+
+# --- params por sensor ---
+
+CONFIG_COM_PARAMS = """
+edgesentinel:
+  sensors:
+    - id: disco
+      type: cpu_usage
+      params:
+        mountpoint: /var
+        limite: 90
+        fator: 0.5
+        ativo: true
+    - id: simples
+      type: cpu_usage
+  rules:
+    - name: r
+      condition:
+        sensor_id: disco
+        operator: ">"
+        threshold: 1.0
+      actions: [log]
+  actions:
+    - id: log
+      type: log
+"""
+
+
+def escreve(tmp_path, texto):
+    arquivo = tmp_path / "config.yaml"
+    arquivo.write_text(texto, encoding="utf-8")
+    return arquivo
+
+
+class TestSensorParams:
+    """
+    O bloco params é livre de propósito: o schema não pode conhecer cada tipo
+    de sensor de antemão, ou cada sensor novo passa por config/schema.py.
+    """
+
+    def test_params_are_parsed(self, tmp_path):
+        config = load(escreve(tmp_path, CONFIG_COM_PARAMS))
+
+        disco = config.sensors[0]
+        assert disco.params["mountpoint"] == "/var"
+
+    def test_the_yaml_types_are_preserved(self, tmp_path):
+        """
+        O YAML já distingue int, float, bool e str. O loader não pode
+        normalizar para string: um sensor que espera um pino recebe 17, não
+        "17".
+        """
+        disco = load(escreve(tmp_path, CONFIG_COM_PARAMS)).sensors[0]
+
+        assert disco.params["limite"] == 90
+        assert isinstance(disco.params["limite"], int)
+        assert disco.params["fator"] == 0.5
+        assert isinstance(disco.params["fator"], float)
+        assert disco.params["ativo"] is True
+        assert isinstance(disco.params["mountpoint"], str)
+
+    def test_a_sensor_without_params_gets_an_empty_dict(self, tmp_path):
+        """
+        Nunca None: quem consome faz **params e um None ali seria TypeError.
+        """
+        simples = load(escreve(tmp_path, CONFIG_COM_PARAMS)).sensors[1]
+
+        assert simples.params == {}
+
+    def test_an_explicit_null_is_an_empty_dict_too(self, tmp_path):
+        texto = CONFIG_COM_PARAMS.replace(
+            "      params:\n        mountpoint: /var\n        limite: 90\n"
+            "        fator: 0.5\n        ativo: true\n",
+            "      params:\n",
+        )
+
+        assert load(escreve(tmp_path, texto)).sensors[0].params == {}
+
+    def test_nested_structures_pass_through(self, tmp_path):
+        texto = CONFIG_COM_PARAMS.replace(
+            "        ativo: true\n",
+            "        ativo: true\n        faixas: [1, 2, 3]\n"
+            "        limites:\n          alto: 9\n",
+        )
+
+        params = load(escreve(tmp_path, texto)).sensors[0].params
+        assert params["faixas"] == [1, 2, 3]
+        assert params["limites"] == {"alto": 9}
+
+    def test_params_that_is_not_a_mapping_is_refused_naming_the_sensor(self, tmp_path):
+        """
+        `params: 5` explodiria mais tarde no ** com um TypeError que não diz
+        qual sensor do YAML está errado.
+        """
+        texto = CONFIG_COM_PARAMS.replace(
+            "      params:\n        mountpoint: /var\n        limite: 90\n"
+            "        fator: 0.5\n        ativo: true\n",
+            "      params: 5\n",
+        )
+
+        with pytest.raises(ValueError) as erro:
+            load(escreve(tmp_path, texto))
+
+        assert "disco" in str(erro.value)
+        assert "params" in str(erro.value)
