@@ -214,3 +214,55 @@ class TestParamDesconhecido:
             build_sensor("s1", "quebrado", {"fator": 2})
 
         assert "aqui dentro" in str(erro.value)
+
+
+class TestOBuilderRepassaOsParams:
+    """
+    Achado por mutação: apagar os params da chamada em cli/builder.py deixava
+    os 250 testes verdes. O caminho do YAML ao construtor tem duas pontes — o
+    loader e o builder — e testar só o registry cobre uma.
+    """
+
+    def test_the_builder_hands_the_params_to_the_sensor(self, registra):
+        from cli.builder import _build_sensors
+        from config.schema import EdgeSentinelConfig, SensorConfig
+
+        config = EdgeSentinelConfig(
+            sensors=[SensorConfig(
+                id="estufa", type="com_params", params={"pino": 23, "escala": 2.0},
+            )],
+            rules=[],
+            actions=[],
+        )
+
+        (sensor,) = _build_sensors(config)
+
+        assert sensor.pino == 23
+        assert sensor.escala == 2.0
+
+    def test_a_bad_param_stops_that_sensor_and_not_the_boot(self, registra, caplog):
+        """
+        O builder já trata falha de construção como ERROR e segue com os
+        outros sensores. Um param errado entra nesse mesmo caminho: um sensor
+        mal declarado não pode derrubar o agente inteiro.
+        """
+        import logging
+
+        from cli.builder import _build_sensors
+        from config.schema import EdgeSentinelConfig, SensorConfig
+
+        config = EdgeSentinelConfig(
+            sensors=[
+                SensorConfig(id="ruim", type="com_params", params={"pinos": 1}),
+                SensorConfig(id="bom", type="com_params", params={"pino": 4}),
+            ],
+            rules=[],
+            actions=[],
+        )
+
+        with caplog.at_level(logging.ERROR, logger="edgesentinel.builder"):
+            sensores = _build_sensors(config)
+
+        assert [s.sensor_id for s in sensores] == ["bom"]
+        assert "ruim" in caplog.text
+        assert "pinos" in caplog.text
