@@ -81,8 +81,8 @@ closed itself. Step by step, with everything explained:
 
 ## What it does
 
-**Hardware sensors.** CPU temperature, CPU usage, memory and uptime, read
-straight from `/proc` and `/sys` — no `psutil`, no compiled dependency. A sensor
+**Hardware sensors.** CPU temperature, CPU usage, memory, uptime and load
+average, read straight from `/proc` and `/sys` — no `psutil`, no compiled dependency. A sensor
 whose device is missing reports itself unavailable instead of raising, so the
 same `config.yaml` starts on a Raspberry Pi and on a laptop. Uptime is there so
 an unexpected reboot is a rule (`uptime < 300`) rather than something you notice
@@ -261,7 +261,7 @@ pytest tests/ -q
 pytest tests/ --cov=core --cov=application --cov-report=term-missing
 ```
 
-**527 tests, zero failures**, none of which need hardware, a network or a
+**549 tests, zero failures**, none of which need hardware, a network or a
 clock.
 
 | Layer | Coverage |
@@ -306,7 +306,7 @@ edgesentinel/
 ├── dashboards/                 # edgesentinel_dashboard_v2.json for Grafana
 ├── docs/                       # tutorials, how-to, reference, explanation, ADRs
 ├── data/                       # events.db — created at runtime, not tracked
-└── tests/                      # unit + integration (527 tests)
+└── tests/                      # unit + integration (549 tests)
 ```
 
 ## Design decisions

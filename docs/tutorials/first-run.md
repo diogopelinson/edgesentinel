@@ -56,6 +56,7 @@ Sensores
   AVISO   cpu_usage            indisponível nesse hardware
   AVISO   memory_usage         indisponível nesse hardware
   AVISO   uptime               indisponível nesse hardware
+  AVISO   load_average         indisponível nesse hardware
 ```
 
 Those warnings are the point of this tutorial. On a laptop running Windows or
@@ -67,8 +68,9 @@ agent. On Linux you will see `OK` and a value instead:
 Sensores
   AVISO   cpu_temperature      indisponível nesse hardware
   OK      cpu_usage            0.0 %
-  OK      memory_usage         6.96 %
-  OK      uptime               229.82 seconds
+  OK      memory_usage         7.09 %
+  OK      uptime               1251.72 seconds
+  OK      load_average         0.17 load
 ```
 
 That run is a container with no thermal zone, which is why the temperature is
