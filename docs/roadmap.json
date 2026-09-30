@@ -301,7 +301,7 @@
       "does": "Lê o load average de /proc/loadavg e o publica como sensor.",
       "adds": "Dá ao rule engine a janela temporal que o cpu_usage instantâneo não tem, quase de graça depois dos outros sensores /proc.",
       "milestone": "v0.2",
-      "status": "ready",
+      "status": "done",
       "effort": "S",
       "portfolio_value": "low",
       "testable_now": true,
@@ -313,7 +313,7 @@
       "unlocks": [],
       "touches": [
         "adapters/sensors/load_average.py",
-        "adapters/sensors/registry.py:12-16"
+        "adapters/sensors/registry.py"
       ],
       "design_notes": "Lê /proc/loadavg. params.window escolhe entre 1, 5 ou 15 minutos, default 1.",
       "acceptance": [
@@ -323,7 +323,9 @@
       "tests": [
         "parse de /proc/loadavg mockado para as três janelas",
         "window inválido levanta ValueError"
-      ]
+      ],
+      "delivered_in": "3553a0f",
+      "delivery_notes": "Saiu como planejado: lê /proc/loadavg e params.window escolhe entre 1, 5 e 15 minutos, default 1. Primeiro consumidor real do bloco params, e foi ele que tornou visível a divisão de validação que o sensor-params implica.\n\nOs dois modos de falha caem em lugares diferentes, de propósito. Nome de param errado é do registry, que lê a assinatura e nomeia o sensor do YAML: não aceita 'janela' em params, aceita 'window'. Valor errado é do sensor: window=7 não é uma janela de load average, o kernel publica 1, 5 e 15 minutos. O registry sabe quais NOMES de param o sensor aceita porque isso se lê da assinatura; só o sensor sabe quais VALORES significam algo, porque window: 7 não viola schema nenhum — o kernel publica três janelas e sete não é uma delas. Falha na construção e não na leitura, para janela inválida ser erro de boot nomeando o sensor em vez de um agente que sobe calado sem ele.\n\nO detalhe que pareceria certo e estaria errado: /proc/loadavg tem cinco campos — os três load averages, a razão de processos e o último pid — e os três são lidos por posição a partir do começo. Indexar do fim traria o pid: um número, sem exceção, errado por quatro ordens de magnitude. Tem teste.\n\nA janela entra no nome do sensor porque três sensores de load no mesmo painel são indistinguíveis sem ela. Verificado no Linux real, onde as três janelas leem valores distintos. O doctor não precisou de edição: desde o sensor-uptime ele deriva a lista do _REGISTRY, então registrar um sensor virou de fato uma linha."
     },
     {
       "id": "rule-severity",
