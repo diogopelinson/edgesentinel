@@ -82,8 +82,9 @@ em português, o [guia de uso](USAGE-PTBR.md) cobre o mesmo caminho.
 
 ## O que ele faz
 
-**Sensores de hardware.** Temperatura e uso de CPU, memória, uptime e load
-average, lidos direto de `/proc` e `/sys` — sem `psutil`, sem dependência compilada. Sensor
+**Sensores de hardware.** Temperatura e uso de CPU, memória, uptime, load
+average, uso e temperatura de disco, lidos direto de `/proc`, `/sys` e
+`statvfs` — sem `psutil`, sem dependência compilada. Sensor
 cujo dispositivo não existe se declara indisponível em vez de levantar exceção,
 então o mesmo `config.yaml` sobe num Raspberry Pi e num notebook. O uptime está
 ali para um reboot inesperado ser uma regra (`uptime < 300`) em vez de algo que
@@ -251,7 +252,7 @@ pytest tests/ -q
 pytest tests/ --cov=core --cov=application --cov-report=term-missing
 ```
 
-**549 testes, zero falhas**, e nenhum deles precisa de hardware, rede ou
+**580 testes, zero falhas**, e nenhum deles precisa de hardware, rede ou
 relógio.
 
 | Camada | Cobertura |
@@ -296,7 +297,7 @@ edgesentinel/
 ├── dashboards/                 # edgesentinel_dashboard_v2.json para Grafana
 ├── docs/                       # tutoriais, guias, referência, explicações, ADRs
 ├── data/                       # events.db — gerado em execução, fora do git
-└── tests/                      # unitários + integração (549 testes)
+└── tests/                      # unitários + integração (580 testes)
 ```
 
 ## Decisões de design
