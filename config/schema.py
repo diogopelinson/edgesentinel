@@ -1,10 +1,15 @@
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
 class SensorConfig:
     id: str
     type: str
+    # Livre de propósito: o schema não conhece cada tipo de sensor, ou cada
+    # sensor novo passaria por aqui. Quem valida é a assinatura da classe,
+    # em build_sensor(). Nunca None — quem consome faz **params.
+    params: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
