@@ -81,8 +81,9 @@ closed itself. Step by step, with everything explained:
 
 ## What it does
 
-**Hardware sensors.** CPU temperature, CPU usage, memory, uptime and load
-average, read straight from `/proc` and `/sys` — no `psutil`, no compiled dependency. A sensor
+**Hardware sensors.** CPU temperature and usage, memory, uptime, load average,
+disk usage and disk temperature, read straight from `/proc`, `/sys` and
+`statvfs` — no `psutil`, no compiled dependency. A sensor
 whose device is missing reports itself unavailable instead of raising, so the
 same `config.yaml` starts on a Raspberry Pi and on a laptop. Uptime is there so
 an unexpected reboot is a rule (`uptime < 300`) rather than something you notice
@@ -261,7 +262,7 @@ pytest tests/ -q
 pytest tests/ --cov=core --cov=application --cov-report=term-missing
 ```
 
-**549 tests, zero failures**, none of which need hardware, a network or a
+**580 tests, zero failures**, none of which need hardware, a network or a
 clock.
 
 | Layer | Coverage |
@@ -292,7 +293,7 @@ edgesentinel/
 ├── core/                       # pure domain — zero external dependencies
 ├── config/                     # YAML loader and schema
 ├── adapters/
-│   ├── sensors/                # cpu_temp, cpu_usage, memory, uptime, camera
+│   ├── sensors/                # cpu, memory, uptime, load, disk, camera
 │   ├── inference/              # dummy, onnx, tflite, remote (AI Service)
 │   ├── actions/                # log, webhook, gpio
 │   ├── exporter/               # legacy Prometheus + OpenTelemetry
@@ -306,7 +307,7 @@ edgesentinel/
 ├── dashboards/                 # edgesentinel_dashboard_v2.json for Grafana
 ├── docs/                       # tutorials, how-to, reference, explanation, ADRs
 ├── data/                       # events.db — created at runtime, not tracked
-└── tests/                      # unit + integration (549 tests)
+└── tests/                      # unit + integration (580 tests)
 ```
 
 ## Design decisions
