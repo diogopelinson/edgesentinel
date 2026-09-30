@@ -55,13 +55,24 @@ Sensores
   AVISO   cpu_temperature      indisponível nesse hardware
   AVISO   cpu_usage            indisponível nesse hardware
   AVISO   memory_usage         indisponível nesse hardware
+  AVISO   uptime               indisponível nesse hardware
 ```
 
-Those three warnings are the point of this tutorial. On a laptop running
-Windows or macOS there is no `/sys/class/thermal` and no `/proc/stat`, so the
-real sensors report themselves unavailable instead of crashing the agent. On
-Linux you will see `OK` there instead — either way, the next step behaves the
-same.
+Those warnings are the point of this tutorial. On a laptop running Windows or
+macOS there is no `/sys/class/thermal`, no `/proc/stat` and no `/proc/uptime`,
+so the real sensors report themselves unavailable instead of crashing the
+agent. On Linux you will see `OK` and a value instead:
+
+```
+Sensores
+  AVISO   cpu_temperature      indisponível nesse hardware
+  OK      cpu_usage            0.0 %
+  OK      memory_usage         6.96 %
+  OK      uptime               229.82 seconds
+```
+
+That run is a container with no thermal zone, which is why the temperature is
+still unavailable there. Either way, the next step behaves the same.
 
 ## 3. Run it with simulated sensors
 
