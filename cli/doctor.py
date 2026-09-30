@@ -104,17 +104,21 @@ def _check_config(config_path: str) -> tuple[int, int]:
 
 
 def _check_sensors() -> tuple[int, int]:
+    """
+    Percorre o _REGISTRY, não uma lista própria.
+
+    Havia uma segunda lista aqui — type, módulo e classe, importados por
+    string — duplicando o mapa que o registry já mantém. Acrescentar um sensor
+    exigia editar as duas, e esquecer esta fazia o doctor parar de cobrir aquele
+    sensor sem nada falhar. Silêncio é o pior modo de falha para um comando de
+    diagnóstico: quem o roda está tentando descobrir o que não funciona.
+    """
+    from adapters.sensors.registry import _REGISTRY
+
     print(f"\n{BOLD}Sensores{RESET}")
     warnings = 0
-    sensors_to_check = [
-        ("cpu_temperature", "adapters.sensors.cpu_temp",     "CpuTemperatureSensor"),
-        ("cpu_usage",       "adapters.sensors.cpu_usage",    "CpuUsageSensor"),
-        ("memory_usage",    "adapters.sensors.memory_usage", "MemoryUsageSensor"),
-    ]
-    for sensor_type, module_path, class_name in sensors_to_check:
+    for sensor_type, cls in _REGISTRY.items():
         try:
-            module = importlib.import_module(module_path)
-            cls    = getattr(module, class_name)
             sensor = cls(sensor_id=sensor_type)
             if sensor.is_available():
                 reading = sensor.read()
