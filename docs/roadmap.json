@@ -235,7 +235,7 @@
       "does": "Expõe o tempo desde o último boot como leitura numérica.",
       "adds": "Torna reboot inesperado detectável por regra e serve de base para a detecção de dispositivo offline na frota.",
       "milestone": "v0.2",
-      "status": "ready",
+      "status": "done",
       "effort": "S",
       "portfolio_value": "medium",
       "testable_now": true,
@@ -248,7 +248,8 @@
       ],
       "touches": [
         "adapters/sensors/uptime.py",
-        "adapters/sensors/registry.py:12-16"
+        "adapters/sensors/registry.py",
+        "cli/doctor.py"
       ],
       "design_notes": "Lê /proc/uptime, primeiro campo, em segundos. Mesmo padrão de Path.read_text() dos sensores existentes, portanto testável no Windows com o patch já usado em tests/adapters/test_sensors.py:17.",
       "acceptance": [
@@ -258,7 +259,9 @@
       "tests": [
         "parse de /proc/uptime mockado com valor conhecido",
         "unit e sensor_id corretos no SensorReading"
-      ]
+      ],
+      "delivered_in": "50bebd3",
+      "delivery_notes": "Saiu como planejado: le /proc/uptime com Path.read_text(), primeiro campo, em segundos, e o operador < que ja existia passou a ter o que comparar — nenhuma mudanca no motor de regras.\n\nDois detalhes que ficaram em teste porque errar neles pareceria certo. So o primeiro campo e uptime; o segundo e segundos ociosos somados por CPU e, numa maquina com varios nucleos, e maior que o proprio uptime. E a unidade ficou em segundos, nao em horas ou dias: a unidade menor nao perde informacao e a regra escreve o limiar na escala que quiser.\n\nAcrescentar um sensor revelou um registry duplicado: o cli/doctor.py mantinha a propria lista de sensores — type, modulo e classe, importados por string — enquanto o _REGISTRY ja mapeia type para classe. Esquecer a copia do doctor fazia o comando parar de cobrir aquele sensor sem nada falhar, que e o pior modo de falha possivel num comando de diagnostico. O teste foi escrito antes e passou, porque as duas listas coincidiam; ficou vermelho no commit que registra o uptime sem tocar no doctor, que e exatamente a divergencia que ele existe para pegar. O _check_sensors agora percorre o _REGISTRY."
     },
     {
       "id": "sensor-network",
