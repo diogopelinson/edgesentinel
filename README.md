@@ -81,10 +81,12 @@ closed itself. Step by step, with everything explained:
 
 ## What it does
 
-**Hardware sensors.** CPU temperature, CPU usage and memory, read straight from
-`/proc` and `/sys` — no `psutil`, no compiled dependency. A sensor whose device
-is missing reports itself unavailable instead of raising, so the same
-`config.yaml` starts on a Raspberry Pi and on a laptop.
+**Hardware sensors.** CPU temperature, CPU usage, memory and uptime, read
+straight from `/proc` and `/sys` — no `psutil`, no compiled dependency. A sensor
+whose device is missing reports itself unavailable instead of raising, so the
+same `config.yaml` starts on a Raspberry Pi and on a laptop. Uptime is there so
+an unexpected reboot is a rule (`uptime < 300`) rather than something you notice
+later in a log.
 
 **Camera streams.** RTSP through MediaMTX, so a cheap camera that accepts two
 connections can feed any number of consumers.
@@ -259,7 +261,7 @@ pytest tests/ -q
 pytest tests/ --cov=core --cov=application --cov-report=term-missing
 ```
 
-**508 tests, zero failures**, none of which need hardware, a network or a
+**527 tests, zero failures**, none of which need hardware, a network or a
 clock.
 
 | Layer | Coverage |
@@ -290,7 +292,7 @@ edgesentinel/
 ├── core/                       # pure domain — zero external dependencies
 ├── config/                     # YAML loader and schema
 ├── adapters/
-│   ├── sensors/                # cpu_temp, cpu_usage, memory, camera, simulated
+│   ├── sensors/                # cpu_temp, cpu_usage, memory, uptime, camera
 │   ├── inference/              # dummy, onnx, tflite, remote (AI Service)
 │   ├── actions/                # log, webhook, gpio
 │   ├── exporter/               # legacy Prometheus + OpenTelemetry
@@ -304,7 +306,7 @@ edgesentinel/
 ├── dashboards/                 # edgesentinel_dashboard_v2.json for Grafana
 ├── docs/                       # tutorials, how-to, reference, explanation, ADRs
 ├── data/                       # events.db — created at runtime, not tracked
-└── tests/                      # unit + integration (508 tests)
+└── tests/                      # unit + integration (527 tests)
 ```
 
 ## Design decisions
