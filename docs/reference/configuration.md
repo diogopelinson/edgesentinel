@@ -39,16 +39,23 @@ sensors:
     type: cpu_usage
   - id: memory_usage
     type: memory_usage
+  - id: uptime
+    type: uptime
 ```
 
 | Field | Required | Meaning |
 |---|---|---|
 | `id` | yes | The name rules refer to, and the `sensor_id` label on every metric and event |
-| `type` | yes | Which implementation to build: `cpu_temperature`, `cpu_usage`, `memory_usage` |
+| `type` | yes | Which implementation to build: `cpu_temperature`, `cpu_usage`, `memory_usage`, `uptime` |
 | `params` | no | Arguments for that sensor's constructor. Defaults to none |
 
 A sensor whose hardware is missing is not an error: it reports itself
 unavailable, is skipped with a warning, and the rest of the agent runs.
+
+`uptime` reports seconds since boot, read from `/proc/uptime`. It is there so
+an unexpected reboot is expressible as a rule — `uptime < 300` fires on a
+device that came up in the last five minutes — and it needed no new operator,
+only a number to compare.
 
 ### `params`
 
