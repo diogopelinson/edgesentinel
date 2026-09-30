@@ -121,7 +121,7 @@
       "does": "Permite que cada sensor declare parâmetros próprios no YAML — pino, endereço I2C, caminho de arquivo — em vez de o schema conhecer cada tipo de antemão.",
       "adds": "Destrava qualquer sensor futuro sem tocar em config/schema.py: é o gargalo real por trás dos quatro sensores de hardware do backlog.",
       "milestone": "v0.2",
-      "status": "ready",
+      "status": "done",
       "effort": "S",
       "portfolio_value": "low",
       "testable_now": true,
@@ -137,9 +137,10 @@
         "spi-generic"
       ],
       "touches": [
-        "config/schema.py:5-8",
-        "config/loader.py:46-52",
-        "adapters/sensors/registry.py:18-25"
+        "config/schema.py",
+        "config/loader.py",
+        "adapters/sensors/registry.py",
+        "cli/builder.py"
       ],
       "design_notes": "SensorConfig hoje tem apenas id e type, e build_sensor() chama cls(sensor_id=sensor_id) sem repassar mais nada. BME280 precisa de bus e address, GPIO de pin e pull, SPI de device e speed. Adicionar params: dict[str, Any] = field(default_factory=dict) ao SensorConfig e repassar como **params ao construtor. Cada classe de sensor declara o que aceita na assinatura — erro de param desconhecido vira TypeError legível no boot em vez de silêncio.",
       "acceptance": [
@@ -152,7 +153,9 @@
         "loader parseia params e preserva tipos (int, float, str, bool)",
         "build_sensor com params vazios mantém comportamento atual",
         "param inválido levanta erro citando o sensor_id"
-      ]
+      ],
+      "delivered_in": "f044e03",
+      "delivery_notes": "Saiu como planejado no formato — `params: dict[str, Any]` no SensorConfig, repassado como `**params` ao construtor — e ganhou uma decisão que não estava no plano.\n\nO plano dizia que param desconhecido 'vira TypeError legível no boot'. Virou ValueError, e a validação acontece **antes** de construir, contra a assinatura lida com inspect.signature(). Capturar TypeError em volta de cls(...) seria mais curto e errado duas vezes: juntaria 'esse sensor não aceita esse param', que é config, com 'o construtor do sensor quebrou', que é bug — e reportar o segundo como config manda o operador editar um YAML que estava certo; e um sensor que toma pino GPIO ou abre barramento I2C no __init__ já teria feito isso quando o erro aparecesse. Os dois casos têm teste.\n\nA mensagem nomeia o sensor, o type, todos os params desconhecidos de uma vez — um por rodada de boot faria o operador descobrir os erros um a um, e cada rodada é um deploy no dispositivo — e o que o sensor aceita. O `sensor_id` fica fora dessa lista e é recusado em params, porque vem do campo `id:`; sem isso seria um duplicate keyword argument que não explica nada. `**kwargs` na assinatura libera qualquer param, que é como o i2c-generic e o spi-generic vão se declarar.\n\nA checagem de mutação achou uma perna sem teste: apagar o argumento de params da chamada em cli/builder.py deixava os 250 testes relevantes verdes. O caminho do YAML ao construtor cruza o loader e o builder, e testar só o build_sensor cobria um. Dois testes novos para o builder.\n\ndocs/how-to/write-a-sensor.md tinha um exemplo com `device_path` no construtor e nenhuma forma de passar um — o sensor podia ser escrito e não ligado. Ganhou as duas etapas que faltavam: registrar a classe e configurar pelos params."
     },
     {
       "id": "sensor-lazy-availability",
@@ -199,7 +202,7 @@
       "does": "Lê uso e temperatura de disco e expõe as duas coisas como sensores comuns, avaliáveis por regra.",
       "adds": "Cobre a causa número um de falha em campo — cartão SD saturado ou degradado — sem exigir hardware nenhum.",
       "milestone": "v0.2",
-      "status": "planned",
+      "status": "ready",
       "effort": "S",
       "portfolio_value": "medium",
       "testable_now": true,
@@ -263,7 +266,7 @@
       "does": "Reporta estado do link e throughput das interfaces de rede.",
       "adds": "Permite distinguir 'o dispositivo caiu' de 'o dispositivo está isolado' — a diferença entre trocar a máquina e trocar o cabo.",
       "milestone": "v0.2",
-      "status": "planned",
+      "status": "ready",
       "effort": "S",
       "portfolio_value": "medium",
       "testable_now": true,
@@ -295,7 +298,7 @@
       "does": "Lê o load average de /proc/loadavg e o publica como sensor.",
       "adds": "Dá ao rule engine a janela temporal que o cpu_usage instantâneo não tem, quase de graça depois dos outros sensores /proc.",
       "milestone": "v0.2",
-      "status": "planned",
+      "status": "ready",
       "effort": "S",
       "portfolio_value": "low",
       "testable_now": true,

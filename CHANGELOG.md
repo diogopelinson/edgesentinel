@@ -126,6 +126,12 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
   suite: fields present, dependency edges symmetric, no dependency in a later
   milestone, no cycles, status derived from the graph rather than asserted,
   and every `delivered_in` an actual commit.
+- **An uptime sensor** (`type: uptime`), reading seconds since boot from
+  `/proc/uptime`. It makes an unexpected reboot detectable as a rule —
+  `uptime < 300` fires on a device that came up in the last five minutes — and
+  needed no new operator: `<` existed and finally has something to compare. Only
+  the first field of the file is read; the second is idle seconds summed across
+  CPUs, which on a multi-core device exceeds the uptime itself.
 - **Each sensor can declare its own parameters** in a free `params` block under
   its YAML entry, passed to the sensor class as keyword arguments. The
   constructor signature is the config schema: there is no second list of
@@ -178,6 +184,13 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
 
 ### Fixed
 
+- **`doctor` no longer keeps its own list of sensors.** It held a second copy of
+  the registry — type, module path and class name, imported by string — so adding
+  a sensor meant editing two places, and forgetting this one made the command
+  quietly stop covering that sensor. For a diagnostic command that is the worst
+  failure mode available: the person running it is already trying to find out
+  what is broken. It iterates the registry now, and a test requires every
+  registered type to appear in the output.
 - **A raising exporter no longer looks like a failed incident store.** Counting
   a transition sat inside the `try` that protects the store, so a metric that
   raised landed in that handler: the database had already opened the incident,
