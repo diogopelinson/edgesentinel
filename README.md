@@ -94,6 +94,14 @@ connections can feed any number of consumers.
 service, so a crash there never stops sensor monitoring.
 → [Run the AI Inference Service](docs/how-to/run-the-ai-service.md)
 
+**Sensors that declare their own configuration.** A sensor's constructor
+signature *is* its config schema: whatever it accepts arrives from a free
+`params` block in the YAML, so adding one that needs a pin, a mountpoint or an
+I2C address touches no shared file. A param the sensor does not accept fails at
+startup — before the constructor runs, so nothing has claimed a pin yet —
+naming the sensor and what it does accept.
+→ [Write your own sensor](docs/how-to/write-a-sensor.md)
+
 **Rule engine.** Numeric comparisons and an `anomaly` operator backed by the
 local model. Each rule carries a severity — `info`, `warning`, `critical` —
 that sets the log level and reaches every action.
@@ -251,7 +259,7 @@ pytest tests/ -q
 pytest tests/ --cov=core --cov=application --cov-report=term-missing
 ```
 
-**483 tests, zero failures**, none of which need hardware, a network or a
+**508 tests, zero failures**, none of which need hardware, a network or a
 clock.
 
 | Layer | Coverage |
@@ -296,7 +304,7 @@ edgesentinel/
 ├── dashboards/                 # edgesentinel_dashboard_v2.json for Grafana
 ├── docs/                       # tutorials, how-to, reference, explanation, ADRs
 ├── data/                       # events.db — created at runtime, not tracked
-└── tests/                      # unit + integration (483 tests)
+└── tests/                      # unit + integration (508 tests)
 ```
 
 ## Design decisions
