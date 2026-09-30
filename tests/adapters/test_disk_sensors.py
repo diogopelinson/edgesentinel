@@ -230,6 +230,23 @@ class TestTemperaturaDeDisco:
 
         assert DiskTemperatureSensor(hwmon_root=str(ausente)).is_available() is False
 
+    def test_a_missing_hwmon_directory_still_explains_itself(self, tmp_path):
+        """
+        Achado por mutação: is_available() devolve False com ou sem a guarda de
+        diretório ausente, então só ela não justifica a guarda. O que justifica
+        é a mensagem — sem a guarda, read() levanta FileNotFoundError num
+        caminho, e com ela diz o que procurou e que em SATA isso exige um
+        módulo carregado. Quem lê o log é quem paga a diferença.
+        """
+        ausente = tmp_path / "nao_existe"
+
+        with pytest.raises(RuntimeError) as erro:
+            DiskTemperatureSensor(hwmon_root=str(ausente)).read()
+
+        mensagem = str(erro.value)
+        assert str(ausente) in mensagem
+        assert "drivetemp" in mensagem
+
     def test_the_error_names_the_directory_it_searched(self, tmp_path):
         raiz = self.escreve_hwmon(tmp_path, {"coretemp": "78000"})
 
