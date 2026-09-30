@@ -41,12 +41,14 @@ sensors:
     type: memory_usage
   - id: uptime
     type: uptime
+  - id: load_1min
+    type: load_average
 ```
 
 | Field | Required | Meaning |
 |---|---|---|
 | `id` | yes | The name rules refer to, and the `sensor_id` label on every metric and event |
-| `type` | yes | Which implementation to build: `cpu_temperature`, `cpu_usage`, `memory_usage`, `uptime` |
+| `type` | yes | Which implementation to build: `cpu_temperature`, `cpu_usage`, `memory_usage`, `uptime`, `load_average` |
 | `params` | no | Arguments for that sensor's constructor. Defaults to none |
 
 A sensor whose hardware is missing is not an error: it reports itself
@@ -57,19 +59,34 @@ an unexpected reboot is expressible as a rule — `uptime < 300` fires on a
 device that came up in the last five minutes — and it needed no new operator,
 only a number to compare.
 
-### `params`
-
-Anything under `params` is passed to the sensor class as keyword arguments. The
-three sensors above take none; a sensor that needs a pin, a mountpoint or an
-I2C address declares it in its constructor and receives it from here.
+`load_average` reads `/proc/loadavg` and takes a `window` of `1`, `5` or `15`
+minutes (default `1`) — the three the kernel publishes. It gives a rule the
+time window `cpu_usage` cannot express: one reading at 100% is a reading, load
+4 held for fifteen minutes on a single-core device is a problem. Declare it more
+than once to watch more than one window:
 
 ```yaml
 sensors:
-  - id: motor_temp
-    type: motor_temperature
+  - id: load_1min
+    type: load_average
+  - id: load_15min
+    type: load_average
     params:
-      device_path: /dev/motor0
-      escala: 0.1
+      window: 15
+```
+
+### `params`
+
+Anything under `params` is passed to the sensor class as keyword arguments. A
+sensor that needs a window, a pin, a mountpoint or an I2C address declares it in
+its constructor and receives it from here.
+
+```yaml
+sensors:
+  - id: load_15min
+    type: load_average
+    params:
+      window: 15
 ```
 
 The block is intentionally not validated against a schema. The authority on
@@ -84,8 +101,14 @@ A param the sensor does not accept fails at startup, naming the sensor, every
 unknown param at once, and what that sensor does accept:
 
 ```
-Sensor 'motor_temp' (type 'motor_temperature') não aceita 'escalar', 'pino' em params. Aceita: device_path, escala.
+Sensor 'load_15min' (type 'load_average') não aceita 'janela' em params. Aceita: window.
 ```
+
+A param the sensor accepts but with a value it cannot use fails at startup too,
+from the sensor rather than from the registry — `window: 7` is refused because
+the kernel publishes three windows and seven is not one of them. The split is
+deliberate: the registry knows which param *names* a sensor takes, and only the
+sensor knows which *values* mean anything.
 
 The check runs **before** the sensor is constructed. That matters for hardware:
 a sensor that claims a GPIO pin or opens an I2C bus in its constructor must not
