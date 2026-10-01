@@ -57,6 +57,8 @@ Sensores
   AVISO   memory_usage         indisponível nesse hardware
   AVISO   uptime               indisponível nesse hardware
   AVISO   load_average         indisponível nesse hardware
+  AVISO   disk_usage           indisponível nesse hardware
+  AVISO   disk_temperature     indisponível nesse hardware
 ```
 
 Those warnings are the point of this tutorial. On a laptop running Windows or
@@ -68,13 +70,16 @@ agent. On Linux you will see `OK` and a value instead:
 Sensores
   AVISO   cpu_temperature      indisponível nesse hardware
   OK      cpu_usage            0.0 %
-  OK      memory_usage         7.09 %
-  OK      uptime               1251.72 seconds
-  OK      load_average         0.17 load
+  OK      memory_usage         7.12 %
+  OK      uptime               2138.02 seconds
+  OK      load_average         0.08 load
+  OK      disk_usage           0.66 %
+  AVISO   disk_temperature     indisponível nesse hardware
 ```
 
-That run is a container with no thermal zone, which is why the temperature is
-still unavailable there. Either way, the next step behaves the same.
+That run is a container with no thermal zone and no `drivetemp` module, which is
+why those two are still unavailable there. Missing hardware is not an error in
+either column — the agent skips what it cannot read and runs with the rest.
 
 ## 3. Run it with simulated sensors
 

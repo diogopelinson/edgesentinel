@@ -51,6 +51,8 @@ _REGISTRY: dict[str, type[BaseSensor]] = {
     "memory_usage":       MemoryUsageSensor,
     "uptime":             UptimeSensor,
     "load_average":       LoadAverageSensor,
+    "disk_usage":         DiskUsageSensor,
+    "disk_temperature":   DiskTemperatureSensor,
     "motor_temperature":  MotorTemperatureSensor,
 }
 ```

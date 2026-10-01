@@ -126,6 +126,23 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
   suite: fields present, dependency edges symmetric, no dependency in a later
   milestone, no cycles, status derived from the graph rather than asserted,
   and every `delivered_in` an actual commit.
+- **Disk usage and disk temperature sensors** (`type: disk_usage`,
+  `disk_temperature`), covering the most common field failure there is: an SD
+  card that fills up or runs hot. `disk_usage` takes a `mountpoint` param and
+  reports **what `df` reports** — used over used-plus-available, not used over
+  the device size, because Linux reserves a slice of every filesystem for root
+  that an ordinary process cannot write to. On the 1 TB volume this was checked
+  against, that slice is 55 GB, and the difference matters at exactly the wrong
+  moment: the formula used here reaches 100% when writes start failing, while
+  dividing by the device size would put the alert after the disk was already
+  full. `os.statvfs` keeps the no-psutil rule.
+- **`disk_temperature` checks the hwmon chip name before reading it.** hwmon
+  publishes every sensor on the machine — CPU package, motherboard, fans — so
+  taking the first directory would return a real temperature for the wrong
+  component, plausible enough that nobody would question it. Only `drivetemp`
+  and `nvme` count, with `params.chip` to override. On most machines it is
+  unavailable, which is missing hardware rather than an error, and reading it
+  directly says what it looked for instead of raising on a path.
 - **A load average sensor** (`type: load_average`), with a `window` param of
   `1`, `5` or `15` minutes — the three the kernel publishes. It gives a rule the
   time window `cpu_usage` cannot express: one reading at 100% is a reading, load

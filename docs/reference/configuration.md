@@ -43,12 +43,14 @@ sensors:
     type: uptime
   - id: load_1min
     type: load_average
+  - id: disk_root
+    type: disk_usage
 ```
 
 | Field | Required | Meaning |
 |---|---|---|
 | `id` | yes | The name rules refer to, and the `sensor_id` label on every metric and event |
-| `type` | yes | Which implementation to build: `cpu_temperature`, `cpu_usage`, `memory_usage`, `uptime`, `load_average` |
+| `type` | yes | Which implementation to build: `cpu_temperature`, `cpu_usage`, `memory_usage`, `uptime`, `load_average`, `disk_usage`, `disk_temperature` |
 | `params` | no | Arguments for that sensor's constructor. Defaults to none |
 
 A sensor whose hardware is missing is not an error: it reports itself
@@ -74,6 +76,29 @@ sensors:
     params:
       window: 15
 ```
+
+`disk_usage` takes a `mountpoint` (default `/`) and reports percent used. It
+reports **what `df` reports**, which is not used space over the size of the
+device: Linux reserves a slice of every filesystem for root that an ordinary
+process cannot write to, and the number counts only what the agent can actually
+reach. On a 1 TB volume that slice measured 55 GB, so the two formulas differ by
+enough to matter — and the one used here reaches 100% at the moment writes start
+failing, which is the moment an alert is still useful.
+
+```yaml
+sensors:
+  - id: disk_root
+    type: disk_usage
+  - id: disk_log
+    type: disk_usage
+    params:
+      mountpoint: /var/log
+```
+
+`disk_temperature` reads `/sys/class/hwmon`, looking for a chip named
+`drivetemp` or `nvme`; `params.chip` names a different one. On most machines it
+is unavailable — `drivetemp` is not loaded by default and an SD card publishes no
+temperature at all — which is treated as missing hardware, not as an error.
 
 ### `params`
 
