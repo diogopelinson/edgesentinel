@@ -202,7 +202,7 @@
       "does": "Lê uso e temperatura de disco e expõe as duas coisas como sensores comuns, avaliáveis por regra.",
       "adds": "Cobre a causa número um de falha em campo — cartão SD saturado ou degradado — sem exigir hardware nenhum.",
       "milestone": "v0.2",
-      "status": "ready",
+      "status": "done",
       "effort": "S",
       "portfolio_value": "medium",
       "testable_now": true,
@@ -214,20 +214,23 @@
       "unlocks": [],
       "touches": [
         "adapters/sensors/disk_usage.py",
-        "adapters/sensors/registry.py:12-16",
-        "tests/adapters/test_sensors.py"
+        "adapters/sensors/disk_temperature.py",
+        "adapters/sensors/registry.py"
       ],
       "design_notes": "Uso via os.statvfs() no mountpoint vindo de params (default '/'). Temperatura via /sys/class/hwmon quando existir, senão is_available() False. Mantém a decisão de projeto de não usar psutil.",
       "acceptance": [
         "type: disk_usage aceita params.mountpoint",
         "valor em % de 0 a 100 com unit '%'",
         "mountpoint inexistente reflete em is_available() False, não em exceção no boot",
-        "registrado no _REGISTRY"
+        "type: disk_temperature lê /sys/class/hwmon e se declara indisponível sem ele",
+        "ambos registrados no _REGISTRY"
       ],
       "tests": [
         "cálculo de percentual com os.statvfs mockado",
         "mountpoint ausente devolve is_available() False"
-      ]
+      ],
+      "delivered_in": "9f40031",
+      "delivery_notes": "Saiu como dois sensores: disk_usage e disk_temperature. O uso vem de os.statvfs() com o mountpoint de params, default '/', mantendo a decisão de não usar psutil.\n\nA decisão que não estava no plano é qual percentual o sensor publica. O df não divide o usado pelo tamanho do dispositivo: divide pelo que um processo comum alcança, porque o Linux reserva uma fatia de todo sistema de arquivos para o root. No volume de 1 TB onde isto foi medido a fatia é de 55 GB, e as duas contas discordam — 0.624% contra 0.658%, com o df imprimindo 1%. Para a falha que o sensor existe para pegar, a conta do df é a certa: o agente para de conseguir escrever quando f_bavail chega a zero, que é onde o número do df chega a 100. Dividir pelo tamanho do dispositivo colocaria o alerta depois do disco cheio, que é exatamente quando ele deixa de servir. Três testes fixam isso. Sistema de arquivos com zero blocos levanta em vez de ler 0%: é pseudo-filesystem, não disco vazio.\n\nNa temperatura, a armadilha é que o hwmon publica todo sensor da máquina — pacote da CPU, placa-mãe, ventoinha. Pegar o primeiro diretório devolveria temperatura real do componente errado, plausível o bastante para ninguém desconfiar. Só 'drivetemp' e 'nvme' contam, com params.chip para sobrescrever, e um teste põe coretemp e acpitz na frente para provar que a busca é por nome.\n\nLimite honesto: esta máquina não tem hwmon nenhum, então o caminho de leitura é coberto por teste sobre uma árvore hwmon fabricada e verificado só no estado ausente — a mesma posição em que o cpu_temperature sempre esteve. O que foi verificado no Linux real é o comportamento de ausência, que é o caso comum: drivetemp não vem carregado e cartão SD não publica temperatura.\n\nA checagem de mutação achou uma guarda sem justificativa: remover o tratamento de diretório hwmon ausente deixava a suíte verde, porque is_available() dá False de qualquer jeito. O que justifica a guarda é a mensagem, então o teste passou a verificar que read() diz o que procurou em vez de levantar FileNotFoundError num caminho."
     },
     {
       "id": "sensor-uptime",
@@ -2020,6 +2023,45 @@
       ],
       "delivered_in": "42f2d7e",
       "delivery_notes": "O piso ficou em [tool.coverage.report] do pyproject.toml, não na linha de comando: com o número no workflow e outro no README haveria dois pisos. 95% para core/ e application/, que estão em 97% hoje. Efeito colateral bom: a cobertura saiu da matriz de versões e ganhou job próprio — a matriz responde 'funciona de 3.10 a 3.13' e medir cinco pacotes em cada versão era mais lento e menos informativo. A tabela vai para o resumo do pull request, não para artefato que ninguém baixa. O teste que amarra o piso ao README é o que dá sentido à feature: número na documentação que nada verifica é número que apodrece."
+    },
+    {
+      "id": "english-code-comments",
+      "title": "comentários e docstrings em inglês",
+      "does": "Traduz todo comentário e docstring do código para inglês e passa a exigir isso por teste.",
+      "adds": "Abre o código para quem não lê português — que é quem visita um repositório público — sem perder o raciocínio que os comentários carregam, que é o principal ativo desta base.",
+      "milestone": "project-health",
+      "status": "ready",
+      "effort": "M",
+      "portfolio_value": "high",
+      "testable_now": true,
+      "rationale": "A documentação já é em inglês e o código não era, então metade do projeto ficava fechada para o leitor que chega do GitHub. Os comentários aqui explicam decisão, não mecânica — é o que diferencia esta base — e deixá-los em português desperdiçava justamente a parte que vale ler.",
+      "depends_on": [],
+      "unlocks": [],
+      "touches": [
+        "core/",
+        "application/",
+        "config/",
+        "adapters/",
+        "cli/",
+        "scripts/",
+        "tests/",
+        "ai-inference-service/",
+        "AGENTS.md",
+        "CONTRIBUTING.md"
+      ],
+      "design_notes": "São 96 arquivos, 206 comentários e 427 docstrings, cerca de 1400 linhas de prosa. Tradução mecânica destruiria o valor: estes comentários explicam por que uma decisão foi tomada e o que foi rejeitado, não o que a linha seguinte faz. Traduzir por diretório, em ordem de dependência, preservando o raciocínio e o tom.\n\nO escopo é comentário e docstring. String de runtime — mensagem de erro, log, saída de CLI — fica em português: mudá-la quebraria os testes que afirmam o texto e invalidaria toda saída capturada em docs/, que é verificada. Isso é feature separada.\n\nA convenção vira teste: um guard que varre os .py com tokenize para comentário e ast para docstring, e recusa letra acentuada latina ou palavra portuguesa comum. Só comentário e docstring, nunca string literal, para a decisão de escopo acima ficar executável.",
+      "acceptance": [
+        "nenhum comentário ou docstring de .py em português",
+        "um teste recusa comentário ou docstring em português",
+        "o teste não olha string de runtime",
+        "AGENTS.md e CONTRIBUTING.md declaram a convenção nova"
+      ],
+      "tests": [
+        "o guard acha português plantado em comentário",
+        "o guard acha português plantado em docstring",
+        "o guard ignora português em string de runtime",
+        "o repositório inteiro passa no guard"
+      ]
     }
   ]
 }
