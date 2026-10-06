@@ -5,7 +5,7 @@ logger = logging.getLogger("ai_service.exporter")
 
 
 class ServiceExporter:
-    """Exporta métricas do AI Service via OTel para o mesmo Collector."""
+    """Exports the AI Service metrics over OTel, to the same Collector."""
 
     def __init__(
         self,
