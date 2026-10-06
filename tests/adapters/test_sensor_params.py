@@ -1,16 +1,16 @@
 """
-Params por sensor no YAML, repassados ao construtor da classe.
+Per-sensor params in the YAML, passed on to the class's constructor.
 
-O gargalo que isto resolve: hoje build_sensor() chama cls(sensor_id=...) e
-nada mais, então qualquer sensor que precise de um pino, um endereço I2C ou um
-mountpoint exige mexer em config/schema.py. Com params livres, a assinatura de
-cada classe passa a ser a declaração do que ela aceita.
+The bottleneck this solves: today build_sensor() calls cls(sensor_id=...) and
+nothing else, so any sensor that needs a pin, an I2C address or a mountpoint
+requires touching config/schema.py. With free-form params, each class's
+signature becomes the declaration of what it accepts.
 
-A decisão que estes testes fixam: os params são validados contra a assinatura
-**antes** de construir. Chamar e capturar TypeError seria mais curto e
-misturaria dois erros diferentes — 'esse sensor não aceita esse param' e 'o
-construtor do sensor quebrou' —, e o segundo não deve virar mensagem sobre
-config.
+The decision these tests pin down: the params are validated against the
+signature **before** constructing. Calling and catching TypeError would be
+shorter and would mix two different errors — 'this sensor does not accept this
+param' and 'the sensor's constructor broke' —, and the second must not turn
+into a message about config.
 """
 import pytest
 
@@ -19,10 +19,10 @@ from adapters.sensors.registry import build_sensor
 from core.entities import SensorReading
 
 
-# --- dublês ---
+# --- test doubles ---
 
 class SensorComParams(BaseSensor):
-    """Sensor de teste que declara na assinatura o que aceita."""
+    """A test sensor that declares in its signature what it accepts."""
 
     construido = 0
 
@@ -46,7 +46,7 @@ class SensorComParams(BaseSensor):
 
 
 class SensorQueAceitaTudo(BaseSensor):
-    """**kwargs na assinatura significa 'aceito qualquer param'."""
+    """**kwargs in the signature means 'I accept any param'."""
 
     def __init__(self, sensor_id: str = "tudo", **extras: object) -> None:
         super().__init__(sensor_id=sensor_id, name="Tudo", unit="u")
@@ -57,7 +57,7 @@ class SensorQueAceitaTudo(BaseSensor):
 
 
 class SensorQuebrado(BaseSensor):
-    """O TypeError vem de dentro do construtor, não da assinatura."""
+    """The TypeError comes from inside the constructor, not from the signature."""
 
     def __init__(self, sensor_id: str = "quebrado", fator: int = 1) -> None:
         super().__init__(sensor_id=sensor_id, name="Quebrado", unit="u")
@@ -69,7 +69,7 @@ class SensorQuebrado(BaseSensor):
 
 @pytest.fixture
 def registra(monkeypatch):
-    """Registra os dublês sem tocar no mapa real de tipos."""
+    """Registers the test doubles without touching the real map of types."""
     from adapters.sensors import registry
 
     tipos = dict(registry._REGISTRY)
@@ -82,7 +82,7 @@ def registra(monkeypatch):
     SensorComParams.construido = 0
 
 
-# --- o que já existia continua igual ---
+# --- what already existed stays the same ---
 
 class TestSensoresSemParams:
 
@@ -104,7 +104,7 @@ class TestSensoresSemParams:
         assert "cpu_usage" in str(erro.value)
 
 
-# --- os params chegando ao construtor ---
+# --- the params reaching the constructor ---
 
 class TestParamsChegamAoConstrutor:
 
@@ -139,7 +139,7 @@ class TestParamsChegamAoConstrutor:
         assert sensor.extras == {"seja_o_que_for": 42}
 
 
-# --- o param errado, no boot ---
+# --- the wrong param, at boot ---
 
 class TestParamDesconhecido:
 
@@ -162,8 +162,8 @@ class TestParamDesconhecido:
 
     def test_the_message_does_not_offer_sensor_id_as_a_param(self, registra):
         """
-        sensor_id está na assinatura mas vem do campo `id:`. Listá-lo entre os
-        params aceitos convidaria a declará-lo duas vezes.
+        sensor_id is in the signature but comes from the `id:` field. Listing
+        it among the accepted params would invite declaring it twice.
         """
         with pytest.raises(ValueError) as erro:
             build_sensor("s1", "com_params", {"pinos": 17})
@@ -172,10 +172,10 @@ class TestParamDesconhecido:
 
     def test_it_fails_before_constructing(self, registra):
         """
-        Validar antes de chamar é o ponto. Se a validação fosse um try/except
-        em volta de cls(...), um sensor com efeito colateral no __init__ — abrir
-        um barramento I2C, tomar um pino — já o teria feito quando o erro
-        aparecesse.
+        Validating before calling is the whole point. If the validation were a
+        try/except around cls(...), a sensor with a side effect in __init__ —
+        opening an I2C bus, taking a pin — would already have done it by the
+        time the error showed up.
         """
         with pytest.raises(ValueError):
             build_sensor("s1", "com_params", {"pinos": 17})
@@ -184,7 +184,7 @@ class TestParamDesconhecido:
 
     def test_every_unknown_param_is_named_at_once(self, registra):
         """
-        Um por rodada de boot faria o operador descobrir os erros de um em um.
+        One per boot round would make the operator find the errors one by one.
         """
         with pytest.raises(ValueError) as erro:
             build_sensor("s1", "com_params", {"pinos": 1, "escalar": 2})
@@ -195,8 +195,9 @@ class TestParamDesconhecido:
 
     def test_sensor_id_inside_params_is_refused_with_its_own_message(self, registra):
         """
-        Passaria como duplicate keyword argument, num TypeError que não explica
-        nada. O id do sensor tem um lugar no YAML e é `id:`.
+        It would come through as a duplicate keyword argument, in a TypeError
+        that explains nothing. The sensor's id has one place in the YAML, and
+        it is `id:`.
         """
         with pytest.raises(ValueError) as erro:
             build_sensor("s1", "com_params", {"sensor_id": "outro"})
@@ -207,8 +208,9 @@ class TestParamDesconhecido:
 
     def test_a_type_error_from_inside_the_constructor_is_not_disguised(self, registra):
         """
-        Capturar TypeError em volta da construção transformaria um bug do
-        sensor em mensagem sobre config, e o operador iria mexer no YAML.
+        Catching TypeError around the construction would turn a bug in the
+        sensor into a message about config, and the operator would go and
+        fiddle with the YAML.
         """
         with pytest.raises(TypeError) as erro:
             build_sensor("s1", "quebrado", {"fator": 2})
@@ -218,9 +220,10 @@ class TestParamDesconhecido:
 
 class TestOBuilderRepassaOsParams:
     """
-    Achado por mutação: apagar os params da chamada em cli/builder.py deixava
-    os 250 testes verdes. O caminho do YAML ao construtor tem duas pontes — o
-    loader e o builder — e testar só o registry cobre uma.
+    Found by mutation: deleting the params from the call in cli/builder.py left
+    all 250 tests green. The path from the YAML to the constructor has two
+    bridges — the loader and the builder — and testing only the registry covers
+    one of them.
     """
 
     def test_the_builder_hands_the_params_to_the_sensor(self, registra):
@@ -242,9 +245,9 @@ class TestOBuilderRepassaOsParams:
 
     def test_a_bad_param_stops_that_sensor_and_not_the_boot(self, registra, caplog):
         """
-        O builder já trata falha de construção como ERROR e segue com os
-        outros sensores. Um param errado entra nesse mesmo caminho: um sensor
-        mal declarado não pode derrubar o agente inteiro.
+        The builder already treats a construction failure as an ERROR and
+        carries on with the other sensors. A wrong param goes down that same
+        path: one badly declared sensor must not bring the whole agent down.
         """
         import logging
 
