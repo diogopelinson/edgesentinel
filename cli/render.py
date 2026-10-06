@@ -1,9 +1,9 @@
 """
-Formatação compartilhada dos comandos de terminal.
+Formatting shared by the terminal commands.
 
-Cor por severidade e duração legível aparecem em mais de um comando, e a
-escolha precisa ser a mesma nos dois: crítico vermelho num lugar e amarelo no
-outro é pior que sem cor nenhuma.
+Color by severity and a readable duration appear in more than one command, and
+the choice has to match across them: critical in red in one place and amber in
+another is worse than no color at all.
 """
 
 COLORS = {
@@ -16,11 +16,11 @@ RESET = "\033[0m"
 
 def human_duration(seconds: float) -> str:
     """
-    1830 → '30m'. Escala com a grandeza: segundos para o que acabou de
-    acontecer, dias para o incidente que ninguém olhou.
+    1830 → '30m'. Scales with the magnitude: seconds for what just happened,
+    days for the incident nobody looked at.
 
-    Duração negativa vira zero — relógio de parede pode andar para trás, e
-    'aberto há -3s' não ajuda ninguém.
+    A negative duration becomes zero — a wall clock can step backwards, and
+    "open for -3s" helps nobody.
     """
     total = int(max(0.0, seconds))
     if total < 60:
