@@ -10,14 +10,14 @@ logger = logging.getLogger("edgesentinel.exporter.otel")
 
 class OTelExporter(ExporterPort, IncidentMetricsPort):
     """
-    Exportador OpenTelemetry — instrumenta uma vez, exporta pra qualquer backend.
+    OpenTelemetry exporter — instrument once, export to any backend.
 
-    Backends suportados via config:
+    Backends supported through config:
         otlp        → OTel Collector (Grafana, Datadog, Jaeger, etc)
-        prometheus  → endpoint /metrics (compatibilidade com Prometheus)
+        prometheus  → /metrics endpoint (Prometheus compatibility)
 
-    O OTel Collector decide pra onde os dados vão — o edgesentinel
-    não precisa saber nada sobre o backend final.
+    The OTel Collector decides where the data goes — edgesentinel does not
+    need to know anything about the final backend.
     """
 
     def __init__(
@@ -35,7 +35,7 @@ class OTelExporter(ExporterPort, IncidentMetricsPort):
         self._incidents    = incidents
         self._started      = False
 
-        # métricas — inicializadas em start()
+        # metrics — initialized in start()
         self._sensor_gauge     = None
         self._anomaly_gauge    = None
         self._anomaly_counter  = None
@@ -109,8 +109,8 @@ class OTelExporter(ExporterPort, IncidentMetricsPort):
 
         if self._incident_histogram:
             self._incident_histogram.record(
-                # NTP acertando o relógio para trás dá duração negativa, e
-                # ela corromperia o quantil de todos os incidentes seguintes
+                # NTP setting the clock backwards gives a negative duration,
+                # and it would corrupt the quantile of every later incident
                 max(duration_seconds, 0.0),
                 {"severity": incident.severity},
             )
@@ -123,7 +123,7 @@ class OTelExporter(ExporterPort, IncidentMetricsPort):
         if self._pipeline_histogram:
             self._pipeline_histogram.record(duration, {"sensor_id": sensor_id})
 
-    # --- métodos privados ---
+    # --- private methods ---
 
     def _count_transition(self, incident: Incident, transition: str) -> None:
         if not self._incident_counter:
@@ -137,14 +137,14 @@ class OTelExporter(ExporterPort, IncidentMetricsPort):
 
     def _observe_open_incidents(self, options) -> list:
         """
-        Callback do gauge observável: o SDK a chama na hora de exportar, e é
-        ali que a loja é lida. É o equivalente OTel do collector do
-        Prometheus, pela mesma razão — estado atual acumulado no processo
-        estaria errado depois de um restart.
+        Callback of the observable gauge: the SDK calls it at export time, and
+        that is where the store is read. It is the OTel equivalent of the
+        Prometheus collector, for the same reason — current state accumulated
+        in the process would be wrong after a restart.
         """
         from opentelemetry.metrics import Observation
 
-        assert self._incidents is not None      # o gauge só existe com loja
+        assert self._incidents is not None      # the gauge only exists with a store
 
         return [
             Observation(quantidade, dict(zip(LABELS, rotulos, strict=True)))
@@ -238,16 +238,16 @@ class OTelExporter(ExporterPort, IncidentMetricsPort):
             unit="1",
         )
 
-        # unit='s' é o que faz o reader do Prometheus publicar
-        # edgesentinel_incident_duration_seconds, igual ao exportador legado
+        # unit='s' is what makes the Prometheus reader publish
+        # edgesentinel_incident_duration_seconds, like the legacy exporter
         self._incident_histogram = meter.create_histogram(
             name="edgesentinel.incident.duration",
             description="Quanto durou cada incidente fechado",
             unit="s",
         )
 
-        # sem loja de incidentes não há o que observar, e um gauge observável
-        # sem dado é uma série vazia publicada para sempre
+        # with no incident store there is nothing to observe, and an
+        # observable gauge with no data is an empty series published forever
         if self._incidents is not None:
             meter.create_observable_gauge(
                 name="edgesentinel.incidents.open",
