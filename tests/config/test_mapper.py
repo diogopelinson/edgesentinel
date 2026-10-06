@@ -25,8 +25,8 @@ def make_config(*rules: RuleConfig, default_actions: dict | None = None) -> Edge
 
 class TestActionResolution:
     """
-    Regra com `actions` declarado usa exatamente essa lista. Regra sem
-    `actions` herda a lista de default_actions para a sua severidade.
+    A rule with `actions` declared uses exactly that list. A rule without
+    `actions` inherits the default_actions list for its severity.
     """
 
     def test_explicit_actions_are_kept(self):
@@ -81,7 +81,7 @@ class TestActionResolution:
         assert to_rules(make_config(make_rule()))[0].action_ids == []
 
     def test_rules_do_not_share_the_default_list(self):
-        """Mexer na lista de uma regra não pode vazar para a outra nem para o config."""
+        """Touching one rule's list must not leak into the other nor into the config."""
         defaults = {"warning": ["log"]}
         config = make_config(make_rule("a"), make_rule("b"), default_actions=defaults)
 
@@ -92,7 +92,7 @@ class TestActionResolution:
         assert defaults == {"warning": ["log"]}
 
     def test_logs_rules_that_resolve_to_no_actions(self, caplog):
-        """Pode ser intencional — a regra ainda grava no histórico —, mas precisa ser visível."""
+        """It may be intentional — the rule still writes to the history — but it has to be visible."""
         with caplog.at_level(logging.DEBUG, logger="edgesentinel.config"):
             to_rules(make_config(make_rule(name="silenciosa", severity="info")))
 
@@ -102,7 +102,7 @@ class TestActionResolution:
 class TestExistingMapping:
 
     def test_resolve_threshold_reaches_the_condition(self):
-        """Quem usa o ponto de resolução é o Condition do core."""
+        """The core's Condition is what uses the resolution point."""
         rule = make_rule(
             actions=["log"],
             condition=ConditionConfig(
