@@ -7,13 +7,13 @@ from core.entities import SensorReading
 
 class TFLiteInferenceAdapter(BaseInferenceAdapter):
     """
-    Backend TensorFlow Lite.
+    TensorFlow Lite backend.
 
-    Mais leve que ONNX em SBCs — especialmente no Raspberry Pi,
-    onde existe uma build otimizada com aceleração via NEON (ARM SIMD).
+    Lighter than ONNX on SBCs — especially on the Raspberry Pi,
+    where an optimized build with NEON (ARM SIMD) acceleration exists.
 
-    Espera o mesmo contrato de modelo que o ONNXAdapter:
-    entrada 1D com valor normalizado, saída score [0, 1].
+    Expects the same model contract as the ONNXAdapter:
+    1D input with a normalized value, score output in [0, 1].
     """
 
     def __init__(self, threshold: float = 0.7) -> None:
