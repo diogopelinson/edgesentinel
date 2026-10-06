@@ -26,7 +26,7 @@ def context_with_score(cpu_reading, anomaly_score) -> ActionContext:
 class TestLogAction:
 
     def test_logs_rule_name(self, context, caplog):
-        """caplog é fixture nativa do pytest — captura logs emitidos durante o teste."""
+        """caplog is a pytest-native fixture — it captures logs emitted during the test."""
         action = LogAction()
 
         with caplog.at_level(logging.WARNING, logger="edgesentinel.action.log"):
@@ -68,17 +68,17 @@ class TestLogAction:
         assert "anomaly_score" not in caplog.text
 
     def test_respects_log_level(self, context, caplog):
-        """LogAction com nível ERROR não deve aparecer em captura WARNING."""
+        """A LogAction at ERROR level must not show up in a WARNING capture."""
         action = LogAction(level="ERROR")
 
         with caplog.at_level(logging.WARNING, logger="edgesentinel.action.log"):
             action.execute(context)
 
-        # a mensagem existe mas com nível ERROR
+        # the message exists but at ERROR level
         assert any(r.levelno == logging.ERROR for r in caplog.records)
 
     def test_invalid_level_defaults_to_warning(self, context, caplog):
-        """Nível inválido no config deve usar WARNING como fallback."""
+        """An invalid level in the config must fall back to WARNING."""
         action = LogAction(level="INVALIDO")
 
         with caplog.at_level(logging.WARNING, logger="edgesentinel.action.log"):
@@ -89,8 +89,8 @@ class TestLogAction:
 
     def test_severity_in_context_overrides_the_configured_level(self, context, caplog):
         """
-        O nível do construtor é o default da ação; a severidade da regra que
-        disparou é mais específica e deve vencer.
+        The constructor's level is the action's default; the severity of the
+        rule that fired is more specific and must win.
         """
         context.extras["severity"] = Severity.CRITICAL
         action = LogAction(level="WARNING")
@@ -110,7 +110,7 @@ class TestLogAction:
         assert caplog.records[0].levelno == logging.INFO
 
     def test_falls_back_to_configured_level_without_severity(self, context, caplog):
-        """Contexto sem severidade preserva o comportamento atual."""
+        """A context with no severity preserves the current behavior."""
         action = LogAction(level="ERROR")
 
         with caplog.at_level(logging.INFO, logger="edgesentinel.action.log"):
@@ -119,7 +119,7 @@ class TestLogAction:
         assert caplog.records[0].levelno == logging.ERROR
 
     def test_execute_does_not_raise_on_empty_context(self):
-        """BaseAction captura exceções — LogAction nunca deve propagar erros."""
+        """BaseAction catches exceptions — LogAction must never propagate errors."""
         reading = SensorReading(
             sensor_id="cpu_temp",
             name="CPU Temperature",
