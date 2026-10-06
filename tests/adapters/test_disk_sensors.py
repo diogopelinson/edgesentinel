@@ -1,14 +1,14 @@
 """
-Uso e temperatura de disco.
+Disk usage and temperature.
 
-Cobre a causa número um de falha em campo — cartão SD saturado ou degradado —
-e não exige hardware nenhum para ser desenvolvido.
+Covers the number one cause of failure in the field — a saturated or degraded
+SD card — and requires no hardware at all to be developed.
 
-A decisão que estes testes fixam é qual percentual o sensor publica. `df` não
-divide o usado pelo tamanho do dispositivo: ele divide pelo que um processo
-comum pode alcançar, porque o Linux reserva uma fatia para o root. Num volume
-de 1 TB essa fatia foram 55 GB medidos, e é a diferença entre um alerta que
-chega antes de o agente não conseguir mais escrever e um que chega depois.
+The decision these tests pin down is which percentage the sensor publishes.
+`df` does not divide the used space by the device's size: it divides by what an
+ordinary process can reach, because Linux reserves a slice for root. On a 1 TB
+volume that slice measured 55 GB, and it is the difference between an alert
+that arrives before the agent can no longer write and one that arrives after.
 """
 import os
 from unittest.mock import patch
@@ -21,7 +21,7 @@ from adapters.sensors.registry import build_sensor
 
 
 class FakeStatvfs:
-    """O subconjunto de os.statvfs_result que o sensor usa."""
+    """The subset of os.statvfs_result that the sensor uses."""
 
     def __init__(self, f_blocks: int, f_bfree: int, f_bavail: int, f_frsize: int = 4096):
         self.f_blocks = f_blocks
@@ -31,11 +31,11 @@ class FakeStatvfs:
 
 
 def com_statvfs(resultado):
-    """os.statvfs não existe no Windows, daí o create=True."""
+    """os.statvfs does not exist on Windows, hence the create=True."""
     return patch("os.statvfs", create=True, return_value=resultado)
 
 
-# valores reais medidos num volume de 1 TB: df reporta 1%
+# real values measured on a 1 TB volume: df reports 1%
 REAL = FakeStatvfs(f_blocks=263_940_717, f_bfree=262_292_704, f_bavail=248_866_836)
 
 
@@ -43,16 +43,16 @@ class TestPercentualDeUso:
 
     def test_it_reports_what_df_reports(self):
         """
-        df: usado / (usado + disponível), não usado / tamanho total. A conta
-        sobre o tamanho total daria 0.62% nestes números, e o df mostra 1%.
+        df: used / (used + available), not used / total size. The calculation
+        over the total size would give 0.62% on these numbers, and df shows 1%.
         """
         with com_statvfs(REAL):
             assert DiskUsageSensor().read().value == pytest.approx(0.66, abs=0.01)
 
     def test_a_full_filesystem_reads_one_hundred(self):
         """
-        O ponto em que o agente deixa de conseguir escrever é f_bavail zero, e
-        é ali que o número tem de chegar a 100 — não em f_blocks esgotado.
+        The point at which the agent can no longer write is f_bavail zero, and
+        that is where the number has to reach 100 — not at f_blocks exhausted.
         """
         cheio = FakeStatvfs(f_blocks=1000, f_bfree=50, f_bavail=0)
 
@@ -61,15 +61,15 @@ class TestPercentualDeUso:
 
     def test_the_root_reserve_is_not_counted_as_free(self):
         """
-        Com f_bfree > f_bavail há espaço que só o root alcança. Contá-lo como
-        livre atrasaria o alerta justamente no fim, onde ele importa.
+        With f_bfree > f_bavail there is space only root can reach. Counting it
+        as free would delay the alert right at the end, where it matters.
         """
         reservado = FakeStatvfs(f_blocks=1000, f_bfree=100, f_bavail=50)
 
         with com_statvfs(reservado):
             valor = DiskUsageSensor().read().value
 
-        # usado=900, disponivel=50 -> 900/950
+        # used=900, available=50 -> 900/950
         assert valor == pytest.approx(94.74, abs=0.01)
 
     def test_an_empty_filesystem_reads_zero(self):
@@ -105,8 +105,8 @@ class TestMountpoint:
 
     def test_the_mountpoint_is_visible_in_the_name(self):
         """
-        Dois sensores de disco no mesmo painel são indistinguíveis se o nome
-        não disser qual sistema de arquivos cada um mede.
+        Two disk sensors on the same dashboard are indistinguishable if the
+        name does not say which filesystem each one measures.
         """
         with com_statvfs(REAL):
             assert "/var/log" in DiskUsageSensor(mountpoint="/var/log").read().name
@@ -131,8 +131,8 @@ class TestMountpoint:
 
 class TestMountpointAusente:
     """
-    Ponto de montagem que não existe é hardware ausente, não erro de config: um
-    cartão que não montou no boot não pode derrubar o agente.
+    A mountpoint that does not exist is absent hardware, not a config error: a
+    card that failed to mount at boot must not bring the agent down.
     """
 
     def test_constructing_does_not_touch_the_filesystem(self):
@@ -149,23 +149,24 @@ class TestMountpointAusente:
 
     def test_a_filesystem_reporting_no_blocks_is_unavailable(self):
         """
-        f_blocks zero é um pseudo-sistema de arquivos, não um disco de 0%.
-        Dividir por ele seria ZeroDivisionError na leitura.
+        f_blocks zero is a pseudo-filesystem, not a disk at 0%. Dividing by it
+        would be a ZeroDivisionError on the read.
         """
         with com_statvfs(FakeStatvfs(f_blocks=0, f_bfree=0, f_bavail=0)):
             assert DiskUsageSensor().is_available() is False
 
 
-# --- temperatura ---
+# --- temperature ---
 
 class TestTemperaturaDeDisco:
     """
-    Lida de /sys/class/hwmon, onde o kernel publica cada chip de sensor com um
-    nome. O do disco é 'drivetemp' (SATA, via o módulo de mesmo nome) ou 'nvme'.
+    Read from /sys/class/hwmon, where the kernel publishes each sensor chip
+    with a name. The disk's one is 'drivetemp' (SATA, via the module of the
+    same name) or 'nvme'.
     """
 
     def escreve_hwmon(self, tmp_path, nomes: dict[str, str]):
-        """Monta uma árvore hwmon falsa: {nome_do_chip: conteudo_de_temp1_input}."""
+        """Builds a fake hwmon tree: {chip_name: contents_of_temp1_input}."""
         raiz = tmp_path / "hwmon"
         raiz.mkdir()
         for i, (nome, temp) in enumerate(nomes.items()):
@@ -191,8 +192,8 @@ class TestTemperaturaDeDisco:
 
     def test_it_skips_chips_that_are_not_disks(self, tmp_path):
         """
-        hwmon publica de tudo — CPU, placa-mãe, ventoinha. Pegar o primeiro
-        chip daria a temperatura de outra coisa, num valor plausível.
+        hwmon publishes everything — CPU, motherboard, fans. Taking the first
+        chip would give the temperature of something else, at a plausible value.
         """
         raiz = self.escreve_hwmon(tmp_path, {
             "coretemp": "78000", "acpitz": "55000", "drivetemp": "41000",
@@ -218,8 +219,8 @@ class TestTemperaturaDeDisco:
 
     def test_no_disk_chip_at_all_reports_unavailable(self, tmp_path):
         """
-        O caso comum: a maioria das máquinas não carrega o módulo drivetemp, e
-        isso é ausência de hardware, não erro.
+        The common case: most machines do not load the drivetemp module, and
+        that is absent hardware, not an error.
         """
         raiz = self.escreve_hwmon(tmp_path, {"coretemp": "78000"})
 
@@ -232,11 +233,12 @@ class TestTemperaturaDeDisco:
 
     def test_a_missing_hwmon_directory_still_explains_itself(self, tmp_path):
         """
-        Achado por mutação: is_available() devolve False com ou sem a guarda de
-        diretório ausente, então só ela não justifica a guarda. O que justifica
-        é a mensagem — sem a guarda, read() levanta FileNotFoundError num
-        caminho, e com ela diz o que procurou e que em SATA isso exige um
-        módulo carregado. Quem lê o log é quem paga a diferença.
+        Found by mutation: is_available() returns False with or without the
+        missing-directory guard, so it alone does not justify the guard. What
+        justifies it is the message — without the guard, read() raises
+        FileNotFoundError on a path, and with it the message says what it
+        looked for and that on SATA this requires a loaded module. Whoever
+        reads the log is the one who pays the difference.
         """
         ausente = tmp_path / "nao_existe"
 
@@ -257,8 +259,8 @@ class TestTemperaturaDeDisco:
 
     def test_a_chip_without_temp1_input_is_skipped(self, tmp_path):
         """
-        Nem todo chip hwmon publica temp1_input. Assumir que sim daria
-        FileNotFoundError numa leitura que deveria só pular aquele chip.
+        Not every hwmon chip publishes temp1_input. Assuming it does would give
+        a FileNotFoundError on a read that should just skip that chip.
         """
         raiz = self.escreve_hwmon(tmp_path, {"drivetemp": "41000"})
         (raiz / "hwmon0" / "temp1_input").unlink()
@@ -306,8 +308,8 @@ class TestRegraDeDiscoCheio:
 
 def test_os_statvfs_is_unix_only():
     """
-    Documenta por que os testes usam create=True: no Windows o atributo não
-    existe, e é por isso que o sensor se declara indisponível lá.
+    Documents why the tests use create=True: on Windows the attribute does not
+    exist, and that is why the sensor declares itself unavailable there.
     """
     if os.name == "nt":
         assert not hasattr(os, "statvfs")
