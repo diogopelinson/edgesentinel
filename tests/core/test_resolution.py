@@ -1,9 +1,10 @@
 """
-Resolução de incidente com histerese.
+Incident resolution with hysteresis.
 
-Um incidente não fecha no mesmo ponto em que abriu. Sem margem, um valor
-oscilando na borda do threshold abre e fecha incidente a cada leitura —
-flapping. A condição resolve só quando a leitura recua além da margem.
+An incident does not close at the same point where it opened. Without a margin,
+a value oscillating at the edge of the threshold opens and closes an incident on
+every reading — flapping. The condition only resolves when the reading falls
+back past the margin.
 """
 import pytest
 
@@ -26,7 +27,7 @@ def score(is_anomaly: bool) -> AnomalyScore:
 
 
 class TestResolutionPoint:
-    """A margem padrão é 10% de |threshold|, para o lado oposto ao alarme."""
+    """The default margin is 10% of |threshold|, towards the side opposite the alarm."""
 
     @pytest.mark.parametrize("operator, threshold, expected", [
         (">",  80.0, 72.0),
@@ -42,8 +43,8 @@ class TestResolutionPoint:
     @pytest.mark.parametrize("operator, expected", [(">", -11.0), ("<", -9.0)])
     def test_a_negative_threshold_also_moves_away_from_the_alarm(self, operator, expected):
         """
-        Com threshold -10 e operador '>', multiplicar por 0.9 daria -9, que
-        está do lado do alarme: o incidente fecharia sozinho.
+        With threshold -10 and operator '>', multiplying by 0.9 would give -9,
+        which is on the alarm side: the incident would close by itself.
         """
         point = Condition("cpu_temp", operator, -10.0).resolution_point()
 
@@ -72,8 +73,8 @@ class TestResolves:
 
     def test_a_value_inside_the_margin_keeps_the_incident_open(self):
         """
-        79 °C não dispara a regra, mas também não resolve: é a faixa que
-        evita o flapping.
+        79 °C does not fire the rule, but it does not resolve either: it is the
+        band that avoids flapping.
         """
         condition = Condition("cpu_temp", ">", 80.0)
 
@@ -95,7 +96,7 @@ class TestResolves:
         assert condition.resolves(reading(10.0, sensor_id="memory_usage")) is False
 
     def test_equality_resolves_as_soon_as_the_value_changes(self):
-        """'==' não tem margem: sair do valor exato já é sair do alarme."""
+        """'==' has no margin: leaving the exact value is already leaving the alarm."""
         condition = Condition("cpu_temp", "==", 0.0)
 
         assert condition.resolves(reading(0.0)) is False
@@ -109,16 +110,16 @@ class TestResolves:
 
     def test_anomaly_does_not_resolve_without_a_score(self):
         """
-        Inferência fora do ar não é notícia boa: sem score não há informação
-        para fechar o incidente.
+        Inference being down is not good news: with no score there is no
+        information to close the incident with.
         """
         assert Condition("cpu_temp", "anomaly").resolves(reading(80.0), None) is False
 
     def test_an_unknown_operator_never_resolves(self):
         """
-        Guard do domínio. O loader recusa operador desconhecido, mas se um
-        novo operador chegar sem regra de fechamento, o incidente tem de
-        ficar aberto — fechar por engano some com o alarme.
+        A domain guard. The loader refuses an unknown operator, but if a new
+        operator arrives without a closing rule, the incident has to stay
+        open — closing it by mistake makes the alarm disappear.
         """
         condition = Condition("cpu_temp", "~=", 80.0)
 
