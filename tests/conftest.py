@@ -6,7 +6,7 @@ from core.rules import Rule, Condition
 
 @pytest.fixture
 def cpu_reading() -> SensorReading:
-    """Leitura de temperatura padrão para uso nos testes."""
+    """Default temperature reading for use in the tests."""
     return SensorReading(
         sensor_id="cpu_temp",
         name="CPU Temperature",
@@ -17,7 +17,7 @@ def cpu_reading() -> SensorReading:
 
 @pytest.fixture
 def high_cpu_reading() -> SensorReading:
-    """Leitura acima do threshold — deve disparar regras."""
+    """Reading above the threshold — must fire rules."""
     return SensorReading(
         sensor_id="cpu_temp",
         name="CPU Temperature",
@@ -29,7 +29,7 @@ def high_cpu_reading() -> SensorReading:
 
 @pytest.fixture
 def anomaly_score(cpu_reading) -> AnomalyScore:
-    """Score de anomalia confirmada."""
+    """Score of a confirmed anomaly."""
     return AnomalyScore(
         score=0.91,
         threshold=0.7,
@@ -41,7 +41,7 @@ def anomaly_score(cpu_reading) -> AnomalyScore:
 
 @pytest.fixture
 def normal_score(cpu_reading) -> AnomalyScore:
-    """Score normal — abaixo do threshold."""
+    """Normal score — below the threshold."""
     return AnomalyScore(
         score=0.2,
         threshold=0.7,
@@ -53,7 +53,7 @@ def normal_score(cpu_reading) -> AnomalyScore:
 
 @pytest.fixture
 def simple_rule() -> Rule:
-    """Regra simples: cpu_temp > 75."""
+    """Simple rule: cpu_temp > 75."""
     return Rule(
         name="alta_temperatura",
         condition=Condition(
