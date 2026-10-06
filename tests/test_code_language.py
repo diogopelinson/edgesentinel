@@ -93,8 +93,23 @@ def python_files() -> list[Path]:
 
 
 def _words(text: str) -> set[str]:
-    cleaned = "".join(ch if ch.isalpha() or ch.isspace() else " " for ch in text)
-    return {w.lower() for w in cleaned.split()}
+    """
+    The prose words of the text, as lowercase.
+
+    A token holding a dot, a slash or an underscore is dropped before the split:
+    it is a path, a URL, a filename or an identifier, not prose. Without that,
+    `hooks.example.com` in a docstring broke at its dots and its last element
+    landed on the word list below — so a URL anyone might write was reported, and
+    the only fix available to the author was to change the URL, which is the
+    check bending the code around itself.
+    """
+    palavras: set[str] = set()
+    for token in text.split():
+        if any(c in token for c in "./\\_"):
+            continue
+        limpo = "".join(ch if ch.isalpha() else " " for ch in token)
+        palavras.update(p.lower() for p in limpo.split())
+    return palavras
 
 
 def portuguese_reason(text: str) -> str | None:
@@ -275,6 +290,24 @@ class TestTheGuardBites:
             "    marcadores = leitura\n"
             "    return marcadores\n",
         )
+
+        assert offences(path) == []
+
+    @pytest.mark.parametrize("token", [
+        "hooks.example.com",
+        "https://hooks.example.com/alert",
+        "/path/to/video.mp4",
+        "adapters.sensors.registry",
+        "_check_params",
+    ])
+    def test_a_path_or_url_is_not_read_as_prose(self, tmp_path, token):
+        """
+        The last element of `.com` is a Portuguese preposition and sits on the
+        word list, so splitting a token at its dots reported every such URL
+        written in a docstring. The only fix available to the author was to
+        change the URL, which is the check bending the code around itself.
+        """
+        path = self.write(tmp_path, f"x = 1  # see {token} for the shape\n")
 
         assert offences(path) == []
 
