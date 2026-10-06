@@ -1,26 +1,26 @@
 """
-Treina um modelo de detecção de anomalia e exporta para ONNX.
+Trains an anomaly detection model and exports it to ONNX.
 
-Uso:
+Usage:
     python scripts/train_model.py
     python scripts/train_model.py --output models/anomaly.onnx --seed 42
 
-O artefato gerado é autossuficiente — um arquivo só, com este contrato:
+The artifact produced is self-contained — one file, with this contract:
 
-    entrada : valor bruto do sensor, float32 [N, 1]
-    saída   : 'anomaly_score', float32 [N, 1], em [0, 1]
+    input  : the raw sensor value, float32 [N, 1]
+    output : 'anomaly_score', float32 [N, 1], within [0, 1]
 
-Toda a regra de score mora aqui. O agente (adapters/inference/onnx.py) e o
-AI Inference Service só leem a saída.
+The whole scoring rule lives here. The agent (adapters/inference/onnx.py) and
+the AI Inference Service only read the output.
 
-Por que o score não é só o IsolationForest: as árvores só fazem cortes
-dentro da faixa vista no treino, então todo valor além da borda cai na
-mesma folha e recebe o mesmo score — 75 °C e 95 °C ficariam iguais. Por
-isso o score tem duas partes:
+Why the score is not the IsolationForest alone: the trees only cut inside the
+range seen during training, so every value past the edge lands in the same leaf
+and gets the same score — 75 °C and 95 °C would come out equal. So the score has
+two parts:
 
-    dentro da faixa de treino : IsolationForest, em [0, SUPPORT_BOUNDARY_SCORE]
-    fora dela                 : SUPPORT_BOUNDARY_SCORE + o que falta até 1,
-                                crescendo com a distância até a faixa
+    inside the training range : IsolationForest, within [0, SUPPORT_BOUNDARY_SCORE]
+    outside it                : SUPPORT_BOUNDARY_SCORE plus whatever is left up
+                                to 1, growing with the distance to the range
 """
 import argparse
 import math
@@ -38,14 +38,14 @@ from skl2onnx.common.data_types import FloatTensorType
 OUTPUT_NAME = "anomaly_score"
 INPUT_NAME = "value"
 
-# todo valor fora da faixa de treino pontua a partir daqui
+# every value outside the training range scores from here up
 SUPPORT_BOUNDARY_SCORE = 0.8
 
-# distância, em larguras da faixa de treino, em que o score fora da faixa
-# percorre ~63% do caminho entre SUPPORT_BOUNDARY_SCORE e 1
+# the distance, in widths of the training range, at which the out-of-range
+# score covers ~63% of the way from SUPPORT_BOUNDARY_SCORE to 1
 DISTANCE_SCALE = 1.0
 
-# pontos na faixa normalizada [0, 1] usados para achar o range do
+# points on the normalized [0, 1] range, used to find the range of the
 # decision_function do IsolationForest
 _SUPPORT_GRID_POINTS = 1001
 
@@ -54,11 +54,11 @@ _TARGET_OPSET = {"": 17, "ai.onnx.ml": 3}
 
 def generate_normal_data(n_samples: int = 2000, seed: int = 42) -> np.ndarray:
     """
-    Gera dados sintéticos representando operação normal do sensor.
-    Simula a mesma lógica do SimulatedSensor no cenário 'normal'.
+    Generates synthetic data representing normal sensor operation.
+    Mirrors the same logic SimulatedSensor uses in the 'normal' scenario.
 
-    Temperatura normal: ~51 °C a ~65 °C com variação senoidal e ruído.
-    A semente torna o treino reproduzível.
+    Normal temperature: ~51 °C to ~65 °C, with a sinusoidal swing and noise.
+    The seed is what makes the training reproducible.
     """
     rng = random.Random(seed)
     data = []
@@ -72,16 +72,16 @@ def generate_normal_data(n_samples: int = 2000, seed: int = 42) -> np.ndarray:
 
 def train(X_train: np.ndarray) -> tuple:
     """
-    Treina o pipeline: scaler + IsolationForest.
+    Trains the pipeline: scaler + IsolationForest.
 
-    O MinMaxScaler é parte do contrato, não só pré-processamento: ele leva a
-    faixa de treino para [0, 1], e é essa faixa que o score usa para saber
-    se um valor está dentro ou fora do que o modelo conhece.
+    The MinMaxScaler is part of the contract, not merely preprocessing: it maps
+    the training range onto [0, 1], and that range is what the score uses to
+    tell whether a value is inside or outside what the model has seen.
     """
     scaler = MinMaxScaler(feature_range=(0, 1))
     X_scaled = scaler.fit_transform(X_train)
 
-    # contamination=0.05 — assume que 5% dos dados de treino podem ser outliers
+    # contamination=0.05 — assumes up to 5% of the training data are outliers
     model = IsolationForest(
         n_estimators=100,
         contamination=0.05,
@@ -94,7 +94,7 @@ def train(X_train: np.ndarray) -> tuple:
 
 def build_onnx(scaler, model) -> onnx.ModelProto:
     """
-    Monta o artefato: scaler → IsolationForest → regra de score, num grafo só.
+    Assembles the artifact: scaler → IsolationForest → scoring rule, one graph.
     """
     initial_type = [(INPUT_NAME, FloatTensorType([None, 1]))]
 
@@ -103,7 +103,7 @@ def build_onnx(scaler, model) -> onnx.ModelProto:
     forest_onnx = compose.add_prefix(forest_onnx, "forest_")
 
     scaled   = scaler_onnx.graph.output[0].name
-    decision = "forest_scores"     # decision_function: > 0 normal, < 0 anômalo
+    decision = "forest_scores"     # decision_function: > 0 normal, < 0 anomalous
 
     merged = compose.merge_models(
         scaler_onnx,
@@ -141,11 +141,11 @@ def _append_score_rule(
     decision_min: float,
 ) -> None:
     """
-    Acrescenta ao grafo a saída anomaly_score:
+    Adds the anomaly_score output to the graph:
 
-        distância  d = max(0, x - 1) + max(0, -x)       (x = valor normalizado)
-        dentro     B · clip((dmax - decisão) / (dmax - dmin), 0, 1)
-        fora       B + (1 - B) · (1 - exp(-d / escala))
+        distance  d = max(0, x - 1) + max(0, -x)       (x = normalized value)
+        inside    B · clip((dmax - decision) / (dmax - dmin), 0, 1)
+        outside   B + (1 - B) · (1 - exp(-d / scale))
     """
     constants = {
         "score_zero":     0.0,
@@ -161,20 +161,20 @@ def _append_score_rule(
 
     node = helper.make_node
     graph.node.extend([
-        # distância até a faixa de treino, em larguras da faixa
+        # distance to the training range, in widths of that range
         node("Sub",  [scaled, "score_one"],           ["score_past_top"]),
         node("Relu", ["score_past_top"],              ["score_above"]),
         node("Neg",  [scaled],                        ["score_past_bottom"]),
         node("Relu", ["score_past_bottom"],           ["score_below"]),
         node("Add",  ["score_above", "score_below"],  ["score_distance"]),
 
-        # dentro da faixa: IsolationForest reescalado para [0, B]
+        # inside the range: IsolationForest rescaled onto [0, B]
         node("Sub",  ["score_dmax", decision],                    ["score_gap"]),
         node("Div",  ["score_gap", "score_span"],                 ["score_ratio"]),
         node("Clip", ["score_ratio", "score_zero", "score_one"],  ["score_ratio_clipped"]),
         node("Mul",  ["score_ratio_clipped", "score_boundary"],   ["score_inside"]),
 
-        # fora da faixa: de B até 1, crescendo com a distância
+        # outside the range: from B up to 1, growing with the distance
         node("Div",  ["score_distance", "score_scale"],   ["score_scaled_distance"]),
         node("Neg",  ["score_scaled_distance"],           ["score_neg_distance"]),
         node("Exp",  ["score_neg_distance"],              ["score_decay"]),
@@ -205,7 +205,7 @@ def export_onnx(scaler, model, output_path: Path) -> None:
 
 
 def evaluate(model_path: Path, X_train: np.ndarray) -> None:
-    """Imprime o score do artefato exportado em pontos de referência."""
+    """Prints the exported artifact's score at a few reference points."""
     import onnxruntime as ort
 
     session = ort.InferenceSession(str(model_path), providers=["CPUExecutionProvider"])
