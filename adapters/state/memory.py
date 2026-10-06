@@ -6,16 +6,16 @@ from core.ports import StatePort
 
 class InMemoryState(StatePort):
     """
-    Estado local do processo — o padrão de um dispositivo só.
+    Process-local state — the default for a single device.
 
-    Usa time.monotonic() para os prazos, porque o relógio de parede pode
-    andar para trás num ajuste de NTP. O monotônico só vale dentro deste
-    processo, e é exatamente por isso que ele não aparece no StatePort: o
-    RedisState guarda o mesmo estado sem comparar relógio nenhum.
+    Uses time.monotonic() for the deadlines, because a wall clock can step
+    backwards on an NTP correction. A monotonic clock only means anything inside
+    this process, and that is exactly why it does not appear in StatePort: the
+    RedisState keeps the same state without comparing any clock at all.
 
-    Protegido por lock: os pipelines rodam em threads do executor e
-    compartilham o mesmo engine, então duas leituras podem tentar tomar o
-    cooldown da mesma regra ao mesmo tempo.
+    Guarded by a lock: the pipelines run on executor threads and share one
+    engine, so two readings can try to take the same rule's cooldown at the same
+    time.
     """
 
     def __init__(self) -> None:
