@@ -105,13 +105,13 @@ def _check_config(config_path: str) -> tuple[int, int]:
 
 def _check_sensors() -> tuple[int, int]:
     """
-    Percorre o _REGISTRY, não uma lista própria.
+    Walks the _REGISTRY rather than a list of its own.
 
-    Havia uma segunda lista aqui — type, módulo e classe, importados por
-    string — duplicando o mapa que o registry já mantém. Acrescentar um sensor
-    exigia editar as duas, e esquecer esta fazia o doctor parar de cobrir aquele
-    sensor sem nada falhar. Silêncio é o pior modo de falha para um comando de
-    diagnóstico: quem o roda está tentando descobrir o que não funciona.
+    There was a second list here — type, module and class, imported by string —
+    duplicating the map the registry already keeps. Adding a sensor meant
+    editing both, and forgetting this one made doctor quietly stop covering that
+    sensor. Silence is the worst failure mode a diagnostic command can have:
+    whoever runs it is already trying to find out what is not working.
     """
     from adapters.sensors.registry import _REGISTRY
 
