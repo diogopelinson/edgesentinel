@@ -21,7 +21,7 @@ def make_event(**overrides) -> Event:
 class TestEvent:
 
     def test_is_immutable(self):
-        """Como as demais entidades do core — o loop é concorrente."""
+        """Like the other core entities — the loop is concurrent."""
         event = make_event()
 
         with pytest.raises(dataclasses.FrozenInstanceError):
@@ -35,12 +35,12 @@ class TestEvent:
         assert before <= event.timestamp <= after
 
     def test_anomaly_score_is_optional(self):
-        """Regra de threshold dispara sem inferência nenhuma."""
+        """A threshold rule fires without any inference at all."""
         assert make_event().anomaly_score is None
 
     def test_carries_anomaly_score_when_present(self):
         assert make_event(anomaly_score=0.93).anomaly_score == pytest.approx(0.93)
 
     def test_event_id_is_assigned_by_the_store(self):
-        """Quem ainda não foi persistido não tem id."""
+        """What has not been persisted yet has no id."""
         assert make_event().event_id is None
