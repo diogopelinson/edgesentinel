@@ -10,7 +10,7 @@ from application.pipeline import Pipeline
 class TestSimulatedSensor:
 
     def test_normal_scenario_stays_within_range(self):
-        """Cenário normal deve manter temperatura entre 45°C e 70°C."""
+        """The normal scenario must keep the temperature between 45°C and 70°C."""
         sensor = SimulatedSensor(
             sensor_id="cpu_temp",
             name="CPU Temperature",
@@ -26,7 +26,7 @@ class TestSimulatedSensor:
         )
 
     def test_stress_scenario_increases_over_time(self):
-        """Cenário stress deve produzir valor maior com rampa explícita."""
+        """The stress scenario must produce a higher value with an explicit ramp."""
         sensor = SimulatedSensor(
             sensor_id="cpu_temp",
             name="CPU Temperature",
@@ -35,18 +35,18 @@ class TestSimulatedSensor:
             amplitude=2.0,
             scenario="stress",
         )
-        # manipula o _start para simular que 30 segundos passaram
+        # manipulates _start to simulate that 30 seconds have passed
         import time
         sensor._start = time.monotonic() - 30.0
 
         reading = sensor.read()
-        # com 30s de rampa: base(60) + ramp(30*0.5=15) = ~75°C
+        # with 30s of ramp: base(60) + ramp(30*0.5=15) = ~75°C
         assert reading.value > 70.0, (
             f"Após 30s de stress, esperava >70°C, got {reading.value:.1f}°C"
         )
 
     def test_spike_scenario_produces_high_values(self):
-        """Cenário spike deve produzir pelo menos um valor alto em 30 leituras."""
+        """The spike scenario must produce at least one high value in 30 readings."""
         sensor = SimulatedSensor(
             sensor_id="cpu_temp",
             name="CPU Temperature",
@@ -59,18 +59,18 @@ class TestSimulatedSensor:
         readings = [sensor.read().value for _ in range(30)]
         max_value = max(readings)
 
-        # spike adiciona +25°C — deve haver pelo menos um valor alto
+        # spike adds +25°C — there must be at least one high value
         assert max_value > 70.0, (
             f"Cenário spike deveria produzir valores altos, max foi {max_value:.1f}°C"
         )
 
     def test_sensor_is_always_available(self):
-        """SimulatedSensor deve estar sempre disponível."""
+        """SimulatedSensor must always be available."""
         sensor = SimulatedSensor("cpu_temp", "CPU Temp", "°C", base_value=58.0)
         assert sensor.is_available() is True
 
     def test_reading_has_correct_metadata(self):
-        """Leitura deve ter sensor_id, unit e timestamp corretos."""
+        """The reading must have the right sensor_id, unit and timestamp."""
         sensor = SimulatedSensor(
             sensor_id="cpu_temp",
             name="CPU Temperature",
@@ -85,7 +85,7 @@ class TestSimulatedSensor:
         assert reading.timestamp > 0
 
     def test_cpu_usage_clamped_to_100(self):
-        """CPU usage no cenário stress não deve ultrapassar 100%."""
+        """CPU usage in the stress scenario must not exceed 100%."""
         sensor = SimulatedSensor(
             sensor_id="cpu_usage",
             name="CPU Usage",
@@ -104,8 +104,8 @@ class TestScenarioEndToEnd:
 
     def test_stress_eventually_triggers_rule(self):
         """
-        Cenário stress dispara regra quando rampa acumula tempo suficiente.
-        Simula passagem de tempo manipulando _start do sensor.
+        The stress scenario fires a rule when the ramp accumulates enough time.
+        Simulates the passage of time by manipulating the sensor's _start.
         """
         import time
         sensor = SimulatedSensor(
@@ -116,7 +116,7 @@ class TestScenarioEndToEnd:
             amplitude=2.0,
             scenario="stress",
         )
-        # simula 25 segundos de operação — rampa adiciona ~12.5°C
+        # simulates 25 seconds of operation — the ramp adds ~12.5°C
         sensor._start = time.monotonic() - 25.0
 
         rule = Rule(
@@ -144,8 +144,8 @@ class TestScenarioEndToEnd:
 
     def test_normal_scenario_never_triggers_high_temp_rule(self):
         """
-        Cenário normal nunca deve disparar regra de temperatura
-        acima de 75°C — valores normais ficam entre 50°C e 65°C.
+        The normal scenario must never fire a temperature rule
+        above 75°C — normal values stay between 50°C and 65°C.
         """
         sensor = SimulatedSensor(
             sensor_id="cpu_temp",
