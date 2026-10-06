@@ -8,16 +8,16 @@ logger = logging.getLogger("edgesentinel.sensors.camera")
 
 class CameraSensor(SensorPort):
     """
-    Sensor que captura frames de uma câmera via RTSP, webcam ou arquivo.
+    A sensor that captures frames from a camera over RTSP, webcam or file.
 
-    O frame é armazenado em metadata["frame"] como numpy array.
-    O value é sempre 1.0 quando o frame é capturado com sucesso — é
-    o YOLOInferenceAdapter que vai extrair significado do frame.
+    The frame is stored in metadata["frame"] as a numpy array.
+    The value is always 1.0 when the frame is captured successfully — it is
+    the YOLOInferenceAdapter that extracts meaning from the frame.
 
-    Fontes suportadas:
-        rtsp://usuario:senha@ip:porta/stream   → câmera IP
-        0, 1, 2...                             → webcam local
-        /caminho/video.mp4                     → arquivo de vídeo
+    Supported sources:
+        rtsp://user:password@ip:port/stream   → IP camera
+        0, 1, 2...                            → local webcam
+        /path/video.mp4                       → video file
     """
 
     def __init__(
@@ -38,7 +38,7 @@ class CameraSensor(SensorPort):
     def read(self) -> SensorReading:
         self._ensure_connected()
 
-        # respeita o fps_limit — não captura mais rápido que o necessário
+        # respects fps_limit — does not capture faster than necessary
         elapsed = time.monotonic() - self._last_read
         min_interval = 1.0 / self._fps_limit
         if elapsed < min_interval:
@@ -47,7 +47,7 @@ class CameraSensor(SensorPort):
         ret, frame = self._cap.read()
 
         if not ret or frame is None:
-            # tenta reconectar uma vez antes de falhar
+            # tries to reconnect once before failing
             logger.warning(f"[{self.sensor_id}] Frame inválido — tentando reconectar...")
             self._reconnect()
             ret, frame = self._cap.read()
@@ -59,7 +59,7 @@ class CameraSensor(SensorPort):
         return SensorReading(
             sensor_id=self.sensor_id,
             name=self.name,
-            value=1.0,           # 1.0 = frame capturado, 0.0 seria falha
+            value=1.0,           # 1.0 = frame captured, 0.0 would be a failure
             unit=self.unit,
             metadata={
                 "frame":  frame,                           # numpy array HxWxC
@@ -76,12 +76,12 @@ class CameraSensor(SensorPort):
             return False
 
     def release(self) -> None:
-        """Libera o recurso de câmera."""
+        """Releases the camera resource."""
         if self._cap is not None:
             self._cap.release()
             self._cap = None
 
-    # --- métodos privados ---
+    # --- private methods ---
 
     def _ensure_connected(self) -> None:
         if self._cap is None or not self._cap.isOpened():
