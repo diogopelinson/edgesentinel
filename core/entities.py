@@ -5,7 +5,7 @@ import time
 
 @dataclass(frozen=True)
 class SensorReading:
-    """Leitura imutável de um sensor. frozen=True garante que ninguém altera após criação."""
+    """One immutable sensor reading. frozen=True means nobody edits it after creation."""
     sensor_id: str
     name: str
     value: float
@@ -16,21 +16,21 @@ class SensorReading:
 
 @dataclass(frozen=True)
 class AnomalyScore:
-    """Score de anomalia produzido por um InferencePort."""
-    score: float          # 0.0 = normal, 1.0 = anomalia total
-    threshold: float      # limiar configurado para disparo
+    """An anomaly score produced by an InferencePort."""
+    score: float          # 0.0 = normal, 1.0 = fully anomalous
+    threshold: float      # the configured firing threshold
     is_anomaly: bool      # score >= threshold
-    model_id: str         # qual modelo gerou esse score
+    model_id: str         # which model produced this score
     reading: SensorReading
 
 
 @dataclass(frozen=True)
 class Event:
     """
-    Registro persistido de uma regra que disparou.
+    The stored record of a rule that fired.
 
-    severity é str, não Severity: core/rules.py importa este módulo, e o
-    valor já chega aqui como o texto puro que vai para o armazenamento.
+    severity is a str, not a Severity: core/rules.py imports this module, and
+    the value arrives here already as the plain text that goes to storage.
     """
     rule_name: str
     sensor_id: str
@@ -39,13 +39,13 @@ class Event:
     severity: str
     timestamp: float = field(default_factory=time.time)
     anomaly_score: float | None = None
-    event_id: int | None = None       # atribuído pelo store ao persistir
-    incident_id: int | None = None    # incidente que agrupa este disparo
+    event_id: int | None = None       # assigned by the store on write
+    incident_id: int | None = None    # the incident this firing belongs to
 
 
 @dataclass
 class ActionContext:
-    """Contexto passado para um ActionPort quando uma regra dispara."""
+    """What an ActionPort receives when a rule fires."""
     rule_name: str
     reading: SensorReading
     score: AnomalyScore | None = None
