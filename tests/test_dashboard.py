@@ -1,9 +1,9 @@
 """
-O dashboard do Grafana contra as métricas que o agente realmente publica.
+The Grafana dashboard against the metrics the agent actually publishes.
 
-Um painel que cita uma métrica inexistente não quebra nada: ele só fica vazio,
-e vazio é indistinguível de 'nada aconteceu'. Um dashboard versionado junto do
-código pode ser verificado contra ele, e é o que este arquivo faz.
+A panel citing a metric that does not exist breaks nothing: it just goes empty,
+and empty is indistinguishable from 'nothing happened'. A dashboard versioned
+alongside the code can be checked against it, and that is what this file does.
 """
 import json
 import re
@@ -19,17 +19,17 @@ from adapters.exporter.incidents import NAME as GAUGE_ABERTOS
 DASHBOARD = Path(__file__).resolve().parents[1] / "dashboards"
 ARQUIVO   = DASHBOARD / "edgesentinel_dashboard_v2.json"
 
-# o AI Service tem o seu próprio registro, noutro processo e noutro container
+# the AI Service has its own registry, in another process and another container
 PREFIXOS_EXTERNOS = ("ai_service_",)
 
-# nomes de métrica citados numa expressão PromQL
+# metric names cited in a PromQL expression
 _METRICA = re.compile(r"\b((?:edgesentinel|ai_service)_[a-z0-9_]+)\b")
 
 
 def nomes_publicados() -> set[str]:
     """
-    Todas as séries que os exportadores podem publicar, derivadas dos próprios
-    instrumentos em vez de escritas à mão — uma lista à mão envelhece calada.
+    Every series the exporters can publish, derived from the instruments
+    themselves instead of written by hand — a hand-written list ages silently.
     """
     nomes = {GAUGE_ABERTOS}
 
@@ -55,7 +55,7 @@ def dashboard() -> dict:
 
 @pytest.fixture(scope="module")
 def expressoes(dashboard) -> list[tuple[str, str]]:
-    """(título do painel, expressão) para cada target do dashboard."""
+    """(panel title, expression) for each target in the dashboard."""
     pares = []
     for painel in dashboard["panels"]:
         for target in painel.get("targets", []):
@@ -85,8 +85,8 @@ class TestDashboardStructure:
 
     def test_rows_come_before_the_panels_they_hold(self, dashboard):
         """
-        O Grafana agrupa por posição, não por aninhamento: um painel acima da
-        sua própria linha aparece na linha anterior.
+        Grafana groups by position, not by nesting: a panel above its own row
+        shows up in the previous row.
         """
         linhas = [p for p in dashboard["panels"] if p["type"] == "row"]
 
@@ -103,8 +103,8 @@ class TestDashboardMatchesTheAgent:
 
     def test_every_metric_cited_exists(self, expressoes):
         """
-        O caso que isto pega: renomear uma métrica no exportador e deixar o
-        painel apontando para a antiga. Nada falha, o painel só fica vazio.
+        The case this catches: renaming a metric in the exporter and leaving the
+        panel pointing at the old name. Nothing fails, the panel just goes empty.
         """
         publicados = nomes_publicados()
         orfas = set()
@@ -127,9 +127,9 @@ class TestDashboardMatchesTheAgent:
 
     def test_the_open_gauge_is_summed_with_a_fallback(self, expressoes):
         """
-        O gauge é esparso: sem incidente aberto não há série, e um stat sem
-        série mostra 'No data' em vez de zero. 'or vector(0)' é o que faz o
-        painel dizer 'nenhum' quando é nenhum.
+        The gauge is sparse: with no open incident there is no series, and a stat
+        with no series shows 'No data' instead of zero. 'or vector(0)' is what
+        makes the panel say 'none' when it is none.
         """
         stats = [
             expr for titulo, expr in expressoes
