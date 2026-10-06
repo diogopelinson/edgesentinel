@@ -287,6 +287,25 @@ release comes next. The full backlog lives in [`docs/roadmap.json`](docs/roadmap
 
 ### Changed
 
+- **Comments and docstrings are now in English**, across 659 of them in 96 files,
+  and `tests/test_code_language.py` keeps them that way: it walks every `.py` file
+  and fails on a Portuguese comment or docstring. The documentation was already in
+  English while the code was not, which closed half the project to the reader a
+  public repository is for — and the comments here are the part worth reading,
+  because they explain which decision was taken and what was rejected rather than
+  what the next line does. American spelling, which is a rule only because three
+  authors drifted apart on it in one afternoon.
+- **Two things deliberately stayed in Portuguese**, and the same test pins both so
+  the boundary cannot drift. Runtime strings — error messages, log lines, CLI
+  output — because tests assert on that exact text and `docs/` quotes captured
+  output verbatim, so translating one breaks the suite and makes a page lie. And
+  identifiers, because renaming locals is a different change with a different
+  risk. `AGENTS.md` and `CONTRIBUTING.md` now state the rule and both exceptions.
+- **`scripts/check_language.py`** runs the same check over a subtree, which is how
+  a translation this size gets verified a directory at a time instead of only when
+  the whole repository is green.
+
+
 - **The store can read and filter incidents** — by id, with filters, and
   counting the firings of several incidents in one query. These are methods on
   the SQLite adapter rather than on `IncidentPort`: the port carries what the
