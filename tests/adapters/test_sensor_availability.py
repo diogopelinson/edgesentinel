@@ -8,15 +8,15 @@ from adapters.sensors.cpu_temp import CpuTemperatureSensor
 
 class TestCpuTemperatureAvailability:
     """
-    Um sensor sinaliza ausência de hardware por is_available(), nunca
-    levantando exceção na construção — core/ports.py:16 define is_available()
-    exatamente para isso, e ele é inalcançável se o __init__ explodir.
+    A sensor signals absent hardware through is_available(), never by raising
+    an exception on construction — core/ports.py:16 defines is_available()
+    for exactly that, and it is unreachable if __init__ blows up.
 
-    Contrato válido para todo sensor: descoberta de hardware é preguiçosa.
+    A contract valid for every sensor: hardware discovery is lazy.
     """
 
     def test_construction_succeeds_without_thermal_hardware(self):
-        """Construir num host sem fonte de temperatura não pode levantar."""
+        """Constructing on a host with no temperature source must not raise."""
         with patch("pathlib.Path.exists", return_value=False):
             CpuTemperatureSensor()
 
@@ -27,8 +27,8 @@ class TestCpuTemperatureAvailability:
 
     def test_read_names_the_attempted_paths(self):
         """
-        Sem hardware, read() falha — mas a mensagem precisa dizer onde
-        procurou, senão o diagnóstico vira adivinhação.
+        With no hardware, read() fails — but the message has to say where it
+        looked, otherwise diagnosis turns into guesswork.
         """
         with patch("pathlib.Path.exists", return_value=False):
             sensor = CpuTemperatureSensor()
@@ -40,7 +40,7 @@ class TestCpuTemperatureAvailability:
         assert "/usr/bin/vcgencmd" in message
 
     def test_reads_normally_when_thermal_path_exists(self):
-        """Regressão: com hardware presente, o comportamento não muda."""
+        """Regression: with hardware present, the behavior does not change."""
         with patch("pathlib.Path.exists", return_value=True), \
              patch("pathlib.Path.read_text", return_value="72500\n"):
             sensor  = CpuTemperatureSensor()
@@ -52,9 +52,9 @@ class TestCpuTemperatureAvailability:
 
     def test_hardware_appearing_after_construction_is_picked_up(self):
         """
-        Descoberta preguiçosa significa que um sensor construído sem hardware
-        passa a funcionar se o hardware aparecer depois — o oposto de resolver
-        o caminho uma única vez no __init__.
+        Lazy discovery means a sensor built with no hardware starts working if
+        the hardware shows up later — the opposite of resolving the path once
+        and for all in __init__.
         """
         with patch("pathlib.Path.exists", return_value=False):
             sensor = CpuTemperatureSensor()
@@ -68,8 +68,9 @@ class TestCpuTemperatureAvailability:
 
 class TestBuilderTreatsMissingHardwareAsUnavailable:
     """
-    O builder tem dois caminhos distintos: sensor indisponível é WARNING e
-    segue, falha de construção é ERROR. Hardware ausente é o primeiro caso.
+    The builder has two distinct paths: an unavailable sensor is a WARNING and
+    it carries on, a construction failure is an ERROR. Absent hardware is the
+    first case.
     """
 
     def test_missing_hardware_logs_unavailable_not_construction_failure(self, caplog):
