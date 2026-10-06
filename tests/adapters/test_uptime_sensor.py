@@ -1,9 +1,10 @@
 """
-O sensor de uptime, lido de /proc/uptime.
+The uptime sensor, read from /proc/uptime.
 
-Barato e desproporcionalmente útil: um reboot inesperado é uma queda de
-uptime, e queda de uptime é expressável como regra com o operador '<' que já
-existe. Nada de novo no motor — só um número que ninguém estava publicando.
+Cheap and disproportionately useful: an unexpected reboot is a drop in uptime,
+and a drop in uptime is expressable as a rule with the '<' operator that
+already exists. Nothing new in the engine — just a number nobody was
+publishing.
 """
 from unittest.mock import patch
 
@@ -15,7 +16,7 @@ from adapters.sensors.uptime import UptimeSensor
 
 
 def com_proc(conteudo: str):
-    """Substitui a leitura de /proc/uptime — o teste roda em qualquer SO."""
+    """Replaces the read of /proc/uptime — the test runs on any OS."""
     return patch("pathlib.Path.read_text", return_value=conteudo)
 
 
@@ -23,9 +24,9 @@ class TestLeituraDoProcUptime:
 
     def test_reads_the_first_field_as_seconds(self):
         """
-        /proc/uptime tem dois campos: segundos desde o boot e segundos
-        ociosos somados por CPU. O segundo passa de 100% do primeiro numa
-        máquina com vários núcleos, e não é o que se quer.
+        /proc/uptime has two fields: seconds since boot and idle seconds
+        summed per CPU. The second one goes past 100% of the first on a
+        machine with several cores, and is not what is wanted.
         """
         with com_proc("350735.47 234388.90\n"):
             leitura = UptimeSensor().read()
@@ -49,7 +50,7 @@ class TestLeituraDoProcUptime:
                 == "tempo_ligado"
 
     def test_a_freshly_booted_device_reads_near_zero(self):
-        """O caso que a regra de reboot procura."""
+        """The case the reboot rule is looking for."""
         with com_proc("4.15 1.02\n"):
             assert UptimeSensor().read().value == pytest.approx(4.15)
 
@@ -59,8 +60,8 @@ class TestLeituraDoProcUptime:
 
     def test_a_single_field_still_parses(self):
         """
-        Dois campos é o que o Linux escreve, mas depender do segundo para ler
-        o primeiro seria acoplamento sem motivo.
+        Two fields is what Linux writes, but depending on the second one in
+        order to read the first would be coupling for no reason.
         """
         with com_proc("99.5\n"):
             assert UptimeSensor().read().value == pytest.approx(99.5)
@@ -68,8 +69,8 @@ class TestLeituraDoProcUptime:
 
 class TestAusenciaDeProcUptime:
     """
-    O contrato de disponibilidade: o construtor não toca o arquivo, e a
-    ausência é informada por is_available(), não por exceção no boot.
+    The availability contract: the constructor does not touch the file, and
+    its absence is reported by is_available(), not by an exception at boot.
     """
 
     def test_constructing_does_not_touch_the_file(self):
@@ -86,8 +87,8 @@ class TestAusenciaDeProcUptime:
 
     def test_garbage_in_the_file_is_reported_as_unavailable(self):
         """
-        Um /proc emulado devolvendo texto não é um sensor disponível. O
-        BaseSensor cobre isso: read() levanta, is_available() é False.
+        An emulated /proc returning text is not an available sensor. The
+        BaseSensor covers that: read() raises, is_available() is False.
         """
         with com_proc("nao sou um numero\n"):
             assert UptimeSensor().is_available() is False
@@ -117,8 +118,9 @@ class TestRegistro:
 
 class TestRegraDeReboot:
     """
-    A aceitação da feature: 'queda de uptime é expressável'. Não precisou de
-    operador novo — o '<' que já existia passa a ter o que comparar.
+    The feature's acceptance criterion: 'a drop in uptime is expressable'. It
+    needed no new operator — the '<' that already existed now has something to
+    compare.
     """
 
     def test_a_rule_fires_on_a_device_that_just_rebooted(self):
