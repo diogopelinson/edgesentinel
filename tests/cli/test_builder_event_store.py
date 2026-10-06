@@ -30,8 +30,8 @@ class TestBuildEventStore:
 
     def test_does_not_touch_the_disk_before_start(self, tmp_path):
         """
-        Construir não abre nada: quem controla quando o banco é criado é o
-        MonitorLoop, junto com o resto do ciclo de vida.
+        Building opens nothing: what controls when the database is created is
+        the MonitorLoop, together with the rest of the lifecycle.
         """
         path   = tmp_path / "events.db"
         config = make_config(EventStoreConfig(path=str(path)))
