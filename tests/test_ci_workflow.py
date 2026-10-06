@@ -1,12 +1,12 @@
 """
-O workflow de CI é configuração que ninguém executa localmente: um erro nele
-só aparece depois do push, e alguns erros não aparecem nunca — passam verde
-verificando menos do que deveriam.
+The CI workflow is configuration nobody runs locally: a mistake in it only
+shows up after the push, and some mistakes never show up at all — they pass
+green while verifying less than they should.
 
-O que este arquivo cobra é isso: que o arquivo seja YAML válido, que a matriz
-cubra o que o pyproject.toml promete suportar, e que o checkout traga o
-histórico completo, sem o qual a verificação dos commits de entrega do
-roadmap se ignora sozinha e o job passa sem checar nada.
+That is what this file demands: that the file be valid YAML, that the matrix
+cover what pyproject.toml promises to support, and that the checkout bring the
+full history, without which the check on the roadmap's delivery commits skips
+itself and the job passes without checking anything.
 """
 from pathlib import Path
 
@@ -45,7 +45,7 @@ def test_the_workflow_is_valid_yaml(workflow):
 
 
 def test_it_runs_on_push_and_on_pull_request(workflow):
-    # 'on' vira True no YAML 1.1, que é o que o PyYAML implementa
+    # 'on' becomes True in YAML 1.1, which is what PyYAML implements
     gatilhos = workflow.get("on") or workflow[True]
 
     assert "push" in gatilhos
@@ -54,8 +54,8 @@ def test_it_runs_on_push_and_on_pull_request(workflow):
 
 def test_the_matrix_covers_the_minimum_supported_python(workflow):
     """
-    requires-python é a promessa; a matriz é a verificação dela. A versão
-    mínima é a que mais quebra, porque é nela que uma sintaxe nova falha.
+    requires-python is the promise; the matrix is the check on it. The minimum
+    version is the one that breaks most, because it is where new syntax fails.
     """
     matriz = [versao(v) for v in workflow["jobs"]["linux"]["strategy"]["matrix"]["python-version"]]
 
@@ -74,7 +74,7 @@ def test_no_job_runs_a_python_older_than_supported(workflow):
 
 
 def jobs_do_workflow() -> list[str]:
-    """Derivado do arquivo: job novo entra na verificação por existir."""
+    """Derived from the file: a new job enters the check just by existing."""
     return sorted(carrega()["jobs"])
 
 
@@ -85,8 +85,9 @@ def comandos(workflow: dict, job: str) -> str:
 @pytest.mark.parametrize("job", jobs_do_workflow())
 def test_every_job_checks_out_the_full_history(workflow, job):
     """
-    Sem fetch-depth 0 o clone é raso, e tests/test_roadmap.py se ignora por não
-    achar os commits antigos: o job continuaria verde verificando menos.
+    Without fetch-depth 0 the clone is shallow, and tests/test_roadmap.py skips
+    itself for not finding the old commits: the job would stay green while
+    verifying less.
     """
     checkout = next(
         passo for passo in workflow["jobs"][job]["steps"]
@@ -99,8 +100,8 @@ def test_every_job_checks_out_the_full_history(workflow, job):
 @pytest.mark.parametrize("job", jobs_do_workflow())
 def test_every_job_that_runs_the_suite_installs_what_it_needs(workflow, job):
     """
-    Sem sklearn, skl2onnx, onnx e cv2, dezoito testes de modelo e de payload
-    se ignoram — e um job verde com 18 testes a menos não avisa ninguém.
+    Without sklearn, skl2onnx, onnx and cv2, eighteen model and payload tests
+    skip themselves — and a green job with 18 fewer tests warns nobody.
     """
     instalacao = comandos(workflow, job)
     if "pytest tests/" not in instalacao:
@@ -116,9 +117,9 @@ def test_every_job_that_runs_the_suite_installs_what_it_needs(workflow, job):
 
 def test_some_job_runs_on_the_target_architecture(workflow):
     """
-    O alvo declarado do projeto é Raspberry Pi. Testar só em x86_64 deixa de
-    fora exatamente a diferença que importa: wheel inexistente para arm64,
-    biblioteca nativa compilada de outro jeito.
+    The project's declared target is the Raspberry Pi. Testing only on x86_64
+    leaves out exactly the difference that matters: a wheel that does not exist
+    for arm64, a native library compiled another way.
     """
     arquiteturas = [str(job.get("runs-on", "")) for job in workflow["jobs"].values()]
 
@@ -129,8 +130,8 @@ def test_some_job_runs_on_the_target_architecture(workflow):
 
 def test_some_job_runs_ruff_and_mypy(workflow):
     """
-    O gate de estilo e de tipos só vale se rodar sozinho. Rodado à mão, ele é
-    uma recomendação — e recomendação de lint é lint desligado.
+    The style and type gate only counts if it runs by itself. Run by hand, it is
+    a recommendation — and a lint recommendation is a lint turned off.
     """
     tudo = "\n".join(comandos(workflow, job) for job in workflow["jobs"])
 
@@ -140,9 +141,10 @@ def test_some_job_runs_ruff_and_mypy(workflow):
 
 def test_some_job_boots_the_agent_as_a_process(workflow):
     """
-    A suíte cobre funções; o smoke cobre o processo. Sem ele, a classe de
-    defeito que passa verde e só aparece rodando o comando não tem quem pegue —
-    foi assim com o 'python -m' que não executava nada.
+    The suite covers functions; the smoke test covers the process. Without it,
+    the class of defect that passes green and only shows up when you run the
+    command has nothing to catch it — that is what happened with the
+    'python -m' that executed nothing.
     """
     tudo = "\n".join(comandos(workflow, job) for job in workflow["jobs"])
     script = ROOT / "scripts" / "smoke.py"
@@ -153,8 +155,8 @@ def test_some_job_boots_the_agent_as_a_process(workflow):
 
 class TestOutrosWorkflows:
     """
-    Todo arquivo em .github/workflows é configuração que só executa no GitHub.
-    Um erro de YAML ali não aparece em nenhum comando local.
+    Every file in .github/workflows is configuration that only runs on GitHub.
+    A YAML mistake there shows up in no local command.
     """
 
     def test_every_workflow_file_parses(self):
@@ -168,9 +170,9 @@ class TestOutrosWorkflows:
 
     def test_the_audit_never_gates_a_pull_request(self):
         """
-        Auditoria é aviso, não portão: uma CVE numa dependência transitiva não
-        pode travar um pull request que não tem nada a ver com ela. Por isso o
-        gatilho é agendado e manual — e precisa continuar assim.
+        An audit is a warning, not a gate: a CVE in a transitive dependency must
+        not block a pull request that has nothing to do with it. That is why the
+        trigger is scheduled and manual — and it has to stay that way.
         """
         audit = yaml.safe_load((WORKFLOWS / "audit.yml").read_text(encoding="utf-8"))
         gatilhos = audit.get("on") or audit[True]
@@ -183,9 +185,9 @@ class TestOutrosWorkflows:
 
     def test_code_scanning_can_write_its_alerts(self):
         """
-        Sem a permissão security-events o CodeQL roda e não consegue publicar
-        nada: job verde, aba de segurança vazia. É a falha mais silenciosa
-        possível num workflow de análise.
+        Without the security-events permission CodeQL runs and cannot publish
+        anything: green job, empty security tab. It is the quietest possible
+        failure in an analysis workflow.
         """
         codeql = yaml.safe_load((WORKFLOWS / "codeql.yml").read_text(encoding="utf-8"))
         job = codeql["jobs"]["codeql"]
@@ -194,8 +196,8 @@ class TestOutrosWorkflows:
 
     def test_code_scanning_runs_on_pull_request_and_on_a_schedule(self):
         """
-        No pull request para pegar o código novo; agendado porque as regras do
-        CodeQL mudam sem o código mudar.
+        On the pull request to catch the new code; on a schedule because the
+        CodeQL rules change without the code changing.
         """
         codeql = yaml.safe_load((WORKFLOWS / "codeql.yml").read_text(encoding="utf-8"))
         gatilhos = codeql.get("on") or codeql[True]
@@ -205,8 +207,8 @@ class TestOutrosWorkflows:
 
     def test_dependabot_watches_the_code_and_the_actions(self):
         """
-        As actions entram junto com o pip porque foi nelas que a primeira
-        defasagem apareceu: Node 20 depreciado sob checkout@v4.
+        The actions go in alongside pip because they are where the first drift
+        showed up: Node 20 deprecated under checkout@v4.
         """
         config = yaml.safe_load(DEPENDABOT.read_text(encoding="utf-8"))
         vigiados = {(u["package-ecosystem"], u["directory"]) for u in config["updates"]}
@@ -216,7 +218,7 @@ class TestOutrosWorkflows:
         assert ("github-actions", "/") in vigiados
 
     def test_dependabot_groups_its_pull_requests(self):
-        """Pull request demais vira pull request ignorado."""
+        """Too many pull requests become ignored pull requests."""
         config = yaml.safe_load(DEPENDABOT.read_text(encoding="utf-8"))
         sem_grupo = [u["directory"] for u in config["updates"] if not u.get("groups")]
 
@@ -225,9 +227,9 @@ class TestOutrosWorkflows:
 
 class TestPisoDeCobertura:
     """
-    O piso existe para os números escritos no README não apodrecerem em
-    silêncio. Isso só funciona se ele for medido por alguém que reprova, e se
-    estiver declarado num lugar só.
+    The floor exists so the numbers written in the README do not rot in
+    silence. That only works if it is measured by someone who can fail the
+    build, and if it is declared in a single place.
     """
 
     def piso(self) -> float:
@@ -245,8 +247,8 @@ class TestPisoDeCobertura:
 
     def test_the_floor_is_below_what_the_core_has_today(self):
         """
-        Piso igual à cobertura atual transforma qualquer refactor legítimo em
-        discussão de meio ponto.
+        A floor equal to the current coverage turns any legitimate refactor into
+        an argument over half a point.
         """
         assert 50 <= self.piso() <= 97, f"piso implausível: {self.piso()}"
 
@@ -259,7 +261,7 @@ class TestPisoDeCobertura:
 
 
 def test_the_readmes_point_at_this_workflow():
-    """Badge apontando para workflow inexistente é pior que badge nenhum."""
+    """A badge pointing at a workflow that does not exist is worse than no badge."""
     nome = WORKFLOW.name
     for readme in ("README.md", "README-BR.md"):
         texto = (ROOT / readme).read_text(encoding="utf-8")
