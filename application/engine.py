@@ -18,13 +18,13 @@ _COOLDOWN_PREFIX = "cooldown:"
 
 class RuleEngine:
     """
-    Avalia regras contra uma leitura e executa as ações correspondentes.
-    Respeita o cooldown de cada regra para evitar spam de alertas.
-    Com um EventPort, cada disparo também vira um registro no histórico.
+    Evaluates rules against a reading and runs the matching actions.
+    Respects each rule's cooldown so alerts do not spam.
+    With an EventPort, every firing also becomes a row in the history.
 
-    O cooldown passa pelo StatePort, nunca pelo relógio: é o que permite,
-    em deployment multi-device, trocar o estado local pelo Redis sem mexer
-    aqui.
+    The cooldown goes through the StatePort, never through the clock: that is
+    what lets a multi-device deployment swap local state for Redis without
+    touching anything here.
     """
 
     def __init__(
@@ -46,8 +46,8 @@ class RuleEngine:
     @staticmethod
     def _default_state() -> StatePort:
         """
-        Import local: o default é um adapter, e o módulo do engine importa
-        só o core no topo.
+        Local import: the default is an adapter, and the engine module imports
+        only core at the top.
         """
         from adapters.state.memory import InMemoryState
         return InMemoryState()
@@ -58,11 +58,11 @@ class RuleEngine:
         score: AnomalyScore | None = None,
     ) -> None:
         """
-        Recebe uma leitura (e opcionalmente um score de anomalia) e dispara
-        as ações de cada regra cuja condição for verdadeira.
+        Takes a reading (and optionally an anomaly score) and runs the actions
+        of every rule whose condition holds.
 
-        Regras com incidente aberto que deixaram de casar também são
-        avaliadas: é onde o incidente fecha.
+        Rules with an open incident that stopped matching are evaluated too:
+        that is where the incident closes.
         """
         open_incidents = self._open_incidents_by_rule()
 
@@ -81,14 +81,14 @@ class RuleEngine:
             elif incident is not None and rule.condition.resolves(reading, score):
                 self._resolve(rule, incident, reading)
 
-    # --- métodos privados ---
+    # --- private methods ---
 
     def _open_incidents_by_rule(self) -> dict[str, Incident]:
         """
-        Lê os incidentes abertos a cada avaliação, em vez de guardar em
-        memória. É assim que o agente vê um reconhecimento feito por outro
-        processo (a CLI), e é o que faz o ciclo sobreviver a um restart sem
-        etapa de carga.
+        Reads the open incidents on every evaluation instead of keeping them
+        in memory. That is how the agent sees an acknowledgement made by
+        another process (the CLI), and it is what makes the lifecycle survive a
+        restart with no loading step.
         """
         if self._incidents is None:
             return {}
@@ -101,9 +101,9 @@ class RuleEngine:
 
     def _cooldown_ok(self, rule: Rule) -> bool:
         """
-        Toma o cooldown da regra. Tomar e verificar são a mesma operação no
-        StatePort — separá-los deixava duas threads do executor disparar a
-        mesma regra.
+        Takes the rule's cooldown. Taking and checking are one operation in
+        the StatePort — splitting them let two executor threads fire the same
+        rule.
         """
         return self._state.try_acquire(
             f"{_COOLDOWN_PREFIX}{rule.name}",
@@ -118,14 +118,14 @@ class RuleEngine:
         incident: Incident | None,
     ) -> None:
         """
-        Registra o disparo e executa as ações. Sem incidente aberto, abre um;
-        com um já aberto, o disparo se junta a ele.
+        Records the firing and runs the actions. With no incident open it opens
+        one; with one already open the firing joins it.
         """
         if incident is None:
             incident = self._open_incident(rule, reading)
 
-        # construído uma vez por regra, não por ação — todas as ações de um
-        # mesmo disparo precisam observar exatamente o mesmo contexto
+        # built once per rule, not per action — every action of one firing has
+        # to observe exactly the same context
         context = ActionContext(
             rule_name=rule.name,
             reading=reading,
@@ -141,7 +141,7 @@ class RuleEngine:
         self._record(rule, reading, score, incident)
 
         if incident is not None and incident.state is IncidentState.ACKNOWLEDGED:
-            # reconhecer é dizer "já sei": o histórico continua, o alerta não
+            # acknowledging says "I know": the history goes on, the alert does not
             logger.debug(
                 f"Incidente #{incident.incident_id} de '{rule.name}' reconhecido "
                 f"— ações não repetem."
@@ -157,16 +157,17 @@ class RuleEngine:
 
     def _open_incident(self, rule: Rule, reading: SensorReading) -> Incident | None:
         """
-        Abre o incidente do episódio. Falha é logada e engolida, como no
-        histórico: sem incidente o alerta ainda tem de sair.
+        Opens the episode's incident. A failure is logged and swallowed, like
+        in the history: with no incident, the alert still has to go out.
         """
         if self._incidents is None:
             return None
 
-        # o try cobre a loja e só ela. Com a contagem dentro, uma métrica que
-        # levantasse cairia neste except: o engine desistiria de um incidente
-        # que o banco já abriu, o evento sairia sem incident_id e o log diria
-        # que a abertura falhou
+        # the try covers the store and only the store. With the counting
+        # inside, a metric that raised would land in this except: the engine
+        # would give up on an incident the database had already opened, the
+        # event would be written with no incident_id, and the log would say the
+        # open had failed
         try:
             incident = self._incidents.open_incident(Incident(
                 rule_name=rule.name,
@@ -186,11 +187,12 @@ class RuleEngine:
         return incident
 
     def _resolve(self, rule: Rule, incident: Incident, reading: SensorReading) -> None:
-        """Fecha o incidente quando a leitura recua além da margem."""
-        # As duas invariantes vêm de _open_incidents_by_rule: sem store não há
-        # incidente aberto para chegar aqui, e todo incidente que veio do store
-        # tem id. Declaradas para o verificador de tipos e para quebrar alto se
-        # alguém mudar aquele caminho — passar None ao store falharia calado.
+        """Closes the incident once the reading comes back past the margin."""
+        # Both invariants come from _open_incidents_by_rule: with no store
+        # there is no open incident to get here, and every incident that came
+        # from the store has an id. Stated for the type checker and to fail
+        # loudly if someone changes that path — passing None to the store would
+        # fail silently.
         assert self._incidents is not None
         assert incident.incident_id is not None
 
@@ -204,15 +206,15 @@ class RuleEngine:
             f"Incidente #{incident.incident_id} de '{rule.name}' resolvido "
             f"em {reading.value}{reading.unit}."
         )
-        # a duração é a distância entre as duas leituras, não o tempo que a
-        # avaliação levou — é o que o problema durou
+        # the duration is the distance between the two readings, not how long
+        # the evaluation took — it is how long the problem lasted
         self._count_resolved(incident, reading.timestamp - incident.opened_at)
 
     def _count_opened(self, incident: Incident) -> None:
         """
-        Contabiliza a abertura do episódio. Uma vez por incidente: o disparo
-        que se junta a um incidente já aberto não passa por aqui, ou a taxa
-        de abertura seguiria o intervalo de leitura em vez do problema.
+        Counts the episode opening. Once per incident: a firing that joins an
+        already open incident does not come through here, or the opening rate
+        would track the polling interval instead of the problem.
         """
         if self._metrics is None:
             return
@@ -224,12 +226,12 @@ class RuleEngine:
 
     def _count_resolved(self, incident: Incident, duration_seconds: float) -> None:
         """
-        Contabiliza o fechamento. Só é chamado depois de a loja aceitar o
-        fechamento: contar um resolve que falhou faria abertos-menos-fechados
-        divergir do que está no disco.
+        Counts the close. Only called after the store accepted it: counting a
+        resolve that failed would make opened-minus-resolved drift away from
+        what is on disk.
 
-        Falha aqui é logada e engolida, como nas ações e no histórico — a
-        métrica é observação do alarme, não o alarme.
+        A failure here is logged and swallowed, like in the actions and the
+        history — the metric is an observation of the alarm, not the alarm.
         """
         if self._metrics is None:
             return
@@ -247,8 +249,8 @@ class RuleEngine:
         incident: Incident | None = None,
     ) -> None:
         """
-        Registra o disparo no histórico. Uma falha aqui é logada e engolida:
-        o alerta é o que importa, e as ações ainda precisam rodar.
+        Records the firing in the history. A failure here is logged and
+        swallowed: the alert is what matters, and the actions still have to run.
         """
         if self._events is None:
             return
@@ -259,9 +261,9 @@ class RuleEngine:
                 sensor_id=reading.sensor_id,
                 value=reading.value,
                 unit=reading.unit,
-                # .value, nunca str(): no 3.10 str(Severity.X) é 'Severity.X'
+                # .value, never str(): on 3.10 str(Severity.X) is 'Severity.X'
                 severity=rule.severity.value,
-                # o evento aconteceu na leitura, não no fim da avaliação
+                # the event happened at the reading, not at the end of the evaluation
                 timestamp=reading.timestamp,
                 anomaly_score=score.score if score is not None else None,
                 incident_id=incident.incident_id if incident is not None else None,
