@@ -22,7 +22,7 @@ class TestCondition:
         assert cond.evaluate(cpu_reading) is True
 
     def test_wrong_sensor_id_returns_false(self, cpu_reading):
-        """Condição para cpu_usage não deve avaliar leitura de cpu_temp."""
+        """A condition for cpu_usage must not evaluate a cpu_temp reading."""
         cond = Condition(sensor_id="cpu_usage", operator=">", threshold=0.0)
         assert cond.evaluate(cpu_reading) is False
 
@@ -47,14 +47,14 @@ class TestCondition:
 class TestRuleCooldown:
 
     def test_rule_triggers_on_first_match(self, simple_rule, high_cpu_reading):
-        """Sem cooldown configurado, deve sempre disparar."""
+        """With no cooldown configured, it must always fire."""
         assert simple_rule.condition.evaluate(high_cpu_reading) is True
 
     def test_cooldown_is_only_a_declaration(self, high_cpu_reading):
         """
-        A Rule declara o cooldown; quem o aplica é o engine, pelo StatePort
-        (ver tests/application/test_engine.py e tests/adapters/
-        test_state_contract.py). Aqui só o valor declarado importa.
+        The Rule declares the cooldown; the engine is what applies it, through
+        the StatePort (see tests/application/test_engine.py and tests/adapters/
+        test_state_contract.py). Here only the declared value matters.
         """
         rule = Rule(
             name="teste_cooldown",
