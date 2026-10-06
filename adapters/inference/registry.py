@@ -19,13 +19,13 @@ def build_inference(
     **kwargs,
 ) -> BaseInferenceAdapter:
     """
-    Instancia o backend correto e carrega o modelo se necessário.
+    Instantiates the right backend and loads the model if needed.
 
-    Backends locais (dummy, onnx, tflite):
+    Local backends (dummy, onnx, tflite):
         backend: onnx
         model_path: models/anomaly.onnx
 
-    Backend remoto (AI Inference Service):
+    Remote backend (AI Inference Service):
         backend: remote
         service_url: http://localhost:8080
         model_id: yolo_v8n
