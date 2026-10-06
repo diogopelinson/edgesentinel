@@ -14,9 +14,9 @@ logger = logging.getLogger("edgesentinel.inference.remote")
 
 class RemoteInferenceAdapter(InferencePort):
     """
-    Adapter que delega inferência para o AI Inference Service via HTTP.
-    O edgesentinel não sabe se o modelo é YOLO, ONNX ou qualquer outro —
-    só envia o frame/valor e recebe um AnomalyScore.
+    Adapter that delegates inference to the AI Inference Service over HTTP.
+    edgesentinel does not know whether the model is YOLO, ONNX or anything
+    else — it just sends the frame/value and receives an AnomalyScore.
     """
 
     def __init__(
@@ -32,7 +32,7 @@ class RemoteInferenceAdapter(InferencePort):
         self._timeout     = timeout_seconds
 
     def load(self, model_path: str) -> None:
-        """Verifica se o serviço está disponível e o modelo existe."""
+        """Checks that the service is reachable and the model exists."""
         try:
             url = f"{self._service_url}/models"
             with urllib.request.urlopen(url, timeout=self._timeout) as resp:
