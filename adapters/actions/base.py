@@ -4,10 +4,10 @@ from core.entities import ActionContext
 
 class BaseAction(ActionPort):
     """
-    Classe base para todas as ações.
-    Cada filho implementa apenas _run() com a lógica real.
-    O execute() centraliza logging de erro sem deixar uma ação
-    quebrada derrubar o pipeline inteiro.
+    The base class for every action.
+    Each subclass implements only _run(), with the real logic.
+    execute() centralises the error logging, without letting one broken action
+    bring the whole pipeline down.
     """
 
     def __init__(self, action_id: str) -> None:
@@ -17,8 +17,8 @@ class BaseAction(ActionPort):
         try:
             self._run(context)
         except Exception as e:
-            # ação falhou mas o pipeline continua
-            # em produção isso vai pro logger estruturado
+            # the action failed, the pipeline carries on
+            # in production this goes to the structured logger
             print(f"[{self.action_id}] falha ao executar: {e}")
 
     def _run(self, context: ActionContext) -> None:
