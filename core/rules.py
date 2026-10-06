@@ -7,10 +7,10 @@ from core.entities import SensorReading, AnomalyScore
 
 class Severity(str, Enum):
     """
-    Peso de uma regra quando ela dispara.
+    How much a rule weighs when it fires.
 
-    Herda de str para atravessar ActionContext.extras — e, mais adiante, a
-    serialização do Event Store — sem conversão em cada fronteira.
+    Inherits from str so it crosses ActionContext.extras — and, further on, the
+    Event Store's serialization — without a conversion at every boundary.
     """
     INFO     = "info"
     WARNING  = "warning"
@@ -18,7 +18,7 @@ class Severity(str, Enum):
 
     @classmethod
     def from_name(cls, name: str) -> "Severity":
-        """Converte o texto do YAML. Case-insensitive porque é escrito à mão."""
+        """Convert the text from the YAML. Case-insensitive, because it is hand-written."""
         try:
             return cls(name.strip().lower())
         except ValueError:
@@ -31,25 +31,25 @@ class Severity(str, Enum):
 UPPER_BOUND = {">", ">="}
 LOWER_BOUND = {"<", "<="}
 
-# margem de histerese: fração de |threshold| que a leitura precisa recuar
+# hysteresis margin: the fraction of |threshold| a reading has to come back by
 _HYSTERESIS = 0.1
 
 
 @dataclass
 class Condition:
     """
-    Condição avaliável contra uma leitura.
+    A condition that can be evaluated against a reading.
 
-    Exemplo via YAML:
+    From YAML:
         when: "cpu_temp > 75"
 
-    Exemplo via código:
+    From code:
         Condition(sensor_id="cpu_temp", operator=">", threshold=75.0)
     """
     sensor_id: str
     operator: str       # ">", "<", ">=", "<=", "==", "anomaly"
     threshold: float = 0.0
-    # ponto em que o incidente fecha; sem isso, a margem padrão
+    # where the incident closes; without it, the default margin applies
     resolve_threshold: float | None = None
 
     def evaluate(self, reading: SensorReading, score: AnomalyScore | None = None) -> bool:
@@ -75,13 +75,13 @@ class Condition:
 
     def resolution_point(self) -> float | None:
         """
-        Valor a partir do qual o incidente fecha, ou None para operadores
-        sem borda numérica ('==' e 'anomaly').
+        The value at which the incident closes, or None for the operators with
+        no numeric edge ('==' and 'anomaly').
 
-        A margem padrão é 10% de |threshold| para o lado oposto ao alarme.
-        O módulo importa: com threshold -10 e operador '>', multiplicar por
-        0.9 daria -9, que está do lado do alarme, e o incidente fecharia
-        sozinho na leitura seguinte.
+        The default margin is 10% of |threshold|, moved away from the alarm.
+        The absolute value matters: with a threshold of -10 and operator '>',
+        multiplying by 0.9 would give -9, which is on the alarm side, and the
+        incident would close itself on the very next reading.
         """
         if self.operator not in UPPER_BOUND | LOWER_BOUND:
             return None
@@ -94,16 +94,16 @@ class Condition:
 
     def resolves(self, reading: SensorReading, score: AnomalyScore | None = None) -> bool:
         """
-        True quando a leitura tira a regra do alarme com folga suficiente
-        para fechar o incidente. Entre o threshold e o ponto de resolução a
-        regra não dispara e o incidente também não fecha — é a faixa que
-        evita abrir e fechar incidente a cada leitura.
+        True when the reading takes the rule out of alarm by enough to close
+        the incident. Between the threshold and the resolution point the rule
+        does not fire and the incident does not close either — that band is
+        what stops an incident opening and closing on every reading.
         """
         if reading.sensor_id != self.sensor_id:
             return False
 
         if self.operator == "anomaly":
-            # sem score não há informação: inferência fora do ar não fecha incidente
+            # no score is no information: inference being down does not close an incident
             return score is not None and not score.is_anomaly
 
         if self.operator == "==":
@@ -121,13 +121,14 @@ class Condition:
 @dataclass
 class Rule:
     """
-    Uma regra: quando Condition é verdadeira, executa uma lista de action_ids.
+    A rule: when its Condition holds, run a list of action_ids.
 
-    Só declaração — o estado do cooldown mora no StatePort, com o engine.
+    Declaration only — the cooldown state lives in the StatePort, with the
+    engine.
     """
     name: str
     condition: Condition
-    action_ids: list[str]       # referência às ações registradas no container
+    action_ids: list[str]       # references the actions registered in the container
     severity: Severity = Severity.WARNING
     enabled: bool = True
-    cooldown_seconds: float = 0.0   # evita spam de ação (ex: não alerta 2x em 30s)
+    cooldown_seconds: float = 0.0   # stops action spam (e.g. no second alert within 30s)
