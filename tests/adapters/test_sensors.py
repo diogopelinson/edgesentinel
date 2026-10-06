@@ -9,8 +9,8 @@ class TestCpuUsageSensor:
 
     def test_first_read_returns_zero(self):
         """
-        Primeira leitura sem snapshot anterior deve retornar 0.
-        Usa patch para simular /proc/stat sem precisar do Linux.
+        The first read, with no previous snapshot, must return 0.
+        Uses patch to simulate /proc/stat without needing Linux.
         """
         stat_content = "cpu  1000 0 500 8000 0 0 0 0 0 0\n"
 
@@ -40,7 +40,7 @@ class TestMemoryUsageSensor:
 
     def test_calculates_usage_correctly(self):
         """
-        MemTotal: 4GB, MemAvailable: 1GB → uso = 75%
+        MemTotal: 4GB, MemAvailable: 1GB → usage = 75%
         """
         meminfo = (
             "MemTotal:       4096000 kB\n"
