@@ -14,17 +14,17 @@ class MemoryUsageSensor(BaseSensor):
 
     def _read_meminfo(self) -> float:
         """
-        /proc/meminfo expõe várias linhas. As que importam:
-            MemTotal:    total de RAM
-            MemAvailable: RAM disponível (mais preciso que MemFree)
+        /proc/meminfo exposes several lines. The ones that matter:
+            MemTotal:    total RAM
+            MemAvailable: available RAM (more accurate than MemFree)
 
-        uso = (1 - disponível / total) * 100
+        usage = (1 - available / total) * 100
         """
         data: dict[str, int] = {}
         for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines():
             parts = line.split()
             if parts[0] in ("MemTotal:", "MemAvailable:"):
-                data[parts[0]] = int(parts[1])  # valor em kB
+                data[parts[0]] = int(parts[1])  # value in kB
 
         total = data["MemTotal:"]
         available = data["MemAvailable:"]
