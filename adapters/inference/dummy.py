@@ -4,20 +4,20 @@ from core.entities import SensorReading
 
 class DummyInferenceAdapter(BaseInferenceAdapter):
     """
-    Backend de desenvolvimento — não carrega nenhum modelo.
-    Sempre retorna score 0.0 (tudo normal).
+    Development backend — loads no model at all.
+    Always returns score 0.0 (everything normal).
 
-    Útil para:
-    - rodar o sistema sem ter um modelo treinado
-    - testes automatizados que não devem depender de ML
-    - validar que o pipeline completo funciona antes de integrar ML real
+    Useful for:
+    - running the system without having a trained model
+    - automated tests that must not depend on ML
+    - checking that the full pipeline works before integrating real ML
     """
 
     def __init__(self, threshold: float = 0.7) -> None:
         super().__init__(model_id="dummy", threshold=threshold)
 
     def load(self, model_path: str) -> None:
-        # Dummy não carrega nada — aceita o chamado mas ignora
+        # Dummy loads nothing — it accepts the call but ignores it
         pass
 
     def _compute_score(self, reading: SensorReading) -> float:
