@@ -9,13 +9,12 @@ logger = logging.getLogger("edgesentinel.monitor")
 
 class MonitorLoop:
     """
-    Loop assíncrono principal do edgesentinel.
+    edgesentinel's main asynchronous loop.
 
-    Executa todos os pipelines a cada poll_interval_seconds.
-    Cada pipeline roda como uma coroutine separada — um sensor
-    lento não atrasa os outros.
+    Runs every pipeline once per poll_interval_seconds. Each pipeline runs as
+    its own coroutine — one slow sensor does not delay the others.
 
-    Gerencia shutdown gracioso via SIGINT e SIGTERM.
+    Handles graceful shutdown on SIGINT and SIGTERM.
     """
 
     def __init__(
@@ -32,7 +31,7 @@ class MonitorLoop:
         self._running = False
 
     def start(self) -> None:
-        """Entry point síncrono — inicia o event loop do asyncio."""
+        """The synchronous entry point — starts asyncio's event loop."""
         asyncio.run(self._run())
 
     async def _run(self) -> None:
@@ -57,17 +56,17 @@ class MonitorLoop:
         except asyncio.CancelledError:
             pass
         finally:
-            # fechar grava o que ainda está na fila — sem isso, os últimos
-            # eventos antes de um Ctrl+C se perdem
+            # closing writes whatever is still queued — without this, the
+            # last events before a Ctrl+C are lost
             if self._event_store is not None:
                 self._event_store.close()
             logger.info("edgesentinel encerrado.")
 
     async def _tick(self) -> None:
         """
-        Executa todos os pipelines concorrentemente.
-        run_in_executor roda o código bloqueante (I/O de /sys, GPIO)
-        numa thread separada sem bloquear o event loop.
+        Runs every pipeline concurrently.
+        run_in_executor puts the blocking code (/sys I/O, GPIO) on a separate
+        thread without blocking the event loop.
         """
         loop = asyncio.get_running_loop()
         tasks = [
@@ -78,16 +77,16 @@ class MonitorLoop:
 
     def _register_signals(self) -> None:
         """
-        Registra handlers para SIGINT e SIGTERM.
-        No Windows, add_signal_handler não é suportado — usa signal.signal.
+        Registers handlers for SIGINT and SIGTERM.
+        On Windows add_signal_handler is unsupported — signal.signal is used.
         """
         import signal as signal_module
         import platform
 
         if platform.system() == "Windows":
-            # no Windows o asyncio não suporta add_signal_handler
-            # signal.signal funciona mas só fora do event loop
-            # o KeyboardInterrupt já é capturado no main.py — basta garantir _running
+            # on Windows asyncio does not support add_signal_handler
+            # signal.signal works, but only outside the event loop
+            # KeyboardInterrupt is already caught in main.py — only _running matters
             signal_module.signal(signal_module.SIGINT,  lambda s, f: self._stop())
             signal_module.signal(signal_module.SIGTERM, lambda s, f: self._stop())
         else:
