@@ -2030,13 +2030,15 @@
       "does": "Traduz todo comentário e docstring do código para inglês e passa a exigir isso por teste.",
       "adds": "Abre o código para quem não lê português — que é quem visita um repositório público — sem perder o raciocínio que os comentários carregam, que é o principal ativo desta base.",
       "milestone": "project-health",
-      "status": "ready",
+      "status": "done",
       "effort": "M",
       "portfolio_value": "high",
       "testable_now": true,
       "rationale": "A documentação já é em inglês e o código não era, então metade do projeto ficava fechada para o leitor que chega do GitHub. Os comentários aqui explicam decisão, não mecânica — é o que diferencia esta base — e deixá-los em português desperdiçava justamente a parte que vale ler.",
       "depends_on": [],
-      "unlocks": [],
+      "unlocks": [
+        "english-everywhere"
+      ],
       "touches": [
         "core/",
         "application/",
@@ -2061,6 +2063,54 @@
         "o guard acha português plantado em docstring",
         "o guard ignora português em string de runtime",
         "o repositório inteiro passa no guard"
+      ],
+      "delivered_in": "b36b681",
+      "delivery_notes": "659 comentários e docstrings em 96 arquivos, com tests/test_code_language.py mantendo assim: ele percorre todo .py e recusa comentário ou docstring em português. Grafia americana, que virou regra só porque três autores divergiram nisso numa tarde — um escreveu serialization, outro serialisation, e eu escrevi colour em dois arquivos.\n\nO escopo ficou em teste, não em nota, para não derivar depois. String de runtime e identificador seguem em português, e o mesmo teste exige que passem: docstring é achada pela AST e nunca por casar texto entre aspas, então português dentro de literal passa de propósito. A razão é concreta: os testes afirmam aquele texto e docs/ cita saída capturada literal.\n\nA própria tradução expôs um falso positivo no guard. 'hooks.example.com' numa docstring quebrava nos pontos e o último elemento caía na lista de palavras portuguesas, então o check acusava uma URL que qualquer um escreveria — e a única correção disponível ao autor era mudar a URL, que é o check torcendo o código em volta de si. Um .com já tinha virado .org para passar. Token com ponto, barra ou underscore passou a ser descartado antes da separação em palavras, porque é caminho, URL, arquivo ou identificador, não prosa.\n\nExecutado por seis agentes em paralelo, um por diretório, com os commits centralizados em um por arquivo — 103 deles. Uma primeira passada agrupou por diretório e argumentou a favor numa mensagem de commit; estava errado contra a convenção do AGENTS.md e a branch foi reescrita antes do push. O trabalho paralelo produziu duas divergências, ambas resolvidas: grafia americana contra britânica e o texto dos separadores de seção.\n\n603 testes contra 580 antes — os 23 novos são o guard, e nenhum arquivo de teste perdeu contagem. O diff foi auditado pelo que de fato quebraria: nenhuma linha com logger, raise, pytest.raises ou mensagem de assert mudou."
+    },
+    {
+      "id": "english-everywhere",
+      "title": "todo o projeto em inglês, menos os espelhos pt-BR",
+      "does": "Traduz string de runtime e identificador para inglês, deixando só README-BR.md e USAGE-PTBR.md em português.",
+      "adds": "Fecha a última metade do repositório que um leitor de fora não lê: hoje o código tem comentário em inglês e mensagem de erro em português, o que parece trabalho deixado no meio.",
+      "milestone": "project-health",
+      "status": "ready",
+      "effort": "L",
+      "portfolio_value": "high",
+      "testable_now": true,
+      "rationale": "O english-code-comments abriu os comentários e parou na fronteira que podia ser cruzada sem risco. O resto é o que o visitante vê primeiro quando roda o comando: 'Sensor não disponível nesse hardware' no terminal de alguém que não lê português não comunica nada.",
+      "depends_on": [
+        "english-code-comments"
+      ],
+      "unlocks": [],
+      "touches": [
+        "core/",
+        "application/",
+        "config/",
+        "adapters/",
+        "cli/",
+        "scripts/",
+        "ai-inference-service/",
+        "tests/",
+        "dashboards/",
+        "docs/reference/cli.md",
+        "docs/tutorials/first-run.md",
+        "docs/tutorials/first-incident.md",
+        "README.md",
+        "tests/test_code_language.py"
+      ],
+      "design_notes": "Medido: 310 strings de runtime em português (227 em código, 83 em teste) e 765 ocorrências de identificador em português, em 46 arquivos. Esforço L e não M por causa do que vem de carona, não pelo volume de tradução.\n\nDuas etapas, porque as metades têm risco diferente.\n\nPrimeira, as strings. Cada mensagem traduzida quebra os testes que a afirmam — são 83 asserts — e invalida a saída capturada em quatro páginas em inglês: docs/reference/cli.md, os dois tutoriais e o README.md. Essas capturas não podem ser editadas à mão: os comandos têm de ser rodados de novo e a saída colada, porque é isso que as torna verdadeiras. README-BR.md e USAGE-PTBR.md ficam em português com saída em português, e passam a divergir do agente — decisão a tomar ali: ou os espelhos mostram a saída real em inglês com texto explicativo em português, ou declaram que a saída do agente é em inglês. A primeira é mais honesta.\n\nSegunda, os identificadores. Renomeação pura, sem mudança de comportamento e sem impacto em doc. Nenhum teste deveria notar, e é justamente por isso que vai separada: se um notar, é bug encontrado.\n\nO guard do tests/test_code_language.py muda de forma junto: as duas exceções que ele hoje protege por teste deixam de ser exceções, e os testes que exigem 'português em literal passa' invertem. Fazer isso antes de traduzir deixa o alvo medido por algo que não é opinião.",
+      "acceptance": [
+        "nenhuma string de runtime em português no código ou nos testes",
+        "nenhum identificador em português",
+        "a saída capturada nas páginas em inglês foi re-gravada rodando os comandos",
+        "README-BR.md e USAGE-PTBR.md seguem em português",
+        "o guard exige inglês em string e identificador, e os testes da exceção foram invertidos"
+      ],
+      "tests": [
+        "o guard acha string de runtime em português",
+        "o guard acha identificador em português",
+        "o guard ignora README-BR.md e USAGE-PTBR.md",
+        "a suíte passa com a mesma contagem depois da tradução das mensagens"
       ]
     }
   ]
