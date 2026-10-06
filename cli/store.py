@@ -1,13 +1,13 @@
 """
-Do caminho do config ao arquivo do histórico.
+From the config path to the history file.
 
-Existe para os comandos de consulta falharem igual: o mesmo texto e o mesmo
-código de saída quando o config não carrega ou o Event Store está desligado.
-Duas cópias dessa decisão divergem no dia em que uma delas muda.
+It exists so the query commands fail identically: the same text and the same
+exit code when the config will not load or the Event Store is disabled. Two
+copies of that decision drift apart the day one of them changes.
 
-A existência do arquivo não é checada aqui de propósito: 'não há banco ainda'
-é resposta normal para quem lista e é erro para quem muda estado, e cada
-comando responde por essa diferença.
+Whether the file exists is deliberately not checked here: "no database yet" is a
+normal answer for a command that lists and an error for one that changes state,
+and each command answers for that difference.
 """
 from pathlib import Path
 
@@ -17,15 +17,15 @@ from config.loader import load
 
 
 class StoreIndisponivel(Exception):
-    """O histórico não pode ser consultado, e a mensagem diz por quê."""
+    """The history cannot be queried, and the message says why."""
 
 
 def store_path(config_path: str | Path) -> Path:
     """
-    Caminho do banco declarado no config.
+    The database path declared in the config.
 
-    Levanta StoreIndisponivel nos dois casos em que nenhum comando tem o que
-    fazer: config ilegível e histórico desabilitado.
+    Raises StoreIndisponivel in the two cases where no command has anything to
+    do: an unreadable config, and a disabled history.
     """
     try:
         config = load(config_path)
