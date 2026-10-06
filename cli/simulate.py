@@ -53,7 +53,7 @@ def run_simulate(scenario: str, config_path: str, interval: float) -> None:
     print("\nPressione Ctrl+C para parar.\n")
     print("-" * 60)
 
-    # carrega config e monta peças reais
+    # loads the config and assembles the real pieces
     config   = load(config_path)
     rules    = to_rules(config)
     actions  = build_actions(config.actions)
@@ -63,7 +63,7 @@ def run_simulate(scenario: str, config_path: str, interval: float) -> None:
         model_path=str(config.inference.model_path) if config.inference.model_path else None,
     ) if config.inference.enabled else None
 
-    # o store vem antes do exportador: o gauge de incidentes abertos é lido
+    # the store comes before the exporter: the open-incident gauge is read
     # dele na hora do scrape, como no build_monitor
     from cli.builder import build_event_store
     events = build_event_store(config)
@@ -93,8 +93,8 @@ def run_simulate(scenario: str, config_path: str, interval: float) -> None:
             print(f"\n[tick {tick:03d}]")
 
             for pipeline in pipelines:
-                # a mesma leitura é impressa e avaliada: ler duas vezes mostraria
-                # um valor e alarmaria sobre outro, e ainda adiantaria o cenário
+                # the same reading is printed and evaluated: reading twice would
+                # show one value and alarm on another, and advance the scenario
                 reading = pipeline._sensor.read()
                 print(f"  {reading.name:<20} {reading.value:>7.2f} {reading.unit}")
 
@@ -105,6 +105,6 @@ def run_simulate(scenario: str, config_path: str, interval: float) -> None:
     except KeyboardInterrupt:
         print("\n\nSimulação encerrada.")
     finally:
-        # grava o que ainda estiver na fila antes de sair
+        # writes whatever is still queued before leaving
         if events is not None:
             events.close()
