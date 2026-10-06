@@ -11,14 +11,14 @@ SCORE_OUTPUT = "anomaly_score"
 
 class ONNXModel(BaseModel):
     """
-    Modelo de anomalia ONNX com o contrato do edgesentinel:
+    An ONNX anomaly model following edgesentinel's contract:
 
-      entrada               : valor bruto do sensor, float32 [N, 1]
-      saída 'anomaly_score' : float32 [N, 1], em [0, 1]
+      input                 : the raw sensor value, float32 [N, 1]
+      output 'anomaly_score': float32 [N, 1], within [0, 1]
 
-    A regra de score mora no artefato (scripts/train_model.py no repositório
-    do edgesentinel). O serviço só lê a saída — o mesmo que o agente faz —,
-    então os dois não têm como divergir.
+    The scoring rule lives in the artifact (scripts/train_model.py in the
+    edgesentinel repository). The service only reads the output — the same thing
+    the agent does — so the two cannot drift apart.
     """
 
     def __init__(self, model_id: str, confidence_threshold: float = 0.6) -> None:
@@ -54,8 +54,8 @@ class ONNXModel(BaseModel):
 
     def predict(self, frame: np.ndarray) -> list[Detection]:
         """
-        Para modelos ONNX de anomalia, o frame é o valor do sensor —
-        um escalar ou um array cuja média é o valor.
+        For ONNX anomaly models the frame *is* the sensor value — either a
+        scalar, or an array whose mean is the value.
         """
         if not self._loaded:
             raise RuntimeError(f"Modelo '{self.model_id}' não carregado.")
