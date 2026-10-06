@@ -5,7 +5,7 @@ from core.ports import EventPort
 
 
 class _StopsAfterFirstTick:
-    """Pipeline de teste: roda uma vez e pede o encerramento do loop."""
+    """Test pipeline: runs once and asks the loop to shut down."""
 
     def __init__(self) -> None:
         self.monitor: MonitorLoop | None = None
@@ -23,16 +23,16 @@ def run_one_tick(event_store: EventPort | None) -> None:
     )
     pipeline.monitor = monitor
 
-    # handlers de sinal reais trocariam o SIGINT do próprio processo do pytest
+    # real signal handlers would replace the SIGINT of pytest's own process
     with patch.object(MonitorLoop, "_register_signals"):
         monitor.start()
 
 
 class TestMonitorEventStoreLifecycle:
     """
-    O loop é dono do ciclo de vida do store, como já é do exporter: abre ao
-    iniciar e fecha ao encerrar. Fechar é o que grava o que ainda está na
-    fila — sem isso, os últimos eventos antes de um Ctrl+C se perdem.
+    The loop owns the lifecycle of the store, as it already does the exporter's:
+    it opens on start and closes on shutdown. Closing is what writes what is
+    still in the queue — without it, the last events before a Ctrl+C are lost.
     """
 
     def test_starts_the_event_store(self):
@@ -57,5 +57,5 @@ class TestMonitorEventStoreLifecycle:
         assert [c[0] for c in store.method_calls] == ["start", "close"]
 
     def test_runs_without_an_event_store(self):
-        """Event Store desabilitado no config não pode impedir o monitoramento."""
+        """An Event Store disabled in the config must not prevent monitoring."""
         run_one_tick(event_store=None)
