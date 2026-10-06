@@ -1,14 +1,15 @@
 """
-docs/roadmap.json é fonte de verdade do backlog, e fonte de verdade que
-ninguém verifica vira ficção: status que não corresponde ao grafo, aresta
-que só existe num sentido, commit de entrega que não existe no repositório.
+docs/roadmap.json is the backlog's source of truth, and a source of truth
+nobody checks turns into fiction: a status that does not match the graph, an
+edge that only exists in one direction, a delivery commit that does not exist
+in the repository.
 
-O que este arquivo cobra é a coerência interna. Se uma feature está 'done',
-suas dependências também estão e o delivered_in aponta para um commit real;
-se está 'ready', nada pendente a segura.
+What this file demands is internal coherence. If a feature is 'done', its
+dependencies are too and delivered_in points at a real commit; if it is
+'ready', nothing pending is holding it.
 
-Cada teste avalia as 48 features de uma vez e nomeia todas as que falham:
-uma linha por feature quebrada é pior de ler que uma lista.
+Each test evaluates all 48 features at once and names every one that fails:
+one line per broken feature is worse to read than a single list.
 """
 import json
 import subprocess
@@ -32,17 +33,17 @@ REQUIRED = (
 )
 STATUSES = ("ready", "planned", "blocked", "done")
 
-# does e adds existem para serem lidos de relance na listagem do backlog
+# does and adds exist to be read at a glance in the backlog listing
 RESUMO_MAX = 400
 
 
 def pending(feature: dict) -> list[str]:
-    """Dependências da feature que ainda não foram entregues."""
+    """The feature's dependencies that have not been delivered yet."""
     return [d for d in feature["depends_on"] if BY_ID[d]["status"] != "done"]
 
 
 def git_repo_is_complete() -> bool:
-    """Clone raso não tem os commits antigos; ali a verificação não vale."""
+    """A shallow clone does not have the old commits; there the check does not count."""
     try:
         shallow = subprocess.run(
             ["git", "rev-parse", "--is-shallow-repository"],
@@ -55,7 +56,7 @@ def git_repo_is_complete() -> bool:
 
 
 class TestShape:
-    """Cada feature declara o mínimo para ser lida sem abrir o código."""
+    """Each feature declares the minimum needed to be read without opening the code."""
 
     def test_ids_are_unique(self):
         duplicados = [i for i, n in Counter(IDS).items() if n > 1]
@@ -81,7 +82,7 @@ class TestShape:
         assert erradas == {}, f"marco ou status inválido: {erradas}"
 
     def test_the_summary_fields_stay_short(self):
-        """does e adds são resumo: passando disso, viram o rationale de novo."""
+        """does and adds are summaries: past this, they become the rationale again."""
         longos = {
             f["id"]: {k: len(f[k]) for k in ("does", "adds") if len(f.get(k, "")) > RESUMO_MAX}
             for f in FEATURES
@@ -92,7 +93,7 @@ class TestShape:
 
 
 class TestGraph:
-    """As dependências formam um grafo navegável nos dois sentidos."""
+    """The dependencies form a graph navigable in both directions."""
 
     def test_every_reference_points_at_an_existing_feature(self):
         desconhecidas = {
@@ -105,8 +106,9 @@ class TestGraph:
 
     def test_dependencies_are_mirrored_by_unlocks(self):
         """
-        As duas arestas existem para ler o grafo nos dois sentidos, e uma
-        delas escrita sozinha é pior que nenhuma: some da leitura oposta.
+        The two edges exist so the graph can be read in both directions, and one
+        of them written alone is worse than none: it disappears from the
+        opposite reading.
         """
         quebradas = []
         for f in FEATURES:
@@ -123,8 +125,8 @@ class TestGraph:
 
     def test_no_feature_depends_on_a_later_milestone(self):
         """
-        Dependência em marco posterior é marco que não fecha: para entregar
-        o de agora seria preciso entregar antes o que vem depois.
+        A dependency on a later milestone is a milestone that never closes: to
+        deliver the current one you would first have to deliver what comes after.
         """
         invertidas = [
             f"{f['id']} ({f['milestone']}) depende de {d} ({BY_ID[d]['milestone']})"
@@ -156,7 +158,7 @@ class TestGraph:
 
 
 class TestStatus:
-    """Status é derivado do grafo, não é opinião sobre a feature."""
+    """Status is derived from the graph, it is not an opinion about the feature."""
 
     def test_delivered_features_have_no_pending_dependency(self):
         impossiveis = {
