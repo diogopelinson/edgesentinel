@@ -10,8 +10,8 @@ logger = logging.getLogger("ai_service.registry")
 
 class ModelRegistry:
     """
-    Carrega e gerencia modelos definidos em models.yaml.
-    Qualquer modelo novo é só um bloco no YAML — sem mudar código.
+    Loads and manages the models declared in models.yaml.
+    A new model is one more block in the YAML — no code change.
     """
 
     def __init__(self) -> None:
