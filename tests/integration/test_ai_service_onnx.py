@@ -1,9 +1,9 @@
 """
-ONNXModel do AI Inference Service contra o mesmo artefato que o agente usa.
+The AI Inference Service's ONNXModel against the same artifact the agent uses.
 
-O serviço tem o próprio pacote `core`, que colide com o do agente, e roda
-como processo separado. Por isso o teste executa o código do serviço num
-subprocesso com o diretório dele como raiz de import.
+The service has its own `core` package, which collides with the agent's, and it
+runs as a separate process. That is why the test executes the service's code in
+a subprocess with its directory as the import root.
 """
 import json
 import subprocess
@@ -57,14 +57,14 @@ def test_normal_value_produces_no_detection(anomaly_model_path):
 
 
 def test_confidence_rises_with_temperature(anomaly_model_path):
-    """Regressão: o serviço tinha a mesma calibração do agente e o mesmo 0.9366 fixo."""
+    """Regression: the service had the same calibration as the agent and the same fixed 0.9366."""
     result = probe_scores(anomaly_model_path)
 
     assert result["75.0"] < result["85.0"] < result["95.0"], result
 
 
 def test_agrees_with_the_agent_adapter(anomaly_model_path):
-    """Os dois consumidores leem a mesma saída — não podem divergir."""
+    """Both consumers read the same output — they cannot diverge."""
     agent = ONNXInferenceAdapter(threshold=0.6)
     agent.load(str(anomaly_model_path))
 
@@ -83,7 +83,7 @@ def test_rejects_a_model_without_the_score_output(legacy_model_path):
 
 
 def test_a_leftover_scaler_path_does_not_break_loading(anomaly_model_path):
-    """models.yaml antigos ainda têm scaler_path — o serviço deve seguir subindo."""
+    """Old models.yaml files still carry scaler_path — the service must keep starting up."""
     result = probe_scores(anomaly_model_path, {"scaler_path": "weights/scaler.onnx"})
 
     assert result["95.0"] is not None
