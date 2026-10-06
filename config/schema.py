@@ -6,9 +6,9 @@ from typing import Any
 class SensorConfig:
     id: str
     type: str
-    # Livre de propósito: o schema não conhece cada tipo de sensor, ou cada
-    # sensor novo passaria por aqui. Quem valida é a assinatura da classe,
-    # em build_sensor(). Nunca None — quem consome faz **params.
+    # Deliberately free: the schema does not know every sensor type, or every
+    # new sensor would have to come through here. What validates it is the
+    # class signature, in build_sensor(). Never None — the consumer does **params.
     params: dict[str, Any] = field(default_factory=dict)
 
 
@@ -35,7 +35,7 @@ class ConditionConfig:
     sensor_id: str
     operator: str
     threshold: float = 0.0
-    # onde o incidente fecha; None usa a margem padrão de histerese
+    # where the incident closes; None uses the default hysteresis margin
     resolve_threshold: float | None = None
 
 
@@ -50,7 +50,7 @@ class ActionConfig:
 class RuleConfig:
     name: str
     condition: ConditionConfig
-    # None = não declarado, usa default_actions; [] = nenhuma ação, só histórico
+    # None = undeclared, uses default_actions; [] = no action, history only
     actions: list[str] | None = None
     severity: str = "warning"
     cooldown_seconds: float = 0.0
@@ -93,5 +93,5 @@ class EdgeSentinelConfig:
     cameras: list[CameraConfig] = field(default_factory=list)
     yolo: YOLOConfig = field(default_factory=YOLOConfig)
     event_store: EventStoreConfig = field(default_factory=EventStoreConfig)
-    # severidade → ações, para regras que não declaram `actions`
+    # severity → actions, for rules that declare no `actions`
     default_actions: dict[str, list[str]] = field(default_factory=dict)
