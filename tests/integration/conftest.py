@@ -9,9 +9,9 @@ ROOT = Path(__file__).resolve().parents[2]
 @pytest.fixture(scope="session")
 def train_model():
     """
-    scripts/train_model.py carregado como módulo. scripts/ não é pacote,
-    e o script precisa de scikit-learn e skl2onnx — ausentes, os testes
-    que dependem dele são pulados.
+    scripts/train_model.py loaded as a module. scripts/ is not a package,
+    and the script needs scikit-learn and skl2onnx — when they are absent,
+    the tests that depend on it are skipped.
     """
     pytest.importorskip("sklearn")
     pytest.importorskip("skl2onnx")
@@ -28,9 +28,9 @@ def train_model():
 @pytest.fixture(scope="session")
 def anomaly_model_path(train_model, tmp_path_factory) -> Path:
     """
-    Modelo treinado e exportado uma vez por sessão, num diretório próprio.
-    Os pesos não são versionados, então os testes não podem depender de
-    models/anomaly.onnx existir.
+    Model trained and exported once per session, in a directory of its own.
+    The weights are not versioned, so the tests cannot depend on
+    models/anomaly.onnx existing.
     """
     path = tmp_path_factory.mktemp("trained") / "anomaly.onnx"
     scaler, model = train_model.train(train_model.generate_normal_data())
@@ -41,8 +41,8 @@ def anomaly_model_path(train_model, tmp_path_factory) -> Path:
 @pytest.fixture(scope="session")
 def legacy_model_path(train_model, tmp_path_factory) -> Path:
     """
-    Artefato no formato anterior: IsolationForest puro, sem a saída
-    anomaly_score. O score derivado dele é exatamente o que estava errado.
+    Artifact in the previous format: plain IsolationForest, without the
+    anomaly_score output. The score derived from it is exactly what was wrong.
     """
     from skl2onnx import convert_sklearn
     from skl2onnx.common.data_types import FloatTensorType
