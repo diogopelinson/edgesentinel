@@ -20,13 +20,13 @@ class TestIncidentState:
 
     def test_has_the_three_stored_states(self):
         """
-        NORMAL não é guardado: o normal é a ausência de incidente aberto.
-        Guardá-lo criaria uma linha por regra que nunca disparou.
+        NORMAL is not stored: normal is the absence of an open incident.
+        Storing it would create one row per rule that never fired.
         """
         assert [s.value for s in IncidentState] == ["triggered", "acknowledged", "resolved"]
 
     def test_compares_equal_to_its_string_value(self):
-        """str Enum, como Severity — atravessa o SQLite sem conversão."""
+        """str Enum, like Severity — it crosses SQLite without conversion."""
         assert IncidentState.TRIGGERED == "triggered"
 
 
@@ -75,7 +75,7 @@ class TestIncident:
         assert resolved.is_open is False
 
     def test_transitions_leave_the_original_alone(self):
-        """Imutável: transição devolve outro incidente, não altera este."""
+        """Immutable: a transition returns another incident, it does not alter this one."""
         incident = make_incident()
 
         incident.acknowledge(at=1.0)
@@ -86,5 +86,5 @@ class TestIncident:
         assert incident.resolved_at is None
 
     def test_a_new_incident_has_no_id(self):
-        """Quem atribui o id é o store, ao abrir."""
+        """The store is what assigns the id, on opening."""
         assert make_incident().incident_id is None

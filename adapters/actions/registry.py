@@ -7,12 +7,12 @@ from config.schema import ActionConfig
 
 def build_action(config: ActionConfig) -> BaseAction:
     """
-    Recebe um ActionConfig vindo do YAML e retorna a instância correta.
+    Takes an ActionConfig from the YAML and returns the right instance.
 
-    Exemplo de config:
+    An example config:
         id: webhook
         type: webhook
-        url: https://hooks.exemplo.com/alerta
+        url: https://hooks.example.com/alert
     """
     match config.type:
         case "log":
@@ -38,10 +38,10 @@ def build_action(config: ActionConfig) -> BaseAction:
 
 def build_actions(configs: list[ActionConfig]) -> dict[str, BaseAction]:
     """
-    Constrói todas as ações e devolve um dict indexado pelo id.
-    O RuleEngine vai usar esse dict para resolver action_ids das regras.
+    Builds every action and returns a dict keyed by id.
+    The RuleEngine uses that dict to resolve each rule's action_ids.
 
-    Exemplo:
+    For example:
         {"log": LogAction, "webhook": WebhookAction}
     """
     return {config.id: build_action(config) for config in configs}

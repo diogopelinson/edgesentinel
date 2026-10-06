@@ -79,10 +79,27 @@ claiming a test is meaningful, break the code it covers on purpose and confirm
 the test fails — a test that passes against broken code is worse than no test,
 because it is believed. Restore the code afterwards.
 
-**Language.** Code, comments and docstrings are in Portuguese; commit messages,
-`README.md`, `USAGE-EN.md` and everything under `docs/` are in English.
+**Language.** Comments, docstrings, commit messages, `README.md`, `USAGE-EN.md`
+and everything under `docs/` are in **English**, and
+`tests/test_code_language.py` enforces the first two — it walks every `.py` file
+and refuses a Portuguese comment or docstring. Use American spelling
+(`serialization`, `color`, `behavior`); three authors drifted apart on that in
+one afternoon before it was written down.
+
+Two things stay in Portuguese, deliberately, and the same test pins both so the
+boundary cannot drift:
+
+- **Runtime strings** — error messages, log lines, CLI output. Tests assert on
+  that exact text and `docs/` quotes captured output verbatim, so translating
+  one breaks the suite and invalidates a page.
+- **Identifiers** — locals and helpers like `contagem`, `clausulas`, `leitura`.
+  Renaming them is a different change with a different risk.
+
 `README-BR.md` and `USAGE-PTBR.md` are the Portuguese mirrors and are kept in
 sync in the same branch as the change.
+
+`python scripts/check_language.py <paths>` runs the same check over a subtree,
+which is how you verify a directory at a time instead of the whole repository.
 
 **Documentation.** A feature is not done until the docs that mention the area
 are updated in the same branch: the two READMEs, the two USAGE guides, the

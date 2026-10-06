@@ -4,9 +4,9 @@ from core.entities import SensorReading
 
 class BaseSensor(SensorPort):
     """
-    Classe base para todos os sensores.
-    Implementa is_available() com uma tentativa de leitura real —
-    se read() não lançar exceção, o sensor está disponível.
+    The base class for every sensor.
+    Implements is_available() with a real read attempt —
+    if read() does not raise, the sensor is available.
     """
 
     def __init__(self, sensor_id: str, name: str, unit: str) -> None:
@@ -22,7 +22,7 @@ class BaseSensor(SensorPort):
             return False
 
     def _build_reading(self, value: float) -> SensorReading:
-        """Atalho para montar um SensorReading com os dados da instância."""
+        """A shortcut for assembling a SensorReading from the instance's data."""
         return SensorReading(
             sensor_id=self.sensor_id,
             name=self.name,

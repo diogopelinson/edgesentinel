@@ -47,8 +47,8 @@ CREATE TABLE IF NOT EXISTS incidents (
 );
 CREATE INDEX IF NOT EXISTS idx_incidents_state ON incidents (state, opened_at);
 
--- uma regra tem no máximo um incidente aberto: é o banco que garante o
--- agrupamento dos disparos, não o engine
+-- a rule has at most one open incident: it is the database that guarantees the
+-- grouping of the firings, not the engine
 CREATE UNIQUE INDEX IF NOT EXISTS idx_incidents_one_open_per_rule
     ON incidents (rule_name) WHERE state != 'resolved';
 """
@@ -73,27 +73,27 @@ _INSERT_INCIDENT = (
     "acknowledged_at, resolved_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
 )
 
-# sinaliza para a thread de escrita que não virá mais nada
+# signals to the writer thread that nothing else is coming
 _STOP = object()
 
 
 class SQLiteEventStore(EventPort, IncidentPort):
     """
-    Histórico de regras disparadas e ciclo de vida dos incidentes, no mesmo
-    arquivo SQLite local.
+    History of fired rules and the incident lifecycle, in the same local
+    SQLite file.
 
-    append() só enfileira; uma thread dedicada grava em lote. O pipeline roda
-    em run_in_executor, num pool limitado — num cartão SD, um fsync pode
-    travar por centenas de milissegundos, e esse atraso não pode segurar o
-    worker que está lendo sensores.
+    append() only enqueues; a dedicated thread writes in batches. The pipeline
+    runs in run_in_executor, on a bounded pool — on an SD card an fsync can
+    block for hundreds of milliseconds, and that delay cannot hold up the
+    worker that is reading sensors.
 
-    Com a fila cheia o evento é descartado com aviso: perder um registro do
-    histórico é preferível a atrasar o próximo alerta.
+    With the queue full the event is dropped with a warning: losing one record
+    of the history is preferable to delaying the next alert.
 
-    Incidentes vão pelo caminho síncrono, sem fila: são raros (uma abertura
-    e um fechamento por episódio, não um por leitura) e a decisão seguinte
-    depende de ler o que acabou de ser escrito — inclusive um reconhecimento
-    feito por outro processo.
+    Incidents go down the synchronous path, with no queue: they are rare (one
+    opening and one closing per episode, not one per reading) and the next
+    decision depends on reading what has just been written — including an
+    acknowledgement made by another process.
     """
 
     def __init__(
@@ -109,7 +109,7 @@ class SQLiteEventStore(EventPort, IncidentPort):
         self._queue: queue.Queue = queue.Queue(maxsize=queue_size)
         self._writer: threading.Thread | None = None
 
-    # --- ciclo de vida ---
+    # --- lifecycle ---
 
     def start(self) -> None:
         if self._writer is not None:
@@ -117,7 +117,7 @@ class SQLiteEventStore(EventPort, IncidentPort):
 
         self._path.parent.mkdir(parents=True, exist_ok=True)
         with self._connection() as conn:
-            # WAL deixa query() ler enquanto a thread de escrita grava
+            # WAL lets query() read while the writer thread is writing
             conn.execute("PRAGMA journal_mode=WAL")
             conn.executescript(_SCHEMA)
             self._migrate(conn)
@@ -153,7 +153,7 @@ class SQLiteEventStore(EventPort, IncidentPort):
             logger.warning("Thread de escrita não encerrou dentro do prazo.")
         self._writer = None
 
-    # --- escrita ---
+    # --- writing ---
 
     def append(self, event: Event) -> None:
         try:
@@ -166,8 +166,8 @@ class SQLiteEventStore(EventPort, IncidentPort):
 
     def flush(self, timeout: float = 5.0) -> bool:
         """
-        Espera a fila esvaziar. Devolve False se o prazo acabar antes.
-        Não faz parte do EventPort: existe para testes determinísticos.
+        Waits for the queue to drain. Returns False if the deadline runs out
+        first. Not part of EventPort: it exists for deterministic tests.
         """
         if self._writer is None:
             return self._queue.unfinished_tasks == 0
@@ -182,7 +182,7 @@ class SQLiteEventStore(EventPort, IncidentPort):
         return True
 
     def _drain(self) -> None:
-        """Loop da thread de escrita. A conexão pertence só a esta thread."""
+        """Writer thread loop. The connection belongs to this thread alone."""
         conn = sqlite3.connect(self._path)
         try:
             while True:
@@ -218,7 +218,7 @@ class SQLiteEventStore(EventPort, IncidentPort):
         ])
         conn.commit()
 
-    # --- leitura e manutenção ---
+    # --- reading and maintenance ---
 
     def query(
         self,
@@ -233,7 +233,7 @@ class SQLiteEventStore(EventPort, IncidentPort):
         clauses: list[str] = []
         params:  list      = []
 
-        # nomes de coluna vêm desta tupla fixa, nunca de quem chama
+        # column names come from this fixed tuple, never from the caller
         for column, value in (
             ("severity",  severity),
             ("sensor_id", sensor_id),
@@ -264,8 +264,8 @@ class SQLiteEventStore(EventPort, IncidentPort):
 
     def prune(self, before: float) -> int:
         """
-        Remove eventos antigos e incidentes já resolvidos. Incidente aberto
-        nunca é removido, por velho que seja: é justamente o que se quer ver.
+        Removes old events and already-resolved incidents. An open incident is
+        never removed, however old it is: it is exactly what one wants to see.
         """
         with self._connection() as conn:
             events = conn.execute(
@@ -277,7 +277,7 @@ class SQLiteEventStore(EventPort, IncidentPort):
             ).rowcount
             return events + incidents
 
-    # --- incidentes (IncidentPort) ---
+    # --- incidents (IncidentPort) ---
 
     def open_incident(self, incident: Incident) -> Incident:
         with self._connection() as conn:
@@ -308,12 +308,13 @@ class SQLiteEventStore(EventPort, IncidentPort):
 
         return [self._to_incident(row) for row in rows]
 
-    # --- consulta de incidentes (além da porta: quem usa é o terminal) ---
+    # --- incident queries (beyond the port: the terminal is what uses them) ---
 
     def incident(self, incident_id: int) -> Incident | None:
         """
-        Lê um incidente por id, ou None. Não levanta: quem chama é que sabe o
-        que dizer ao operador sobre um id que não existe.
+        Reads one incident by id, or None. Does not raise: the caller is the
+        one that knows what to tell the operator about an id that does not
+        exist.
         """
         sql = f"SELECT {_INCIDENT_COLUMNS} FROM incidents WHERE incident_id = ?"
         with self._connection() as conn:
@@ -331,8 +332,8 @@ class SQLiteEventStore(EventPort, IncidentPort):
         limit: int = 20,
     ) -> list[Incident]:
         """
-        Listagem para o terminal, mais recente primeiro. open_incidents() é a
-        visão do engine: sem filtro e sem limite, porque ele precisa de todos.
+        Listing for the terminal, most recent first. open_incidents() is the
+        engine's view: no filter and no limit, because it needs all of them.
         """
         clausulas: list[str] = []
         parametros: list[object] = []
@@ -362,8 +363,8 @@ class SQLiteEventStore(EventPort, IncidentPort):
 
     def firings(self, incident_ids: list[int]) -> dict[int, int]:
         """
-        Quantos eventos cada incidente agrupou, numa consulta só — uma por
-        linha de tabela seria N consultas para uma listagem de N.
+        How many events each incident grouped, in a single query — one per
+        table row would be N queries for a listing of N.
         """
         if not incident_ids:
             return {}
@@ -394,14 +395,14 @@ class SQLiteEventStore(EventPort, IncidentPort):
                 (state.value, stamp, incident_id),
             )
 
-    # --- auxiliares ---
+    # --- helpers ---
 
     @contextmanager
     def _connection(self) -> Iterator[sqlite3.Connection]:
         """
-        Conexão curta por operação. O context manager nativo do sqlite3 faz
-        commit mas não fecha — e no Windows uma conexão aberta mantém o
-        arquivo travado.
+        A short-lived connection per operation. sqlite3's native context
+        manager commits but does not close — and on Windows an open connection
+        keeps the file locked.
         """
         conn = sqlite3.connect(self._path)
         try:
@@ -413,9 +414,9 @@ class SQLiteEventStore(EventPort, IncidentPort):
     @staticmethod
     def _migrate(conn: sqlite3.Connection) -> None:
         """
-        Acerta bancos criados por versões anteriores. O _SCHEMA cria o que
-        falta, mas não altera tabela que já existe: um banco da 0.3.0 tem a
-        tabela events sem a coluna incident_id.
+        Fixes up databases created by earlier versions. _SCHEMA creates what
+        is missing, but does not alter a table that already exists: a 0.3.0
+        database has the events table without the incident_id column.
         """
         columns = {row[1] for row in conn.execute("PRAGMA table_info(events)")}
         if "incident_id" not in columns:

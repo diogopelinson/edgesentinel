@@ -66,16 +66,17 @@ def _parse_sensors(raw: list[dict]) -> list[SensorConfig]:
 
 def _parse_sensor_params(item: dict) -> dict:
     """
-    O bloco params vai adiante sem inspeção: o que cada sensor aceita está na
-    assinatura da classe, e conferir isso aqui exigiria o loader conhecer
-    todos os tipos de sensor.
+    The params block goes through uninspected: what each sensor accepts is in
+    that class's signature, and checking it here would mean the loader knowing
+    every sensor type.
 
-    Só a forma é checada. `params: 5` sobreviveria até o ** em build_sensor e
-    falharia com um TypeError que não diz qual sensor do arquivo está errado.
+    Only the shape is checked. `params: 5` would survive all the way to the **
+    in build_sensor and fail with a TypeError that does not say which sensor in
+    the file is wrong.
     """
     params = item.get("params")
 
-    # `params:` sem nada embaixo vira None no YAML, e None não se desempacota
+    # `params:` with nothing under it parses as None in YAML, and None does not unpack
     if params is None:
         return {}
 
@@ -135,9 +136,9 @@ def _parse_rules(raw: list[dict]) -> list[RuleConfig]:
 
 def _parse_resolve_threshold(cond_raw: dict, rule_name: str) -> float | None:
     """
-    Valida o ponto em que o incidente fecha. Um valor do lado do alarme
-    fecharia o incidente com o sensor ainda fora do limite, e a leitura
-    seguinte abriria outro — o oposto do que a histerese existe para fazer.
+    Validates where the incident closes. A value on the alarm side would
+    close the incident with the sensor still past the limit, and the next
+    reading would open another — the opposite of what hysteresis is for.
     """
     if "resolve_threshold" not in cond_raw:
         return None
@@ -178,9 +179,9 @@ def _parse_resolve_threshold(cond_raw: dict, rule_name: str) -> float | None:
 
 def _parse_severity(item: dict, rule_name: str) -> str:
     """
-    Valida a severidade no carregamento, não no primeiro disparo da regra —
-    uma regra pode ficar sem casar por dias antes de disparar pela primeira
-    vez, e até lá o erro de digitação já foi para campo.
+    Validates the severity at load time, not on the rule's first firing — a
+    rule can go days without matching before it fires once, and by then the
+    typo has already shipped to the field.
     """
     raw = item.get("severity", Severity.WARNING.value)
     try:
@@ -191,8 +192,8 @@ def _parse_severity(item: dict, rule_name: str) -> str:
 
 def _parse_rule_actions(raw, rule_name: str) -> list[str] | None:
     """
-    None quando a regra não declara `actions` — o mapper aplica
-    default_actions. Uma lista vazia declarada continua vazia.
+    None when the rule declares no `actions` — the mapper applies
+    default_actions. An explicitly empty list stays empty.
     """
     if raw is None:
         return None
@@ -230,7 +231,7 @@ def _parse_default_actions(raw) -> dict[str, list[str]]:
         except ValueError as e:
             raise ValueError(f"default_actions: {e}") from None
 
-        # 'warning' e 'Warning' viram a mesma chave — uma das listas sumiria
+        # 'warning' and 'Warning' would become one key — one of the lists would vanish
         if severity in result:
             raise ValueError(
                 f"default_actions: a severidade '{severity}' aparece mais de uma vez"
@@ -283,8 +284,8 @@ def _parse_event_store(raw: dict) -> EventStoreConfig:
     defaults  = EventStoreConfig()
     retention = float(raw.get("retention_days", defaults.retention_days))
 
-    # o start() do store poda tudo fora da janela — retenção zero apagaria
-    # o histórico inteiro a cada inicialização
+    # the store's start() prunes everything outside the window — zero retention
+    # would wipe the whole history on every startup
     if retention <= 0:
         raise ValueError(
             f"event_store.retention_days precisa ser maior que zero, "

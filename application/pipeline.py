@@ -25,9 +25,10 @@ class Pipeline:
 
     def run_once(self, reading: SensorReading | None = None) -> None:
         """
-        Executa o ciclo do sensor. Quem já tem a leitura em mãos a passa
-        adiante: ler de novo avaliaria um valor diferente do que o chamador
-        viu — e, num sensor simulado, ainda adiantaria a curva do cenário.
+        Runs the sensor cycle. A caller that already holds the reading passes
+        it on: reading again would evaluate a different value from the one the
+        caller saw — and, on a simulated sensor, would also advance the
+        scenario's curve.
         """
         pipeline_start = time.monotonic()
 

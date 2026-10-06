@@ -5,13 +5,13 @@ from core.entities import SensorReading
 
 class SimulatedCameraSensor(SensorPort):
     """
-    Sensor de câmera simulado — gera frames sintéticos para testes.
-    Não precisa de câmera, OpenCV ou stream RTSP.
+    A simulated camera sensor — it generates synthetic frames for tests.
+    It needs no camera, no OpenCV and no RTSP stream.
 
-    Modos:
-        blank  → frame preto puro
-        noise  → ruído aleatório (simula câmera com interferência)
-        person → frame com retângulo branco simulando uma pessoa detectada
+    Modes:
+        blank  → a pure black frame
+        noise  → random noise (simulates a camera with interference)
+        person → a frame with a white rectangle standing in for a detected person
     """
 
     def __init__(
@@ -63,7 +63,7 @@ class SimulatedCameraSensor(SensorPort):
 
         if self._mode == "person":
             frame = np.zeros((self._height, self._width, 3), dtype=np.uint8)
-            # retângulo branco simulando bounding box de pessoa
+            # a white rectangle standing in for a person's bounding box
             x1, y1, x2, y2 = 200, 100, 300, 400
             frame[y1:y2, x1:x2] = 255
             return frame

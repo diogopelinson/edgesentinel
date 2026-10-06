@@ -5,7 +5,7 @@ from core.rules import Severity
 
 logger = logging.getLogger("edgesentinel.action.log")
 
-# O core não conhece o módulo logging — o mapeamento vive no adapter.
+# core knows nothing about the logging module — the mapping lives in the adapter.
 _SEVERITY_LEVELS: dict[Severity, int] = {
     Severity.INFO:     logging.INFO,
     Severity.WARNING:  logging.WARNING,
@@ -15,9 +15,9 @@ _SEVERITY_LEVELS: dict[Severity, int] = {
 
 class LogAction(BaseAction):
     """
-    Escreve um log estruturado quando uma regra dispara.
-    Usa o módulo logging padrão do Python — compatível com
-    qualquer handler: console, arquivo, syslog, etc.
+    Writes a structured log line when a rule fires.
+    Uses Python's standard logging module, so it works with any handler:
+    console, file, syslog and so on.
     """
 
     def __init__(self, action_id: str = "log", level: str = "WARNING") -> None:
@@ -41,8 +41,8 @@ class LogAction(BaseAction):
 
     def _level_for(self, context: ActionContext) -> int:
         """
-        A severidade da regra descreve o evento específico e vence o nível do
-        construtor, que é apenas o default da ação para todas as regras.
+        The rule's severity describes this particular event and beats the level
+        from the constructor, which is only the action's default across rules.
         """
         severity = context.extras.get("severity")
         return _SEVERITY_LEVELS.get(severity, self.level)

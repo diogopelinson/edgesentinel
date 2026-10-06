@@ -1,27 +1,28 @@
 #!/usr/bin/env python3
 """
-Verificação de fumaça: sobe o agente de verdade e olha o que ele produziu.
+Smoke check: boots the real agent and looks at what it produced.
 
-A suíte de testes cobre funções; isto cobre o processo. Dois defeitos recentes
-passaram por uma suíte verde e só apareceram quando alguém rodou o comando —
-'python -m cli.main' não executava nada, e o simulate lia cada sensor duas
-vezes por tick. Nenhum teste unitário pega essa classe de erro, porque nenhum
-deles sobe o programa.
+The test suite covers functions; this covers the program. Two recent defects got
+through a green suite and only showed up when someone ran the command —
+`python -m cli.main` executed nothing at all, and simulate read every sensor
+twice per tick. No unit test catches that class of error, because none of them
+start the program.
 
-O que é verificado, em ordem:
+What is checked, in order:
 
-  1. o agente sobe com um config escrito agora e não morre nos primeiros segundos
-  2. o endpoint de métricas responde e traz a métrica de leitura de sensor
-  3. uma regra dispara, o evento vai para o banco e um incidente é aberto
-  4. o incidente aberto aparece no /metrics, com a regra e a severidade certas
-  5. SIGTERM — o sinal que systemd e Docker enviam — encerra com código 0
-  6. o que estava na fila foi gravado antes de sair
+  1. the agent comes up with a config written just now and does not die in the
+     first few seconds
+  2. the metrics endpoint answers and carries the sensor reading metric
+  3. a rule fires, the event reaches the database and an incident is opened
+  4. the open incident appears on /metrics, with the right rule and severity
+  5. SIGTERM — the signal systemd and Docker send — exits with code 0
+  6. whatever was queued was written before leaving
 
-Uso:
+Usage:
     python scripts/smoke.py [--seconds 20]
 
-Precisa de Linux: usa /proc para os sensores e sinais POSIX para o encerramento.
-Em outra plataforma, avisa e sai com 0 — quem roda isso de verdade é o CI.
+Needs Linux: it uses /proc for the sensors and POSIX signals for the shutdown.
+On any other platform it says so and exits 0 — what really runs this is CI.
 """
 from __future__ import annotations
 
@@ -79,7 +80,7 @@ edgesentinel:
 
 
 class Falha(Exception):
-    """Uma verificação não passou. A mensagem é o relatório."""
+    """A check did not pass. The message is the report."""
 
 
 def porta_livre() -> int:
@@ -89,7 +90,7 @@ def porta_livre() -> int:
 
 
 def espera(descricao: str, condicao, limite: float) -> float:
-    """Espera a condição virar verdadeira. Devolve quanto tempo levou."""
+    """Waits for the condition to hold. Returns how long it took."""
     inicio = time.monotonic()
     while time.monotonic() - inicio < limite:
         with contextlib.suppress(Exception):
@@ -107,7 +108,7 @@ def metricas(porta: int) -> str:
 def conta(banco: Path, tabela: str) -> int:
     if not banco.exists():
         return 0
-    # somente leitura: a fumaça não escreve no banco do agente
+    # read-only: the smoke check does not write to the agent's database
     con = sqlite3.connect(f"file:{banco}?mode=ro", uri=True)
     try:
         return int(con.execute(f"SELECT COUNT(*) FROM {tabela}").fetchone()[0])
@@ -116,7 +117,7 @@ def conta(banco: Path, tabela: str) -> int:
 
 
 def roda(segundos: float) -> list[str]:
-    """Sobe o agente, verifica, encerra. Devolve as linhas do relatório."""
+    """Boots the agent, checks it, shuts it down. Returns the report lines."""
     relatorio: list[str] = []
     trabalho = Path(tempfile.mkdtemp(prefix="edgesentinel-smoke-"))
     banco = trabalho / "smoke.db"
@@ -145,21 +146,21 @@ def roda(segundos: float) -> list[str]:
             )
         relata("o agente continua rodando depois de subir")
 
-        # 2. métricas
+        # 2. the metrics
         levou = espera("endpoint de métricas", lambda: "edgesentinel_sensor_value" in metricas(porta), segundos)
         relata(f"/metrics responde com edgesentinel_sensor_value ({levou:.1f}s)")
 
-        # 3. evento e incidente no banco
+        # 3. event and incident in the database
         levou = espera("evento no histórico", lambda: conta(banco, "events") > 0, segundos)
         relata(f"a regra disparou e o evento foi gravado ({levou:.1f}s)")
 
         levou = espera("incidente aberto", lambda: conta(banco, "incidents") > 0, segundos)
         relata(f"o disparo abriu um incidente ({levou:.1f}s)")
 
-        # 4. o gauge de abertos é lido do banco durante o scrape, então ele só
-        # aparece se a fiação builder -> exportador -> store estiver de pé.
-        # Nenhum teste unitário pega isso: cada peça passa sozinha e o
-        # exportador do processo real fica sem loja para consultar
+        # 4. the open gauge is read from the database during the scrape, so it
+        # only appears if the builder -> exporter -> store wiring is standing.
+        # No unit test catches this: every piece passes on its own while the
+        # exporter in the real process has no store to query
         alvo = 'edgesentinel_incidents_open{rule="smoke_memoria",severity="warning",state="triggered"} 1.0'
         levou = espera("incidente no /metrics", lambda: alvo in metricas(porta), segundos)
         relata(f"o incidente aberto aparece no /metrics ({levou:.1f}s)")
@@ -173,7 +174,7 @@ def roda(segundos: float) -> list[str]:
 
         antes = conta(banco, "events")
 
-        # 5. SIGTERM: o sinal de systemd e Docker, não Ctrl+C
+        # 5. SIGTERM: the signal systemd and Docker send, not Ctrl+C
         processo.terminate()
         try:
             codigo = processo.wait(timeout=15)
@@ -188,7 +189,7 @@ def roda(segundos: float) -> list[str]:
             )
         relata("SIGTERM encerrou o agente com código 0")
 
-        # 6. nada se perdeu no caminho
+        # 6. nothing was lost on the way
         depois = conta(banco, "events")
         if depois < antes:
             raise Falha(f"o histórico encolheu no encerramento: {antes} -> {depois}")
@@ -199,15 +200,16 @@ def roda(segundos: float) -> list[str]:
             raise Falha("o log não registra o encerramento do agente")
         relata("o encerramento aparece no log")
 
-        # 6. todo disparo que o engine anunciou tem de estar no banco: pega
-        # thread de escrita morta ou store engolindo evento em silêncio.
+        # 6. every firing the engine announced has to be in the database: this
+        # catches a dead writer thread, or a store swallowing events silently.
         #
-        # Não pega um close() que deixou de gravar a fila — a thread drena em
-        # lote continuamente, então no instante do SIGTERM a fila já está
-        # vazia e nada se perde. Essa garantia é de
+        # It does not catch a close() that stopped writing the queue — the
+        # thread drains in batches continuously, so at the instant of the
+        # SIGTERM the queue is already empty and nothing is lost. That
+        # guarantee belongs to
         # tests/adapters/test_sqlite_store.py::test_close_waits_for_queued_events_to_be_written,
-        # que provoca a condição com uma escrita lenta. Verificado por mutação:
-        # desligar o close() daqui não faz esta verificação falhar.
+        # which provokes the condition with a slow write. Mutation-checked:
+        # disabling close() here does not make this check fail.
         disparos = sum(1 for linha in saida.splitlines() if "engine: Regra" in linha)
         if disparos == 0:
             raise Falha("o log não mostra nenhum disparo — a regra de fumaça não rodou")

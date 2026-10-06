@@ -1,6 +1,7 @@
 """
-A versão vive num lugar só: cli.__version__. O pyproject.toml a lê de lá,
-e --version a mostra. Este arquivo garante que os três não se separem.
+The version lives in a single place: cli.__version__. The pyproject.toml reads
+it from there, and --version shows it. This file makes sure the three do not
+drift apart.
 """
 import re
 import sys
@@ -31,7 +32,7 @@ def test_version_flag_prints_the_package_version(capsys):
 
 
 def test_cli_main_does_not_declare_its_own_version():
-    """Duas declarações acabam divergindo — foi assim que 0.1.0 ficou duplicado."""
+    """Two declarations end up diverging — that is how 0.1.0 got duplicated."""
     source = (ROOT / "cli" / "main.py").read_text(encoding="utf-8")
 
     assert not re.search(r"^__version__\s*=", source, re.M)
@@ -47,11 +48,11 @@ def test_pyproject_has_no_static_version():
 
 
 def test_pyproject_resolves_to_the_package_version():
-    """Resolve como o setuptools faz no build — não só confere o texto do TOML."""
+    """Resolves the way setuptools does at build time — not just checking the text of the TOML."""
     read_configuration = pytest.importorskip("setuptools.config.pyprojecttoml").read_configuration
     from cli import __version__
 
-    # a raiz para resolver attr= vem do diretório do próprio pyproject.toml
+    # the root for resolving attr= comes from the directory of the pyproject.toml itself
     config = read_configuration(ROOT / "pyproject.toml", expand=True)
 
     assert config["project"]["version"] == __version__
@@ -59,7 +60,7 @@ def test_pyproject_resolves_to_the_package_version():
 
 @pytest.mark.parametrize("readme", ["README.md", "README-BR.md"])
 def test_readmes_state_the_current_version(readme):
-    """A versão escrita no README não pode ficar para trás na próxima release."""
+    """The version written in the README must not fall behind on the next release."""
     from cli import __version__
 
     text = (ROOT / readme).read_text(encoding="utf-8")
@@ -68,7 +69,7 @@ def test_readmes_state_the_current_version(readme):
 
 
 def test_changelog_has_an_entry_for_the_current_version():
-    """Subir a versão sem notas de release deixa a tag sem explicação."""
+    """Bumping the version without release notes leaves the tag without an explanation."""
     from cli import __version__
 
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
@@ -78,9 +79,10 @@ def test_changelog_has_an_entry_for_the_current_version():
 
 def test_the_module_can_be_run_with_dash_m():
     """
-    O console script do venv embute o caminho absoluto de onde o venv foi
-    criado e quebra quando o projeto muda de pasta. 'python -m cli.main' é a
-    saída documentada para esse caso — e só funciona com o bloco __main__.
+    The console script of the venv embeds the absolute path of where the venv
+    was created and breaks when the project changes folder. 'python -m cli.main'
+    is the documented way out for that case — and it only works with the
+    __main__ block.
     """
     import subprocess
 

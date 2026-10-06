@@ -1,9 +1,9 @@
 """
-Contrato do StatePort, parametrizado por implementação.
+The StatePort contract, parametrized by implementation.
 
-O RedisState da v0.6 entra em IMPLEMENTATIONS e passa pelos mesmos testes:
-é o que garante que trocar estado local por distribuído seja um adapter, e
-não uma reescrita do que usa o estado.
+The v0.6 RedisState goes into IMPLEMENTATIONS and goes through the same tests:
+that is what guarantees that swapping local state for distributed state is an
+adapter, and not a rewrite of whatever uses the state.
 """
 import threading
 import time
@@ -22,9 +22,9 @@ def state(request):
 
 class TestTryAcquire:
     """
-    try_acquire(key, ttl) toma a chave por ttl segundos. Não expõe
-    timestamp nenhum: o relógio monotônico de um processo não tem
-    significado em outro, e é o Redis que expira a chave no caso distribuído.
+    try_acquire(key, ttl) takes the key for ttl seconds. It exposes no
+    timestamp at all: one process's monotonic clock has no meaning in
+    another, and in the distributed case it is Redis that expires the key.
     """
 
     def test_first_acquire_succeeds(self, state):
@@ -48,14 +48,14 @@ class TestTryAcquire:
 
     @pytest.mark.parametrize("ttl", [0.0, -5.0])
     def test_a_ttl_of_zero_or_less_always_succeeds(self, state, ttl):
-        """Regra sem cooldown dispara sempre — nada é guardado."""
+        """A rule with no cooldown always fires — nothing is stored."""
         assert [state.try_acquire("cooldown:sem_cooldown", ttl) for _ in range(3)] == [True] * 3
 
     def test_exactly_one_caller_wins_a_concurrent_acquire(self, state):
         """
-        Os pipelines rodam em threads do executor e compartilham o engine.
-        A versão anterior comparava e escrevia o timestamp em passos
-        separados, então duas threads podiam disparar a mesma regra.
+        The pipelines run in executor threads and share the engine.
+        The previous version compared and wrote the timestamp in separate
+        steps, so two threads could fire the same rule.
         """
         threads_count = 20
         ready = threading.Barrier(threads_count)
@@ -78,7 +78,7 @@ class TestTryAcquire:
 
 
 class TestValues:
-    """get/set guardam o estado que o ciclo de incidente (v0.4) vai precisar."""
+    """get/set store the state the incident cycle (v0.4) will need."""
 
     def test_an_unset_key_reads_as_none(self, state):
         assert state.get("incident:alta_temp") is None
@@ -95,7 +95,7 @@ class TestValues:
         assert state.get("incident:alta_temp") == "ACKNOWLEDGED"
 
     def test_values_and_cooldowns_do_not_share_a_namespace(self, state):
-        """Um valor guardado não pode consumir o cooldown da mesma chave."""
+        """A stored value must not consume the cooldown of the same key."""
         state.set("alta_temp", "TRIGGERED")
 
         assert state.try_acquire("alta_temp", 60.0) is True

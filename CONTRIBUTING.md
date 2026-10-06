@@ -93,10 +93,21 @@ The body explains why the change exists; the diff already shows what it does.
 for the entry with that id in the roadmap. Merge with `--no-ff` so the branch
 survives in the history.
 
-**Code and comments are in Portuguese.** Commit messages and everything in
-`docs/`, `README.md` and `USAGE-EN.md` are in English. This split is
-deliberate: the code is read by the people who write it, and the documentation
-is read by anyone.
+**Comments and docstrings are in English**, and the suite enforces it:
+`tests/test_code_language.py` walks every `.py` file and fails on a Portuguese
+comment or docstring. Use American spelling. To check one directory while you
+work, `python scripts/check_language.py adapters/sensors`.
+
+The comments here are worth the trouble because of what they contain: they
+explain which decision was taken and what was rejected, not what the next line
+does. That is the part worth reading, which is why it is in the language anyone
+visiting the repository can read.
+
+Two things stay in Portuguese and the same test protects them. **Runtime
+strings** — error messages, log lines, CLI output — because tests assert on that
+exact text and `docs/` quotes real captured output; translating one breaks the
+suite and makes a page lie. And **identifiers**, because renaming locals is a
+separate change with a separate risk.
 
 ## Architecture in one paragraph
 

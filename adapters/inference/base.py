@@ -3,9 +3,9 @@ from core.entities import SensorReading, AnomalyScore
 
 class BaseInferenceAdapter(InferencePort):
     """
-    Classe base para todos os backends de inferência.
-    Centraliza a construção do AnomalyScore — cada filho só
-    precisa implementar _compute_score() e load().
+    Base class for every inference backend.
+    Centralizes the construction of the AnomalyScore — each child only
+    needs to implement _compute_score() and load().
     """
 
     def __init__(self, model_id: str, threshold: float = 0.7) -> None:
@@ -24,7 +24,7 @@ class BaseInferenceAdapter(InferencePort):
 
     def _compute_score(self, reading: SensorReading) -> float:
         """
-        Cada backend implementa esse método.
-        Retorna um float entre 0.0 e 1.0.
+        Each backend implements this method.
+        Returns a float between 0.0 and 1.0.
         """
         raise NotImplementedError

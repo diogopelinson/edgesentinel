@@ -6,13 +6,13 @@ from core.entities import SensorReading
 
 class DiskUsageSensor(BaseSensor):
     """
-    Uso do sistema de arquivos em percentual, via os.statvfs().
+    Filesystem usage as a percentage, via os.statvfs().
 
-    Cobre a causa número um de falha em campo: cartão SD que enche. O
-    mountpoint vem de `params.mountpoint` e o default é '/'.
+    Covers the number one cause of failure in the field: an SD card that fills
+    up. The mountpoint comes from `params.mountpoint` and defaults to '/'.
 
-    Sem psutil, como o resto dos sensores — os.statvfs é da biblioteca padrão
-    e não traz dependência compilada para um Raspberry Pi.
+    No psutil, like the rest of the sensors — os.statvfs is in the standard
+    library and brings no compiled dependency to a Raspberry Pi.
     """
 
     def __init__(
@@ -20,8 +20,8 @@ class DiskUsageSensor(BaseSensor):
         sensor_id: str = "disk_usage",
         mountpoint: str = "/",
     ) -> None:
-        # o mountpoint entra no nome porque dois sensores de disco no mesmo
-        # painel são indistinguíveis sem ele
+        # the mountpoint goes into the name because two disk sensors on the
+        # same panel are indistinguishable without it
         super().__init__(
             sensor_id=sensor_id,
             name=f"Disk Usage ({mountpoint})",
@@ -34,23 +34,24 @@ class DiskUsageSensor(BaseSensor):
 
     def _read_usage(self) -> float:
         """
-        A mesma conta do df: usado sobre usado-mais-disponível, não usado sobre
-        o tamanho do dispositivo.
+        The same arithmetic as df: used over used-plus-available, not used over
+        the size of the device.
 
-        O Linux reserva uma fatia do sistema de arquivos para o root — num
-        volume de 1 TB medimos 55 GB — e um processo comum não alcança essa
-        fatia. É por isso que a conta é essa: o agente para de conseguir
-        escrever quando f_bavail chega a zero, e é ali que o número precisa
-        chegar a 100. Dividir pelo tamanho total faria o alerta chegar depois
-        do disco cheio, que é exatamente quando ele não serve mais.
+        Linux reserves a slice of the filesystem for root — on a 1 TB volume we
+        measured 55 GB — and an ordinary process does not reach that slice.
+        That is why the arithmetic is this one: the agent stops being able to
+        write when f_bavail reaches zero, and that is where the number has to
+        reach 100. Dividing by the total size would make the alert arrive after
+        the disk is full, which is exactly when it is no longer any use.
 
-        os.statvfs não existe no Windows: o AttributeError é engolido pelo
-        is_available() do BaseSensor, e o sensor se declara indisponível.
+        os.statvfs does not exist on Windows: the AttributeError is swallowed
+        by BaseSensor's is_available(), and the sensor declares itself
+        unavailable.
         """
         stat = os.statvfs(self._mountpoint)
 
         if stat.f_blocks == 0:
-            # pseudo-sistema de arquivos, não um disco em 0%
+            # a pseudo-filesystem, not a disk at 0%
             raise RuntimeError(
                 f"'{self._mountpoint}' informa zero blocos — "
                 f"não é um sistema de arquivos com uso mensurável."

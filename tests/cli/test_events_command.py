@@ -18,7 +18,7 @@ DAY  = 24 * HOUR
 
 @pytest.fixture
 def workspace(tmp_path):
-    """config.yaml apontando para um banco dentro de tmp_path."""
+    """config.yaml pointing at a database inside tmp_path."""
     db  = tmp_path / "data" / "events.db"
     cfg = tmp_path / "config.yaml"
     cfg.write_text(f"""
@@ -120,7 +120,7 @@ class TestTableOutput:
         assert "0.93" in capsys.readouterr().out
 
     def test_aligns_numbers_when_units_differ(self, workspace, capsys):
-        """'%' e '°C' têm larguras diferentes — os números precisam alinhar mesmo assim."""
+        """'%' and '°C' have different widths — the numbers need to align even so."""
         cfg, db = workspace
         now = time.time()
         seed(db,
@@ -151,7 +151,7 @@ class TestTableOutput:
         assert "--limit" in out
 
     def test_no_color_when_output_is_not_a_terminal(self, workspace, capsys):
-        """Redirecionado para arquivo ou pipe, escape ANSI vira lixo."""
+        """Redirected to a file or a pipe, ANSI escapes turn into garbage."""
         cfg, db = workspace
         seed(db, make_event(severity="critical"))
 
@@ -269,8 +269,9 @@ class TestJsonOutput:
 
     def test_record_carries_the_incident_it_belongs_to(self, workspace, capsys):
         """
-        O incident_id é o que liga um disparo ao episódio. Sem ele no JSON,
-        agrupar os eventos de um incidente exige abrir o banco à mão.
+        The incident_id is what links a firing to the episode. Without it in the
+        JSON, grouping the events of one incident requires opening the database
+        by hand.
         """
         cfg, db = workspace
         seed(db,
@@ -298,7 +299,7 @@ class TestJsonOutput:
         assert parsed.timestamp() == pytest.approx(record["timestamp"], abs=1)
 
     def test_stdout_holds_nothing_but_json(self, workspace, capsys):
-        """Mensagens de status vão para o stderr — um pipe para jq não pode quebrar."""
+        """Status messages go to stderr — a pipe into jq must not break."""
         cfg, db = workspace
         seed(db, make_event(severity="warning"))
 
@@ -318,7 +319,7 @@ class TestStoreState:
         assert not db.exists()
 
     def test_reading_never_prunes_old_history(self, workspace, capsys):
-        """Consultar é só leitura — retenção é assunto de quem grava."""
+        """Querying is read-only — retention is the business of whoever writes."""
         cfg, db = workspace
         seed(db, make_event(rule_name="de_40_dias", timestamp=time.time() - 40 * DAY))
 

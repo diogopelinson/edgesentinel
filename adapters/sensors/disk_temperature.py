@@ -5,21 +5,21 @@ from core.entities import SensorReading
 
 _HWMON_ROOT = "/sys/class/hwmon"
 
-# nomes com que o kernel publica um sensor de disco: 'drivetemp' é o módulo
-# para SATA, 'nvme' vem do próprio driver NVMe
+# the names under which the kernel publishes a disk sensor: 'drivetemp' is the
+# module for SATA, 'nvme' comes from the NVMe driver itself
 _CHIPS_DE_DISCO = ("drivetemp", "nvme")
 
 
 class DiskTemperatureSensor(BaseSensor):
     """
-    Temperatura do disco, de /sys/class/hwmon.
+    Disk temperature, from /sys/class/hwmon.
 
-    Um cartão SD ou SSD que esquenta degrada antes de falhar, e a temperatura é
-    o aviso que chega antes do erro de escrita.
+    An SD card or SSD that runs hot degrades before it fails, and the
+    temperature is the warning that arrives before the write error.
 
-    Na maioria das máquinas isto não existe: o módulo `drivetemp` não vem
-    carregado por padrão e um cartão SD não publica temperatura nenhuma. Nesse
-    caso o sensor se declara indisponível, como qualquer outro sem hardware.
+    On most machines this does not exist: the `drivetemp` module is not loaded
+    by default and an SD card publishes no temperature at all. In that case the
+    sensor declares itself unavailable, like any other one without hardware.
     """
 
     def __init__(
@@ -41,12 +41,13 @@ class DiskTemperatureSensor(BaseSensor):
 
     def _read_temperature(self) -> float:
         """
-        hwmon publica um diretório por chip de sensor, cada um com um arquivo
-        `name` e temperaturas em milligraus.
+        hwmon publishes one directory per sensor chip, each with a `name` file
+        and temperatures in millidegrees.
 
-        O nome é conferido antes de ler: hwmon expõe de tudo — pacote da CPU,
-        placa-mãe, ventoinha — e pegar o primeiro chip devolveria a temperatura
-        de outra coisa, num valor plausível o bastante para ninguém desconfiar.
+        The name is checked before reading: hwmon exposes everything — the CPU
+        package, the motherboard, the fan — and taking the first chip would
+        return the temperature of something else, at a value plausible enough
+        for nobody to suspect it.
         """
         procurados = (self._chip,) if self._chip else _CHIPS_DE_DISCO
 
@@ -56,7 +57,7 @@ class DiskTemperatureSensor(BaseSensor):
                 continue
 
             temp = diretorio / "temp1_input"
-            # nem todo chip hwmon publica temp1_input; pular é o certo aqui
+            # not every hwmon chip publishes temp1_input; skipping is the right thing here
             if not temp.exists():
                 continue
 
@@ -69,7 +70,7 @@ class DiskTemperatureSensor(BaseSensor):
         )
 
     def _chips(self) -> list[Path]:
-        """Diretórios de chip, ordenados para a leitura ser determinística."""
+        """Chip directories, sorted so that the read is deterministic."""
         raiz = Path(self._root)
         if not raiz.is_dir():
             return []

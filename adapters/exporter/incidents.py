@@ -1,16 +1,17 @@
 """
-O gauge de incidentes abertos, lido da loja na hora da coleta.
+The open-incidents gauge, read from the store at collection time.
 
-Um gauge de estado atual não pode ser acumulado no processo. Ele estaria
-errado nas duas situações que mais importam: depois de um restart, com o
-incidente ainda aberto no banco e o contador do processo em zero; e depois de
-um reconhecimento feito pela CLI, que acontece em outro processo e nunca
-passa por aqui. Ler a loja a cada coleta é a mesma decisão que o engine já
-toma ao reler os incidentes abertos em vez de guardá-los.
+A current-state gauge cannot be accumulated inside the process. It would be
+wrong in the two situations that matter most: after a restart, with the
+incident still open in the database and the process counter at zero; and after
+an acknowledgement made from the CLI, which happens in another process and
+never passes through here. Reading the store on every collection is the same
+decision the engine already takes when it re-reads the open incidents instead
+of keeping them.
 
-Os dois exportadores compartilham count_open(): no Prometheus ele alimenta um
-collector, no OTel a callback de um gauge observável. Uma segunda cópia da
-contagem divergiria no dia em que um rótulo mudasse.
+The two exporters share count_open(): in Prometheus it feeds a collector, in
+OTel the callback of an observable gauge. A second copy of the count would
+diverge the day a label changed.
 """
 import logging
 from collections.abc import Iterable, Iterator
@@ -30,10 +31,10 @@ _DOC = "Incidentes abertos agora, por regra, severidade e estado"
 
 def count_open(incidents: Iterable[Incident]) -> dict[tuple[str, str, str], int]:
     """
-    Agrupa os incidentes abertos por (regra, severidade, estado).
+    Groups the open incidents by (rule, severity, state).
 
-    O estado entra como rótulo porque 'aberto e ninguém viu ainda' é a
-    pergunta do operador, e uma soma sem ele não sabe respondê-la.
+    The state goes in as a label because 'open and nobody has seen it yet' is
+    the operator's question, and a sum without it cannot answer it.
     """
     contagem: dict[tuple[str, str, str], int] = {}
     for incident in incidents:
@@ -44,12 +45,13 @@ def count_open(incidents: Iterable[Incident]) -> dict[tuple[str, str, str], int]
 
 def read_open(incidents: IncidentPort) -> dict[tuple[str, str, str], int]:
     """
-    count_open() sobre o que a loja responder agora, ou vazio se ela falhar.
+    count_open() over whatever the store answers now, or empty if it fails.
 
-    Falha não pode subir: no Prometheus ela derrubaria o scrape inteiro, e
-    com ele todas as outras métricas do endpoint. Banco travado é o caso
-    comum num cartão SD, e o preço de engolir está documentado — o painel
-    lê zero e o motivo fica no log do agente.
+    A failure must not propagate: in Prometheus it would bring down the whole
+    scrape, and with it every other metric on the endpoint. A locked database
+    is the common case on an SD card, and the price of swallowing it is
+    documented — the dashboard reads zero and the reason stays in the agent's
+    log.
     """
     try:
         return count_open(incidents.open_incidents())
@@ -60,13 +62,13 @@ def read_open(incidents: IncidentPort) -> dict[tuple[str, str, str], int]:
 
 class OpenIncidentsCollector:
     """
-    Collector do prometheus_client: publica um gauge por combinação de
-    rótulos existente no momento do scrape.
+    prometheus_client collector: publishes one gauge per label combination
+    that exists at the moment of the scrape.
 
-    Sem incidente aberto não sai série nenhuma. É a prática esparsa do
-    Prometheus — publicar zero para toda regra que já disparou deixaria
-    séries mortas no banco para sempre — e obriga o painel a somar com
-    'or vector(0)'.
+    With no open incident, no series comes out at all. This is Prometheus'
+    sparse practice — publishing zero for every rule that has ever fired would
+    leave dead series in the database forever — and it forces the dashboard to
+    sum with 'or vector(0)'.
     """
 
     def __init__(self, incidents: IncidentPort) -> None:

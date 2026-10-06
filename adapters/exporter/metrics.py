@@ -1,6 +1,6 @@
 from prometheus_client import Gauge, Counter, Histogram
 
-# --- Métricas de sensor ---
+# --- Sensor metrics ---
 
 SENSOR_VALUE = Gauge(
     name="edgesentinel_sensor_value",
@@ -8,7 +8,7 @@ SENSOR_VALUE = Gauge(
     labelnames=["sensor_id", "sensor_name", "unit"],
 )
 
-# --- Métricas de anomalia ---
+# --- Anomaly metrics ---
 
 ANOMALY_SCORE = Gauge(
     name="edgesentinel_anomaly_score",
@@ -22,7 +22,7 @@ ANOMALY_TOTAL = Counter(
     labelnames=["sensor_id", "model_id"],
 )
 
-# --- Métricas de regras ---
+# --- Rule metrics ---
 
 RULE_TRIGGERED_TOTAL = Counter(
     name="edgesentinel_rule_triggered_total",
@@ -30,12 +30,12 @@ RULE_TRIGGERED_TOTAL = Counter(
     labelnames=["rule_name"],
 )
 
-# --- Métricas de incidente ---
+# --- Incident metrics ---
 
-# O gauge de incidentes abertos não está aqui: ele é lido da loja a cada
-# scrape, pelo OpenIncidentsCollector. Estas duas são de processo porque
-# contador e histograma precisam ser monotônicos, e a tabela não garante isso
-# — prune() apaga incidente resolvido depois da retenção.
+# The open-incidents gauge is not here: it is read from the store on every
+# scrape, by OpenIncidentsCollector. These two are per-process because a
+# counter and a histogram have to be monotonic, and the table does not
+# guarantee that — prune() deletes a resolved incident once retention is up.
 
 INCIDENTS_TOTAL = Counter(
     name="edgesentinel_incidents_total",
@@ -47,13 +47,13 @@ INCIDENT_DURATION = Histogram(
     name="edgesentinel_incident_duration_seconds",
     documentation="Quanto durou cada incidente fechado, em segundos",
     labelnames=["severity"],
-    # de segundos a um dia: um pico de CPU fecha em segundos, um disco cheio
-    # que ninguém viu dura o fim de semana. Escala linear jogaria os dois
-    # extremos no mesmo bucket
+    # from seconds to a day: a CPU spike closes in seconds, a full disk that
+    # nobody saw lasts the whole weekend. A linear scale would throw both
+    # extremes into the same bucket
     buckets=[5.0, 15.0, 60.0, 300.0, 900.0, 3_600.0, 21_600.0, 86_400.0],
 )
 
-# --- Métricas de performance ---
+# --- Performance metrics ---
 
 INFERENCE_LATENCY = Histogram(
     name="edgesentinel_inference_latency_seconds",

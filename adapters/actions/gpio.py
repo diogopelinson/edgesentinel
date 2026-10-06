@@ -4,11 +4,11 @@ from core.entities import ActionContext
 
 class GPIOWriteAction(BaseAction):
     """
-    Escreve em um pino GPIO quando uma regra dispara.
-    Útil para acionar LEDs, relés, buzzers, etc.
+    Writes to a GPIO pin when a rule fires.
+    Useful for driving LEDs, relays, buzzers and the like.
 
-    Tenta usar gpiozero (mais portável) e cai para
-    RPi.GPIO se necessário.
+    Tries gpiozero first, as the more portable of the two, and falls back to
+    RPi.GPIO when it has to.
     """
 
     def __init__(
@@ -16,7 +16,7 @@ class GPIOWriteAction(BaseAction):
         action_id: str = "gpio_write",
         pin: int = 17,
         value: bool = True,          # True = HIGH, False = LOW
-        duration_seconds: float | None = None,  # None = mantém indefinidamente
+        duration_seconds: float | None = None,  # None = holds it indefinitely
     ) -> None:
         super().__init__(action_id)
         self.pin = pin

@@ -19,9 +19,9 @@ class TestDummyInferenceAdapter:
         assert score.model_id == "dummy"
 
     def test_load_does_nothing(self, cpu_reading):
-        """load() do dummy não deve lançar erro."""
+        """The dummy's load() must not raise an error."""
         adapter = DummyInferenceAdapter()
-        adapter.load("qualquer/caminho.onnx")   # não deve explodir
+        adapter.load("qualquer/caminho.onnx")   # must not blow up
         score = adapter.predict(cpu_reading)
         assert score.score == 0.0
 

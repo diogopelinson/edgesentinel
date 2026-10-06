@@ -7,7 +7,7 @@ import numpy as np
 
 @dataclass
 class Detection:
-    """Detecção individual retornada por qualquer modelo."""
+    """One detection, as any model returns it."""
     class_name: str
     confidence: float
     bbox: list[float] = field(default_factory=list)   # [x1, y1, x2, y2]
@@ -16,7 +16,7 @@ class Detection:
 
 @dataclass
 class InferenceResult:
-    """Resultado completo de uma inferência."""
+    """The full result of one inference."""
     model_id: str
     detections: list[Detection]
     inference_latency_ms: float
@@ -35,7 +35,7 @@ class InferenceResult:
 
 
 class BaseModel(ABC):
-    """Contrato que todo modelo do registry deve implementar."""
+    """The contract every model in the registry has to implement."""
 
     def __init__(self, model_id: str, confidence_threshold: float = 0.5) -> None:
         self.model_id            = model_id
@@ -44,16 +44,16 @@ class BaseModel(ABC):
 
     @abstractmethod
     def load(self, config: dict) -> None:
-        """Carrega o modelo do disco. Chamado uma vez na inicialização."""
+        """Load the model from disk. Called once at startup."""
         ...
 
     @abstractmethod
     def predict(self, frame: np.ndarray) -> list[Detection]:
-        """Roda inferência num frame numpy HxWxC BGR."""
+        """Run inference on a numpy HxWxC BGR frame."""
         ...
 
     def run(self, frame: np.ndarray) -> InferenceResult:
-        """Executa predict() e mede latência. Não sobrescrever."""
+        """Runs predict() and measures its latency. Do not override."""
         start = time.monotonic()
         detections = self.predict(frame)
         latency_ms = (time.monotonic() - start) * 1000

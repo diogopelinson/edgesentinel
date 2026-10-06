@@ -15,11 +15,11 @@ _UNIT_SECONDS = {"s": 1, "m": 60, "h": 3600, "d": 86400}
 _DURATION     = re.compile(r"^(\d+)([smhd])$")
 
 _HEADERS     = ("QUANDO", "SEVERIDADE", "REGRA", "SENSOR", "VALOR", "SCORE")
-_RIGHT_ALIGN = {4, 5}      # colunas numéricas
+_RIGHT_ALIGN = {4, 5}      # the numeric columns
 
 
 def parse_duration(text: str) -> float:
-    """'30m' → 1800.0. Aceita s, m, h e d, sem distinguir maiúsculas."""
+    """'30m' → 1800.0. Takes s, m, h and d, case-insensitively."""
     match = _DURATION.match(text.strip().lower())
     if not match or int(match.group(1)) == 0:
         raise ValueError(
@@ -41,10 +41,10 @@ def run_events(
     now: float | None = None,
 ) -> int:
     """
-    Lista o histórico de regras disparadas. Devolve o código de saída.
+    Lists the history of rules that fired. Returns the exit code.
 
-    stdout recebe só dados — tabela ou JSON Lines. Mensagens de status vão
-    para o stderr, para que `--json | jq` nunca receba texto solto.
+    stdout carries data only — a table or JSON Lines. Status messages go to
+    stderr, so that `--json | jq` never receives loose text.
     """
     try:
         path = store_path(config_path)
@@ -53,7 +53,7 @@ def run_events(
         return 1
 
     if not path.exists():
-        # checado antes de abrir: sqlite3.connect criaria um arquivo vazio
+        # checked before opening: sqlite3.connect would create an empty file
         _status(f"Nenhum evento registrado ainda — {path} não existe.")
         return 0
 
@@ -61,8 +61,8 @@ def run_events(
     if window_seconds is not None:
         since = (time.time() if now is None else now) - window_seconds
 
-    # sem start(): ele aplica a retenção e sobe a thread de escrita, e
-    # consultar não pode apagar nada nem deixar thread para trás
+    # no start(): that applies the retention and spins up the writer thread,
+    # and a query must neither delete anything nor leave a thread behind
     store = SQLiteEventStore(path=path)
     try:
         events = store.query(
@@ -94,8 +94,8 @@ def run_events(
 
 
 def format_table(events: list[Event], color: bool = False) -> str:
-    # unidade completada até a mais larga: com a coluna alinhada à direita,
-    # são os números que ficam alinhados, não as unidades
+    # the unit is padded to the widest one: with the column right-aligned it is
+    # the numbers that line up, not the units
     unit_width = max((len(e.unit) for e in events), default=0)
     rows = [
         (
@@ -118,7 +118,7 @@ def format_table(events: list[Event], color: bool = False) -> str:
             cell.rjust(width) if i in _RIGHT_ALIGN else cell.ljust(width)
             for i, (cell, width) in enumerate(zip(cells, widths, strict=True))
         ]
-        # cor aplicada depois do alinhamento: escape ANSI não ocupa coluna
+        # color applied after the padding: an ANSI escape occupies no column
         if color and severity in COLORS:
             padded[1] = f"{COLORS[severity]}{padded[1]}{RESET}"
         return "  ".join(padded).rstrip()

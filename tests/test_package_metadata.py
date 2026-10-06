@@ -1,7 +1,7 @@
 """
-A description do pacote é o que o PyPI e o pip mostram, ao lado do
-README.md que o pyproject.toml publica. Os dois precisam contar a mesma
-história, no mesmo idioma.
+The package description is what PyPI and pip show, next to the README.md
+that pyproject.toml publishes. The two have to tell the same story, in the
+same language.
 """
 import re
 from pathlib import Path
@@ -16,7 +16,7 @@ def project_table() -> dict:
 
 
 def readme_tagline() -> str:
-    """Primeira linha de citação do README — o resumo de uma frase do projeto."""
+    """The README's first quote line — the project's one-sentence summary."""
     readme = (ROOT / project_table()["readme"]).read_text(encoding="utf-8")
     return re.search(r"^> (.+)$", readme, re.M).group(1)
 

@@ -1,12 +1,12 @@
 """
-Métricas de incidente nos dois exportadores.
+Incident metrics in both exporters.
 
-A divisão que estes testes fixam: o gauge de abertos é lido da loja a cada
-scrape, e o contador e o histograma são acumulados no processo. Não é
-simetria por gosto — um gauge de estado atual precisa estar certo depois de
-um restart e depois de um ack feito pela CLI, e um contador precisa ser
-monotônico, o que a loja não garante porque prune() apaga incidente
-resolvido.
+The division these tests pin down: the gauge of open incidents is read from the
+store on every scrape, and the counter and the histogram are accumulated in the
+process. It is not symmetry for its own sake — a current-state gauge has to be
+right after a restart and after an ack done through the CLI, and a counter has
+to be monotonic, which the store does not guarantee because prune() deletes
+resolved incidents.
 """
 import logging
 import sqlite3
@@ -44,9 +44,9 @@ def incident(
 
 class FakeIncidents(IncidentPort):
     """
-    Só open_incidents() importa aqui — é o único método que o collector usa.
-    O resto levanta de propósito: se o collector começar a escrever na loja
-    durante um scrape, o teste quebra em vez de passar.
+    Only open_incidents() matters here — it is the only method the collector
+    uses. The rest raises on purpose: if the collector starts writing to the
+    store during a scrape, the test breaks instead of passing.
     """
 
     def __init__(self, *incidents: Incident, failing: bool = False) -> None:
@@ -71,7 +71,7 @@ class FakeIncidents(IncidentPort):
 
 
 def scrape(collector: OpenIncidentsCollector) -> dict[tuple[str, ...], float]:
-    """Um scrape do collector, como {(rule, severity, state): valor}."""
+    """One scrape of the collector, as {(rule, severity, state): value}."""
     registry = CollectorRegistry()
     registry.register(collector)
     amostras = {}
@@ -87,19 +87,19 @@ def scrape(collector: OpenIncidentsCollector) -> dict[tuple[str, ...], float]:
 
 
 def sample(name: str, **labels: str) -> float:
-    """Valor de uma amostra no registro global, 0.0 quando a série não existe."""
+    """The value of a sample in the global registry, 0.0 when the series does not exist."""
     from prometheus_client import REGISTRY
     valor = REGISTRY.get_sample_value(name, labels)
     return 0.0 if valor is None else valor
 
 
-# --- o agrupamento ---
+# --- the grouping ---
 
 class TestCountOpen:
     """
-    O gauge é uma contagem por rótulo, e os rótulos são três: regra,
-    severidade e estado. O estado entra porque 'aberto e ninguém viu' é a
-    pergunta que o operador faz, e sem ele a soma não sabe responder.
+    The gauge is a count per label, and the labels are three: rule, severity
+    and state. The state is in there because 'open and nobody has seen it' is
+    the question the operator asks, and without it the sum cannot answer.
     """
 
     def test_groups_by_rule_severity_and_state(self):
@@ -126,7 +126,7 @@ class TestCountOpen:
         assert count_open([]) == {}
 
 
-# --- o gauge, lido a cada scrape ---
+# --- the gauge, read on every scrape ---
 
 class TestOpenIncidentsCollector:
 
@@ -155,18 +155,18 @@ class TestOpenIncidentsCollector:
 
     def test_nothing_open_exposes_no_series(self):
         """
-        Série esparsa é a prática do Prometheus: sem incidente aberto não há
-        combinação de rótulos para publicar. O painel soma com
-        'or vector(0)' — publicar zero para toda regra que já disparou
-        deixaria séries mortas para sempre.
+        Sparse series is the Prometheus practice: with no open incident there
+        is no label combination to publish. The dashboard sums with
+        'or vector(0)' — publishing zero for every rule that has ever fired
+        would leave dead series behind forever.
         """
         assert scrape(OpenIncidentsCollector(FakeIncidents())) == {}
 
     def test_reads_the_store_on_every_scrape(self):
         """
-        Um gauge de estado atual que guardasse o valor mentiria depois de um
-        restart: o incidente continua aberto no banco e o processo começou
-        com o contador em zero.
+        A current-state gauge that cached the value would lie after a restart:
+        the incident is still open in the database and the process started with
+        the counter at zero.
         """
         loja = FakeIncidents(incident())
         collector = OpenIncidentsCollector(loja)
@@ -190,8 +190,8 @@ class TestOpenIncidentsCollector:
 
     def test_a_failing_store_does_not_break_the_scrape(self):
         """
-        Um scrape que levanta derruba o endpoint inteiro — todas as outras
-        métricas vão embora junto. Banco travado é o caso comum num cartão SD.
+        A scrape that raises brings down the whole endpoint — all the other
+        metrics go with it. A locked database is the common case on an SD card.
         """
         amostras = scrape(OpenIncidentsCollector(FakeIncidents(failing=True)))
 
@@ -204,7 +204,7 @@ class TestOpenIncidentsCollector:
         assert "database is locked" in caplog.text
 
 
-# --- o contador e o histograma, no processo ---
+# --- the counter and the histogram, in the process ---
 
 class TestPrometheusIncidentMetrics:
 
@@ -265,9 +265,9 @@ class TestPrometheusIncidentMetrics:
 
     def test_a_negative_duration_is_clamped(self, exporter):
         """
-        O relógio do dispositivo anda para trás quando o NTP acerta. Duração
-        negativa somada no histograma corrompe o P95 de todas as leituras
-        seguintes, então ela entra como zero.
+        The device's clock walks backwards when NTP corrects it. A negative
+        duration summed into the histogram corrupts the P95 of every subsequent
+        reading, so it goes in as zero.
         """
         antes = sample(
             "edgesentinel_incident_duration_seconds_sum", severity="info",
@@ -288,9 +288,9 @@ class TestPrometheusIncidentMetrics:
 
     def test_the_duration_buckets_span_seconds_to_a_day(self):
         """
-        Um incidente de edge dura de segundos (um pico de CPU) a dias (um
-        disco cheio que ninguém viu). Buckets só até um minuto jogariam
-        tudo o que importa no +Inf.
+        An edge incident lasts from seconds (a CPU spike) to days (a full disk
+        nobody saw). Buckets only up to one minute would throw everything that
+        matters into the +Inf.
         """
         assert INCIDENT_DURATION._upper_bounds[0] <= 5.0
         assert 86_400.0 in INCIDENT_DURATION._upper_bounds
@@ -316,8 +316,8 @@ class TestPrometheusIncidentMetrics:
 
     def test_without_a_store_no_collector_is_registered(self, monkeypatch):
         """
-        Sem event_store habilitado não existe incidente. Registrar o
-        collector publicaria um gauge que nunca sai de vazio.
+        With no event_store enabled there is no such thing as an incident.
+        Registering the collector would publish a gauge that never leaves empty.
         """
         registrados = []
         monkeypatch.setattr(
@@ -338,16 +338,16 @@ class TestPrometheusIncidentMetrics:
         assert not any(isinstance(c, OpenIncidentsCollector) for c in registrados)
 
 
-# --- o mesmo no OTel ---
+# --- the same in OTel ---
 
 class TestOTelIncidentMetrics:
     """
-    Os dois exportadores seguem suportados, então as três métricas têm de
-    existir nos dois com o mesmo nome depois da conversão do reader.
+    Both exporters remain supported, so the three metrics have to exist in both
+    under the same name after the reader's conversion.
 
-    Os testes montam os instrumentos direto num meter de memória em vez de
-    chamar start(): start() abre socket (backend prometheus) ou fala gRPC
-    (backend otlp), e nenhum dos dois cabe num teste.
+    The tests build the instruments straight onto an in-memory meter instead of
+    calling start(): start() opens a socket (prometheus backend) or speaks gRPC
+    (otlp backend), and neither of the two fits inside a test.
     """
 
     @pytest.fixture
@@ -371,7 +371,7 @@ class TestOTelIncidentMetrics:
 
     def collected(self, reader) -> dict[str, object]:
         dados = reader.get_metrics_data()
-        if dados is None:      # nenhum instrumento produziu ponto nesta coleta
+        if dados is None:      # no instrument produced a point in this collection
             return {}
         metricas = {}
         for resource in dados.resource_metrics:
@@ -393,8 +393,8 @@ class TestOTelIncidentMetrics:
 
     def test_the_observable_gauge_reads_the_store_at_collection(self, sdk):
         """
-        No OTel o equivalente do collector é um gauge observável: o SDK
-        chama a callback na hora de exportar, e é ali que a loja é lida.
+        In OTel the collector's equivalent is an observable gauge: the SDK
+        calls the callback at export time, and that is where the store is read.
         """
         loja = FakeIncidents(
             incident(rule="hot", severity="warning", incident_id=1),
@@ -416,9 +416,9 @@ class TestOTelIncidentMetrics:
 
     def test_a_failing_store_does_not_break_the_collection(self, sdk):
         """
-        A callback roda dentro da coleta: se ela levantar, o SDK perde o
-        ciclo inteiro e as outras métricas vão embora junto. O contador é
-        alimentado aqui justamente para provar que o resto da coleta saiu.
+        The callback runs inside the collection: if it raises, the SDK loses
+        the whole cycle and the other metrics go with it. The counter is fed
+        here precisely to prove that the rest of the collection came out.
         """
         exporter, reader = self.build(sdk, FakeIncidents(failing=True))
         exporter.record_incident_opened(incident())
@@ -445,10 +445,10 @@ class TestOTelIncidentMetrics:
 
     def test_both_exporters_publish_the_same_three_names(self, sdk):
         """
-        O reader do Prometheus troca ponto por underscore e acrescenta a
-        unidade ao nome — é de onde vem o '_seconds' do histograma. Se um
-        dos dois lados for renomeado sem o outro, o dashboard passa a
-        funcionar em metade das instalações.
+        The Prometheus reader swaps dots for underscores and appends the unit
+        to the name — that is where the histogram's '_seconds' comes from. If
+        one of the two sides is renamed without the other, the dashboard goes
+        from working everywhere to working in half of the installations.
         """
         exporter, reader = self.build(sdk, FakeIncidents(incident()))
         exporter.record_incident_opened(incident())

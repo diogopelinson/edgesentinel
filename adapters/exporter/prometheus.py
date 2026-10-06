@@ -22,12 +22,12 @@ logger = logging.getLogger("edgesentinel.exporter")
 
 class PrometheusExporter(ExporterPort, IncidentMetricsPort):
     """
-    Exporta métricas do edgesentinel para o Prometheus.
-    Sobe um servidor HTTP na porta configurada que responde
-    ao scrape do Prometheus em /metrics.
+    Exports edgesentinel metrics to Prometheus.
+    Brings up an HTTP server on the configured port that answers
+    the Prometheus scrape at /metrics.
 
-    Com uma loja de incidentes em mãos, também publica quantos estão abertos
-    agora — número que é lido dali a cada scrape, não acumulado aqui.
+    With an incident store in hand, it also publishes how many are open right
+    now — a number read from there on every scrape, not accumulated here.
     """
 
     def __init__(self, port: int = 8000, incidents: IncidentPort | None = None) -> None:
@@ -37,17 +37,17 @@ class PrometheusExporter(ExporterPort, IncidentMetricsPort):
 
     def start(self) -> None:
         """
-        Inicia o servidor HTTP em background.
-        Chamado uma vez pelo MonitorLoop na inicialização.
+        Starts the HTTP server in the background.
+        Called once by MonitorLoop at startup.
         """
         if self._started:
             return
 
         self._unregister_defaults()
 
-        # o gauge de abertos é lido da loja no scrape. Sem event_store não
-        # existe incidente, e registrar aqui publicaria um gauge que nunca
-        # sai de vazio
+        # the open gauge is read from the store at scrape time. Without an
+        # event_store there is no incident, and registering here would publish
+        # a gauge that never stops being empty
         if self._incidents is not None:
             prometheus_client.REGISTRY.register(
                 OpenIncidentsCollector(self._incidents)
@@ -63,8 +63,8 @@ class PrometheusExporter(ExporterPort, IncidentMetricsPort):
         score: AnomalyScore | None = None,
     ) -> None:
         """
-        Atualiza as métricas com os dados de uma leitura.
-        Chamado pelo Pipeline após cada ciclo completo.
+        Updates the metrics with the data from one reading.
+        Called by the Pipeline after each complete cycle.
         """
         self._record_reading(reading)
 
@@ -87,9 +87,9 @@ class PrometheusExporter(ExporterPort, IncidentMetricsPort):
             transition="resolved",
         ).inc()
         INCIDENT_DURATION.labels(severity=incident.severity).observe(
-            # o relógio do dispositivo anda para trás quando o NTP acerta.
-            # Duração negativa somada aqui corrompe o quantil de todos os
-            # incidentes seguintes
+            # the device clock walks backwards when NTP corrects it. A
+            # negative duration added here corrupts the quantile of every
+            # later incident
             max(duration_seconds, 0.0)
         )
 
@@ -99,18 +99,18 @@ class PrometheusExporter(ExporterPort, IncidentMetricsPort):
     def record_pipeline_latency(self, sensor_id: str, duration: float) -> None:
         PIPELINE_LATENCY.labels(sensor_id=sensor_id).observe(duration)
 
-    # --- métodos privados ---
+    # --- private methods ---
 
     @staticmethod
     def _unregister_defaults() -> None:
         """
-        Tira os collectors que o prometheus_client registra sozinho: métricas
-        de GC, de plataforma e de processo poluem o Grafana e não dizem nada
-        sobre o dispositivo.
+        Removes the collectors prometheus_client registers on its own: GC,
+        platform and process metrics pollute Grafana and say nothing about the
+        device.
 
-        KeyError é engolido porque a operação não é idempotente e o registro
-        é global: num processo com dois exportadores, o segundo start() acha
-        tudo já removido.
+        KeyError is swallowed because the operation is not idempotent and the
+        registry is global: in a process with two exporters, the second start()
+        finds everything already removed.
         """
         for collector in (
             prometheus_client.GC_COLLECTOR,
@@ -120,9 +120,10 @@ class PrometheusExporter(ExporterPort, IncidentMetricsPort):
             with contextlib.suppress(KeyError):
                 prometheus_client.REGISTRY.unregister(collector)
 
-        # a métrica _created de cada counter dobra o número de séries sem
-        # dizer nada que o próprio counter não diga. O ignore é da biblioteca:
-        # a função não tem anotação e o mypy roda estrito aqui
+        # the _created metric of each counter doubles the number of series
+        # without saying anything the counter itself does not say. The ignore
+        # is the library's fault: the function has no annotation and mypy runs
+        # strict here
         prometheus_client.disable_created_metrics()  # type: ignore[no-untyped-call]
 
     def _record_reading(self, reading: SensorReading) -> None:

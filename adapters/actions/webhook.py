@@ -7,9 +7,9 @@ from core.entities import ActionContext
 
 class WebhookAction(BaseAction):
     """
-    Faz um POST HTTP com os dados da leitura em JSON.
-    Usa urllib da stdlib — sem dependência de requests ou httpx.
-    Compatível com Slack, Discord, PagerDuty, n8n, etc.
+    POSTs the reading over HTTP as JSON.
+    Uses urllib from the standard library — no requests, no httpx.
+    Works with Slack, Discord, PagerDuty, n8n and the rest.
     """
 
     def __init__(

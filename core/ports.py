@@ -5,86 +5,86 @@ from core.incidents import Incident
 
 
 class SensorPort(ABC):
-    """Contrato para qualquer fonte de dados de hardware."""
+    """The contract for any source of hardware data."""
 
     @abstractmethod
     def read(self) -> SensorReading:
-        """Lê uma medição do hardware. Deve ser não-bloqueante."""
+        """Take one measurement from the hardware. Must not block."""
         ...
 
     @abstractmethod
     def is_available(self) -> bool:
-        """Verifica se o sensor está acessível no hardware atual."""
+        """Whether the sensor can be reached on this machine."""
         ...
 
 
 class InferencePort(ABC):
-    """Contrato para qualquer backend de ML."""
+    """The contract for any ML backend."""
 
     @abstractmethod
     def predict(self, reading: SensorReading) -> AnomalyScore:
-        """Recebe uma leitura e retorna o score de anomalia."""
+        """Take a reading and return its anomaly score."""
         ...
 
     @abstractmethod
     def load(self, model_path: str) -> None:
-        """Carrega o modelo do disco. Separado do __init__ para lazy loading."""
+        """Load the model from disk. Separate from __init__ for lazy loading."""
         ...
 
 
 class ActionPort(ABC):
-    """Contrato para qualquer ação executável pelo sistema."""
+    """The contract for anything the system can execute as an action."""
 
     @abstractmethod
     def execute(self, context: ActionContext) -> None:
-        """Executa a ação. Context carrega a leitura + score que a disparou."""
+        """Run the action. The context carries the reading and score that fired it."""
         ...
 
 
 class StatePort(ABC):
     """
-    Contrato para o estado que sobrevive entre avaliações — cooldown de
-    regra hoje, ciclo de incidente depois.
+    The contract for state that outlives a single evaluation — rule cooldowns
+    today, and more of the incident cycle later.
 
-    Nenhum método expõe timestamp: o epoch do relógio monotônico é por
-    processo e não tem significado em outro. Quem tomar a chave decide o
-    prazo, e a implementação cuida de expirá-la — em memória, com o próprio
-    monotônico; no Redis, com a expiração do servidor.
+    No method exposes a timestamp: a monotonic clock's epoch is per process and
+    means nothing in another one. Whoever takes a key decides how long for, and
+    the implementation is what expires it — in memory, with its own monotonic
+    clock; in Redis, with server-side expiry.
     """
 
     @abstractmethod
     def try_acquire(self, key: str, ttl_seconds: float) -> bool:
         """
-        Toma a chave por ttl_seconds. True se ela estava livre agora, False
-        enquanto o prazo anterior não expirar. ttl_seconds <= 0 sempre toma.
+        Take the key for ttl_seconds. True if it was free just now, False until
+        the previous hold expires. ttl_seconds <= 0 always takes it.
 
-        Precisa ser atômico: dois chamadores simultâneos não podem tomar a
-        mesma chave.
+        Has to be atomic: two simultaneous callers cannot both take the same
+        key.
         """
         ...
 
     @abstractmethod
     def get(self, key: str) -> str | None:
-        """Valor guardado, ou None se a chave nunca foi escrita."""
+        """The stored value, or None if the key was never written."""
         ...
 
     @abstractmethod
     def set(self, key: str, value: str) -> None:
-        """Guarda um valor sob a chave, sem prazo."""
+        """Store a value under the key, with no expiry."""
         ...
 
 
 class EventPort(ABC):
-    """Contrato para qualquer armazenamento do histórico de regras disparadas."""
+    """The contract for any store of the rule-firing history."""
 
     @abstractmethod
     def start(self) -> None:
-        """Abre o armazenamento. Construir não pode tocar o disco."""
+        """Open the store. Constructing must not touch the disk."""
         ...
 
     @abstractmethod
     def append(self, event: Event) -> None:
-        """Registra um evento. Não pode bloquear quem chama."""
+        """Record an event. Must not block the caller."""
         ...
 
     @abstractmethod
@@ -98,74 +98,75 @@ class EventPort(ABC):
         until: float | None = None,
         limit: int = 100,
     ) -> list[Event]:
-        """Eventos mais recentes primeiro. since e until são inclusivos."""
+        """Newest events first. since and until are inclusive."""
         ...
 
     @abstractmethod
     def prune(self, before: float) -> int:
-        """Remove eventos anteriores a before e devolve quantos saíram."""
+        """Delete events older than before, and return how many went."""
         ...
 
     @abstractmethod
     def close(self) -> None:
-        """Grava o que ainda estiver pendente e libera o armazenamento."""
+        """Write whatever is still pending and release the store."""
         ...
 
 
 class IncidentPort(ABC):
     """
-    Contrato para o ciclo de vida dos incidentes.
+    The contract for the incident lifecycle.
 
-    Diferente do StatePort, aqui o estado precisa ser consultável e durável:
-    o operador lista incidentes abertos, reconhece um deles por outro
-    processo (a CLI) e o agente tem de ver isso no ciclo seguinte.
+    Unlike StatePort, this state has to be durable and queryable: an operator
+    lists what is open, acknowledges one of them from another process (the
+    CLI), and the agent has to see that on its next cycle.
     """
 
     @abstractmethod
     def open_incident(self, incident: Incident) -> Incident:
         """
-        Abre um incidente e devolve com o incident_id atribuído.
+        Open an incident and return it with the incident_id assigned.
 
-        Uma regra tem no máximo um incidente aberto — é o que faz os
-        disparos se agruparem em vez de virar um incidente cada.
+        A rule has at most one open incident — that is what makes the firings
+        group together instead of each becoming an incident.
         """
         ...
 
     @abstractmethod
     def acknowledge_incident(self, incident_id: int, at: float) -> None:
-        """Marca como reconhecido, sem fechar: alguém viu, o problema continua."""
+        """Mark it acknowledged without closing: someone saw it, the problem goes on."""
         ...
 
     @abstractmethod
     def resolve_incident(self, incident_id: int, at: float) -> None:
-        """Fecha o incidente."""
+        """Close the incident."""
         ...
 
     @abstractmethod
     def open_incidents(self) -> list[Incident]:
-        """Incidentes ainda abertos, do mais antigo para o mais recente."""
+        """The incidents still open, oldest first."""
         ...
 
 
 class IncidentMetricsPort(ABC):
     """
-    Contrato para contabilizar as transições do ciclo de incidente.
+    The contract for counting incident lifecycle transitions.
 
-    Separado do ExporterPort de propósito: lá se registra uma leitura, aqui
-    um episódio. O engine recebe esta porta e não a outra — ele não tem
-    leitura para exportar, só a transição que acabou de fazer.
+    Separate from ExporterPort on purpose: that one records a reading, this one
+    an episode. The engine gets this port and not the other — it has no reading
+    to export, only the transition it just made.
 
-    Não há método para 'quantos estão abertos agora'. Esse número é estado
-    atual e vem da loja de incidentes na hora da coleta, porque o engine não
-    guarda incidente em memória e um contador de processo estaria errado
-    depois de um restart.
+    There is no method for "how many are open right now". That number is
+    current state and comes from the incident store at collection time, because
+    the engine holds no incident in memory and a per-process counter would be
+    wrong after a restart.
 
-    Toda implementação é observação, nunca alarme: quem chama engole a falha.
+    Every implementation is observation, never alarm: the caller swallows the
+    failure.
     """
 
     @abstractmethod
     def record_incident_opened(self, incident: Incident) -> None:
-        """Conta a abertura de um episódio — uma vez por incidente, não por disparo."""
+        """Count an episode opening — once per incident, not once per firing."""
         ...
 
     @abstractmethod
@@ -173,23 +174,24 @@ class IncidentMetricsPort(ABC):
         self, incident: Incident, duration_seconds: float,
     ) -> None:
         """
-        Conta o fechamento e registra quanto durou.
+        Count the close and record how long it lasted.
 
-        A duração vem de fora porque o incidente recebido é o que estava
-        aberto: quem fecha é que conhece o instante da leitura que fechou.
+        The duration is passed in because the incident handed over is the one
+        that was open: whoever closes it is who knows the timestamp of the
+        reading that closed it.
         """
         ...
 
 
 class ExporterPort(ABC):
-    """Contrato para qualquer exportador de métricas."""
+    """The contract for any metrics exporter."""
 
     @abstractmethod
     def record(self, reading: SensorReading, score: AnomalyScore | None = None) -> None:
-        """Registra uma leitura para exportação."""
+        """Record a reading for export."""
         ...
 
     @abstractmethod
     def start(self) -> None:
-        """Inicia o servidor de métricas (ex: HTTP /metrics)."""
+        """Start the metrics server (for example, HTTP /metrics)."""
         ...

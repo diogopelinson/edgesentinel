@@ -84,14 +84,14 @@ def _cmd_incidents(args) -> None:
 
 
 def _cmd_transition(args) -> None:
-    """ack e resolve diferem só no destino — o resto é o mesmo caminho."""
+    """ack and resolve differ only in their destination — the rest is one path."""
     from cli.incidents import run_ack, run_resolve
     comando = run_ack if args.command == "ack" else run_resolve
     sys.exit(comando(config_path=args.config, incident_id=args.incident_id))
 
 
 def _duration_arg(text: str) -> float:
-    """--last validado no parse: erro de argumento, não exceção no meio da execução."""
+    """--last is validated at parse time: an argument error, not an exception mid-run."""
     from cli.events import parse_duration
     try:
         return parse_duration(text)

@@ -1,8 +1,8 @@
 """
-Ciclo de incidente de ponta a ponta: engine + SQLiteEventStore reais.
+Incident cycle end to end: real engine + SQLiteEventStore.
 
-Cobre o que os fakes não alcançam — o invariante de um incidente aberto
-por regra vindo do banco, e o ciclo sobrevivendo ao restart do agente.
+Covers what the fakes cannot reach — the invariant of one incident open
+per rule coming from the database, and the cycle surviving the agent's restart.
 """
 import time
 from unittest.mock import MagicMock
@@ -18,7 +18,7 @@ from core.rules import Condition, Rule, Severity
 
 
 def rule() -> Rule:
-    # dispara acima de 80 °C, resolve em 72 (80 menos 10%)
+    # fires above 80 °C, resolves at 72 (80 minus 10%)
     return Rule(
         name="temperatura_critica",
         condition=Condition(sensor_id="cpu_temp", operator=">", threshold=80.0),
@@ -52,31 +52,31 @@ def test_the_full_cycle_from_normal_to_resolved(store):
     action = MagicMock(spec=ActionPort)
     engine = engine_with(store, action)
 
-    assert store.open_incidents() == []          # NORMAL: nenhum incidente
+    assert store.open_incidents() == []          # NORMAL: no incident
 
     engine.evaluate(reading(85.0))               # → TRIGGERED
     (incident,) = store.open_incidents()
     assert incident.state is IncidentState.TRIGGERED
 
-    engine.evaluate(reading(90.0))               # agrupa no mesmo incidente
+    engine.evaluate(reading(90.0))               # groups into the same incident
     assert len(store.open_incidents()) == 1
 
     store.acknowledge_incident(incident.incident_id, at=time.time())   # → ACKNOWLEDGED
     engine.evaluate(reading(92.0))
-    assert action.execute.call_count == 2        # o ack parou as ações
+    assert action.execute.call_count == 2        # the ack stopped the actions
 
     engine.evaluate(reading(70.0))               # → RESOLVED
     assert store.open_incidents() == []
 
     store.flush()
     grouped = [e for e in store.query() if e.incident_id == incident.incident_id]
-    assert len(grouped) == 3                     # 85, 90 e 92 °C
+    assert len(grouped) == 3                     # 85, 90 and 92 °C
 
 
 def test_an_incident_keeps_grouping_after_a_restart(tmp_path):
     """
-    O estado vive no banco: um agente que reinicia com a temperatura ainda
-    alta continua o incidente em vez de abrir outro.
+    The state lives in the database: an agent that restarts with the temperature
+    still high continues the incident instead of opening another one.
     """
     path = tmp_path / "events.db"
 
@@ -94,9 +94,9 @@ def test_an_incident_keeps_grouping_after_a_restart(tmp_path):
         (after,) = second.open_incidents()
         assert after.incident_id == before.incident_id
 
-        # o evento do disparo pós-restart aponta para o mesmo incidente: é o
-        # que prova que o engine leu o estado, e não que o banco recusou um
-        # segundo incidente
+        # the event of the post-restart firing points to the same incident: that
+        # is what proves the engine read the state, and not that the database
+        # refused a second incident
         second.flush()
         (latest,) = [e for e in second.query() if e.value == pytest.approx(88.0)]
         assert latest.incident_id == before.incident_id
@@ -106,8 +106,8 @@ def test_an_incident_keeps_grouping_after_a_restart(tmp_path):
 
 def test_an_acknowledgement_from_another_process_is_seen(tmp_path):
     """
-    O `edgesentinel incidents ack` da próxima feature escreve no banco com
-    o agente rodando; o agente precisa ver isso no ciclo seguinte.
+    The `edgesentinel incidents ack` of the next feature writes to the database
+    with the agent running; the agent has to see that on the following cycle.
     """
     path = tmp_path / "events.db"
 
@@ -145,15 +145,15 @@ def test_a_resolved_incident_is_followed_by_a_new_one(store):
 
 class TestOperatorFromTheTerminal:
     """
-    O operador usa o terminal enquanto o agente roda. São dois processos sem
-    canal entre eles: o único acordo é o banco, e o engine relê os incidentes
-    abertos a cada avaliação. É o que estes testes provam de ponta a ponta,
-    com o comando de verdade e não com o store direto.
+    The operator uses the terminal while the agent runs. They are two processes
+    with no channel between them: the only agreement is the database, and the
+    engine re-reads the open incidents on every evaluation. That is what these
+    tests prove end to end, with the real command and not with the store directly.
     """
 
     @pytest.fixture
     def config(self, tmp_path):
-        """config.yaml apontando para o mesmo banco do agente."""
+        """config.yaml pointing to the same database as the agent."""
         arquivo = tmp_path / "config.yaml"
         arquivo.write_text(f"""
 edgesentinel:
@@ -180,7 +180,7 @@ edgesentinel:
         assert run_ack(config, incidente.incident_id) == 0
         capsys.readouterr()
 
-        engine.evaluate(reading(90.0))           # a regra ainda casa
+        engine.evaluate(reading(90.0))           # the rule still matches
 
         assert action.execute.call_count == 1, "a ação repetiu depois do ack"
         assert store.query(limit=10)[0].incident_id == incidente.incident_id, (

@@ -13,7 +13,7 @@ from adapters.inference.remote import RemoteInferenceAdapter
 
 @pytest.fixture
 def black_frame() -> np.ndarray:
-    """Frame preto 640x480 — simula câmera sem detecções."""
+    """Black 640x480 frame — simulates a camera with no detections."""
     return np.zeros((480, 640, 3), dtype=np.uint8)
 
 
@@ -38,21 +38,21 @@ def reading_without_frame() -> SensorReading:
     )
 
 
-# --- testes do RemoteInferenceAdapter ---
+# --- RemoteInferenceAdapter tests ---
 
 class TestRemoteInferenceAdapter:
 
     def test_load_warns_when_service_unavailable(self):
-        """load() não deve travar quando o serviço está offline."""
+        """load() must not hang when the service is offline."""
         adapter = RemoteInferenceAdapter(
             model_id="yolo_v8n",
-            service_url="http://localhost:9999",   # porta inexistente
+            service_url="http://localhost:9999",   # nonexistent port
         )
-        # não deve lançar exceção
+        # must not raise an exception
         adapter.load("")
 
     def test_load_warns_when_model_not_in_service(self):
-        """load() deve avisar se o model_id não existe no serviço."""
+        """load() must warn if the model_id does not exist in the service."""
         mock_response = MagicMock()
         mock_response.read.return_value = json.dumps([
             {"id": "yolo_v8n", "type": "yolo", "status": "loaded"}
@@ -65,10 +65,10 @@ class TestRemoteInferenceAdapter:
                 model_id="modelo_inexistente",
                 service_url="http://localhost:8080",
             )
-            adapter.load("")   # não deve travar
+            adapter.load("")   # must not hang
 
     def test_predict_returns_zero_score_when_service_down(self, reading_without_frame):
-        """predict() com serviço offline deve retornar RuntimeError."""
+        """predict() with the service offline must return RuntimeError."""
         adapter = RemoteInferenceAdapter(
             model_id="yolo_v8n",
             service_url="http://localhost:9999",
@@ -77,7 +77,7 @@ class TestRemoteInferenceAdapter:
             adapter.predict(reading_without_frame)
 
     def test_predict_with_sensor_value_builds_correct_payload(self, reading_without_frame):
-        """Payload para sensor_value deve conter o campo correto."""
+        """The payload for sensor_value must contain the right field."""
         adapter = RemoteInferenceAdapter(
             model_id="anomaly_onnx",
             service_url="http://localhost:8080",
@@ -90,9 +90,10 @@ class TestRemoteInferenceAdapter:
         assert "frame_b64" not in payload
 
     def test_predict_with_frame_builds_base64_payload(self, reading_with_frame):
-        """Payload para frame deve conter frame_b64."""
-        # o encode do frame é do OpenCV, que é extra opcional: sem ele o teste
-        # não tem o que exercitar, e a suíte de quem não usa câmera fica verde
+        """The payload for a frame must contain frame_b64."""
+        # encoding the frame is OpenCV's job, and it is an optional extra: without
+        # it the test has nothing to exercise, and the suite of whoever does not
+        # use a camera stays green
         pytest.importorskip("cv2")
 
         adapter = RemoteInferenceAdapter(
@@ -105,12 +106,12 @@ class TestRemoteInferenceAdapter:
         assert "frame_b64" in payload
         assert "sensor_value" not in payload
 
-        # verifica que é base64 válido
+        # checks that it is valid base64
         decoded = base64.b64decode(payload["frame_b64"])
         assert len(decoded) > 0
 
     def test_predict_maps_detections_to_anomaly_score(self, reading_without_frame):
-        """Detecções retornadas pelo serviço viram AnomalyScore."""
+        """Detections returned by the service become an AnomalyScore."""
         mock_response = MagicMock()
         mock_response.read.return_value = json.dumps({
             "model_id": "yolo_v8n",
@@ -138,7 +139,7 @@ class TestRemoteInferenceAdapter:
         assert "remote_detections" in score.reading.metadata
 
     def test_predict_no_detections_returns_zero_score(self, reading_without_frame):
-        """Sem detecções, score deve ser 0.0 e is_anomaly False."""
+        """With no detections, score must be 0.0 and is_anomaly False."""
         mock_response = MagicMock()
         mock_response.read.return_value = json.dumps({
             "model_id": "yolo_v8n",
@@ -162,7 +163,7 @@ class TestRemoteInferenceAdapter:
         assert score.is_anomaly is False
 
     def test_predict_stores_latency_in_metadata(self, reading_without_frame):
-        """Latência de inferência do serviço deve chegar no metadata."""
+        """The service's inference latency must reach the metadata."""
         mock_response = MagicMock()
         mock_response.read.return_value = json.dumps({
             "model_id": "yolo_v8n",
@@ -184,7 +185,7 @@ class TestRemoteInferenceAdapter:
         assert score.reading.metadata["inference_latency_ms"] == 178.42
 
     def test_http_error_raises_runtime_error(self, reading_without_frame):
-        """Erro HTTP 500 do serviço deve virar RuntimeError."""
+        """An HTTP 500 error from the service must become a RuntimeError."""
         import urllib.error
         http_error = urllib.error.HTTPError(
             url="http://localhost:8080/predict",
@@ -203,7 +204,7 @@ class TestRemoteInferenceAdapter:
                 adapter.predict(reading_without_frame)
 
 
-# --- testes do SimulatedCameraSensor ---
+# --- SimulatedCameraSensor tests ---
 
 class TestSimulatedCameraSensor:
 
@@ -222,7 +223,7 @@ class TestSimulatedCameraSensor:
         reading = sensor.read()
 
         frame = reading.metadata["frame"]
-        assert frame.sum() > 0   # ruído não é tudo zero
+        assert frame.sum() > 0   # noise is not all zeros
 
     def test_blank_mode_generates_zero_frame(self):
         from adapters.sensors.camera_simulated import SimulatedCameraSensor

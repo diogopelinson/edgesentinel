@@ -33,11 +33,11 @@ def _resolve_actions(
     default_actions: dict[str, list[str]],
 ) -> list[str]:
     """
-    `actions` declarado substitui o padrão — nunca mescla. Sem `actions`,
-    vale default_actions da severidade da regra.
+    A declared `actions` replaces the default — it never merges. With no
+    `actions`, default_actions for the rule's severity applies.
 
-    Sempre devolve uma cópia: regras que herdam o mesmo padrão não podem
-    compartilhar a mesma lista.
+    Always returns a copy: rules inheriting the same default must not share one
+    list.
     """
     if config.actions is not None:
         action_ids = list(config.actions)

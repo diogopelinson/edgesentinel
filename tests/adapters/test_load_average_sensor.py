@@ -1,13 +1,13 @@
 """
-O sensor de load average, lido de /proc/loadavg.
+The load average sensor, read from /proc/loadavg.
 
-O que ele acrescenta ao motor de regras é a janela temporal que o cpu_usage
-instantâneo não tem: 100% de CPU num instante é uma leitura, load 4 sustentado
-por quinze minutos num dispositivo de um núcleo é um problema.
+What it adds to the rule engine is the time window the instantaneous cpu_usage
+does not have: 100% CPU at one instant is a reading, load 4 sustained for
+fifteen minutes on a single-core device is a problem.
 
-É também o primeiro sensor a usar o bloco `params` de verdade, e a divisão de
-responsabilidade que estes testes fixam: o registry confere o **nome** dos
-params contra a assinatura, e o construtor confere o **valor**.
+It is also the first sensor to really use the `params` block, and the division
+of responsibility these tests pin down: the registry checks the **name** of the
+params against the signature, and the constructor checks the **value**.
 """
 from unittest.mock import patch
 
@@ -16,7 +16,7 @@ import pytest
 from adapters.sensors.load_average import LoadAverageSensor
 from adapters.sensors.registry import build_sensor
 
-# 1min 5min 15min  procs_rodando/total  ultimo_pid
+# 1min 5min 15min  running_procs/total  last_pid
 LOADAVG = "0.42 1.15 2.30 2/431 12345\n"
 
 
@@ -37,16 +37,16 @@ class TestAsTresJanelas:
 
     def test_the_window_is_visible_in_the_name(self):
         """
-        Três sensores de load no mesmo painel são indistinguíveis se o nome
-        não disser qual janela cada um lê.
+        Three load sensors on the same dashboard are indistinguishable if the
+        name does not say which window each one reads.
         """
         with com_proc():
             assert "15" in LoadAverageSensor(window=15).read().name
 
     def test_the_trailing_process_fields_are_ignored(self):
         """
-        /proc/loadavg tem cinco campos e só os três primeiros são load. Ler
-        pela posição do fim pegaria o último pid.
+        /proc/loadavg has five fields and only the first three are load.
+        Reading by position from the end would pick up the last pid.
         """
         with com_proc():
             leitura = LoadAverageSensor(window=15).read()
@@ -57,9 +57,9 @@ class TestAsTresJanelas:
 
 class TestJanelaInvalida:
     """
-    O valor é checado no construtor, não no registry: o registry confere que
-    'window' é um param que este sensor aceita, e só o sensor sabe que 7 não é
-    uma janela que o Linux publica.
+    The value is checked in the constructor, not in the registry: the registry
+    checks that 'window' is a param this sensor accepts, and only the sensor
+    knows that 7 is not a window Linux publishes.
     """
 
     @pytest.mark.parametrize("janela", [0, 2, 7, 60, -1])
@@ -80,16 +80,16 @@ class TestJanelaInvalida:
 
     def test_a_string_window_is_refused_too(self):
         """
-        `window: "5"` no YAML chega como str. Aceitar calado faria o sensor ler
-        a janela errada ou explodir mais tarde no índice.
+        `window: "5"` in the YAML arrives as a str. Accepting it silently would
+        make the sensor read the wrong window or blow up later on the index.
         """
         with pytest.raises(ValueError):
             LoadAverageSensor(window="5")
 
     def test_it_fails_when_constructed_not_when_read(self):
         """
-        Config errado é erro de boot. Descobrir isso na primeira leitura
-        deixaria o agente subir sem o sensor e sem dizer por quê.
+        Wrong config is a boot error. Finding out on the first read would let
+        the agent come up without the sensor and without saying why.
         """
         with pytest.raises(ValueError):
             LoadAverageSensor(window=7)
@@ -99,8 +99,8 @@ class TestParamNaoReconhecido:
 
     def test_an_unknown_param_is_refused_by_the_registry(self):
         """
-        A outra metade da divisão: o nome do param é problema do registry, e a
-        mensagem dele nomeia o sensor do YAML.
+        The other half of the division: the param name is the registry's
+        problem, and its message names the sensor from the YAML.
         """
         with pytest.raises(ValueError) as erro:
             build_sensor("carga", "load_average", {"janela": 5})

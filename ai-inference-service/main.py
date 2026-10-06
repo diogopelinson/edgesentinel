@@ -44,7 +44,7 @@ class PredictRequest(PydanticModel):
     model_id: str
     stream_url: str | None = None      # RTSP URL — captura um frame
     frame_b64: str | None = None       # frame em base64 — uso direto
-    sensor_value: float | None = None  # para modelos de anomalia de sensor
+    sensor_value: float | None = None  # for sensor anomaly models
 
 
 class DetectionOut(PydanticModel):
@@ -81,7 +81,7 @@ def predict(request: PredictRequest):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
-    # sensor_value só é válido para modelos ONNX
+    # sensor_value only means anything for ONNX models
     if request.sensor_value is not None:
         model_type = type(model).__name__
         if "YOLO" in model_type:
@@ -120,7 +120,7 @@ def predict(request: PredictRequest):
 # --- helpers ---
 
 def _get_frame(request: PredictRequest) -> np.ndarray:
-    """Resolve o frame a partir das opções do request."""
+    """Works out the frame from whatever the request offered."""
 
     if request.sensor_value is not None:
         return np.array([[request.sensor_value]], dtype=np.float32)

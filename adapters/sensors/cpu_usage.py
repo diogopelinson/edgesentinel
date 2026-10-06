@@ -15,13 +15,13 @@ class CpuUsageSensor(BaseSensor):
 
     def _read_usage(self) -> float:
         """
-        Lê /proc/stat e calcula uso de CPU entre duas leituras.
-        O Linux não expõe uso instantâneo — precisa de dois snapshots.
+        Reads /proc/stat and works out CPU usage between two reads.
+        Linux does not expose instantaneous usage — it takes two snapshots.
         """
         idle, total = self._read_stat()
 
         if self._prev is None:
-            # primeira leitura: sem snapshot anterior, retorna 0
+            # first read: no previous snapshot, returns 0
             self._prev = (idle, total)
             return 0.0
 
@@ -38,11 +38,11 @@ class CpuUsageSensor(BaseSensor):
 
     def _read_stat(self) -> tuple[int, int]:
         """
-        Primeira linha de /proc/stat:
+        The first line of /proc/stat:
         cpu  user nice system idle iowait irq softirq steal guest guest_nice
 
-        total = soma de todos os campos
-        idle  = campo 'idle' (índice 3)
+        total = the sum of every field
+        idle  = the 'idle' field (index 3)
         """
         line = Path("/proc/stat").read_text(encoding="utf-8").splitlines()[0]
         fields = [int(x) for x in line.split()[1:]]

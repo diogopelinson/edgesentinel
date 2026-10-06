@@ -9,7 +9,7 @@ from core.entities import Event
 
 @pytest.fixture
 def store(tmp_path):
-    """Store aberto num banco descartável, encerrado ao fim do teste."""
+    """A store opened on a throwaway database, closed at the end of the test."""
     s = SQLiteEventStore(path=tmp_path / "events.db")
     s.start()
     yield s
@@ -75,7 +75,7 @@ class TestPersistence:
         assert len(set(ids)) == 2
 
     def test_preserves_a_missing_anomaly_score_as_none(self, store):
-        """Regra de threshold dispara sem inferência — NULL não pode virar 0.0."""
+        """A threshold rule fires with no inference — NULL must not become 0.0."""
         append_and_wait(store, make_event(anomaly_score=None))
 
         assert store.query()[0].anomaly_score is None
@@ -213,9 +213,9 @@ class TestRetention:
 
 class TestReadOnlyAccess:
     """
-    `edgesentinel events` consulta sem chamar start(): start() aplica a
-    retenção e sobe a thread de escrita, e um comando de leitura não pode
-    apagar nada nem deixar thread para trás.
+    `edgesentinel events` queries without calling start(): start() applies
+    retention and brings up the writer thread, and a read command must not
+    delete anything nor leave a thread behind.
     """
 
     def test_query_reads_an_existing_database_without_start(self, tmp_path):
@@ -232,7 +232,7 @@ class TestReadOnlyAccess:
     def test_query_without_start_does_not_apply_retention(self, tmp_path):
         path = tmp_path / "events.db"
         writer = SQLiteEventStore(path=path, retention_days=30)
-        writer.start()   # a poda do start acontece antes deste append
+        writer.start()   # start's prune happens before this append
         append_and_wait(writer, make_event(rule_name="de_40_dias", timestamp=time.time() - 40 * 86400))
         writer.close()
 
@@ -243,13 +243,13 @@ class TestReadOnlyAccess:
 
 class TestNonBlockingWrites:
     """
-    O pipeline roda em run_in_executor (application/monitor.py:66), num pool
-    limitado. Um stall de escrita no cartão SD não pode segurar esse worker,
-    senão o tick estoura o poll_interval.
+    The pipeline runs in run_in_executor (application/monitor.py:66), in a
+    limited pool. A write stall on the SD card must not hold that worker up,
+    otherwise the tick overruns the poll_interval.
     """
 
     def test_append_does_not_block_when_the_queue_is_full(self, tmp_path, caplog):
-        # sem start(), nada drena a fila — simula escrita travada
+        # without start(), nothing drains the queue — simulates a stalled write
         store = SQLiteEventStore(path=tmp_path / "events.db", queue_size=2)
 
         with caplog.at_level(logging.WARNING, logger="edgesentinel.store"):
@@ -263,9 +263,10 @@ class TestNonBlockingWrites:
 
     def test_close_waits_for_queued_events_to_be_written(self, tmp_path, monkeypatch):
         """
-        Disco lento de propósito: com escrita rápida, a thread grava tudo antes
-        de qualquer verificação e o teste passaria mesmo com um close() que não
-        espera nada. O atraso envolve a escrita real — os dados vão ao disco.
+        A deliberately slow disk: with a fast write, the thread records
+        everything before any check and the test would pass even with a close()
+        that waits for nothing. The delay wraps the real write — the data does
+        go to disk.
         """
         real_write = SQLiteEventStore._write
 
@@ -281,5 +282,5 @@ class TestNonBlockingWrites:
             store.append(make_event())
         store.close()
 
-        # sem reabrir: a pergunta é o que já estava gravado quando close() voltou
+        # without reopening: the question is what was already recorded when close() returned
         assert len(store.query(limit=100)) == 20

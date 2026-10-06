@@ -1,9 +1,10 @@
 """
-Comandos de incidente no terminal: listar, reconhecer, resolver.
+Incident commands in the terminal: list, acknowledge, resolve.
 
-A transição acontece pelo store, não por memória compartilhada — é o que
-torna possível reconhecer um incidente de outro processo enquanto o agente
-roda, e é o que estes testes cobram junto com as mensagens de erro.
+The transition happens through the store, not through shared memory — that is
+what makes it possible to acknowledge an incident from another process while
+the agent runs, and that is what these tests demand along with the error
+messages.
 """
 import json
 import time
@@ -22,7 +23,7 @@ HOUR = 3600
 
 @pytest.fixture
 def workspace(tmp_path):
-    """config.yaml apontando para um banco dentro de tmp_path."""
+    """config.yaml pointing at a database inside tmp_path."""
     db  = tmp_path / "data" / "events.db"
     cfg = tmp_path / "config.yaml"
     cfg.write_text(f"""
@@ -43,7 +44,7 @@ def make_incident(**overrides) -> Incident:
 
 
 def seed(db, *incidents: Incident) -> list[Incident]:
-    """Grava os incidentes e devolve com o id atribuído."""
+    """Writes the incidents and returns them with the assigned id."""
     store = SQLiteEventStore(path=db)
     store.start()
     try:
@@ -75,7 +76,7 @@ def stdout_lines(capsys) -> list[str]:
     return [linha for linha in capsys.readouterr().out.splitlines() if linha.strip()]
 
 
-# --- listagem ---
+# --- listing ---
 
 class TestListing:
 
@@ -100,7 +101,7 @@ class TestListing:
 
         run_incidents(cfg)
 
-        # a coluna de disparos mostra os três eventos agrupados
+        # the firings column shows the three grouped events
         assert "3" in capsys.readouterr().out
 
     def test_resolved_are_hidden_until_asked_for(self, workspace, capsys):
@@ -203,7 +204,7 @@ class TestJsonOutput:
         assert registro["opened"].startswith(time.strftime("%Y", time.localtime(agora - HOUR)))
 
     def test_stdout_holds_nothing_but_json(self, workspace, capsys):
-        """Mensagem de status vai para o stderr — um pipe para jq não pode quebrar."""
+        """A status message goes to stderr — a pipe into jq must not break."""
         cfg, db = workspace
         seed(db, make_incident(severity="warning"))
 
@@ -212,7 +213,7 @@ class TestJsonOutput:
         assert capsys.readouterr().out == ""
 
 
-# --- transições ---
+# --- transitions ---
 
 class TestAcknowledge:
 
@@ -234,8 +235,8 @@ class TestAcknowledge:
         assert "alta_temperatura" in saida
 
     def test_acknowledging_twice_is_not_an_error(self, workspace, capsys):
-        """Idempotente de propósito: script que reconhece um id não pode falhar
-        porque alguém reconheceu antes."""
+        """Idempotent on purpose: a script that acknowledges an id must not fail
+        because someone acknowledged it before."""
         cfg, db = workspace
         (incidente,) = seed(db, make_incident())
         run_ack(cfg, incidente.incident_id)
@@ -245,7 +246,7 @@ class TestAcknowledge:
         assert "já" in capsys.readouterr().err
 
     def test_acknowledging_a_resolved_incident_is_refused(self, workspace, capsys):
-        """A máquina de estados não volta: resolvido não vira reconhecido."""
+        """The state machine does not go back: resolved does not become acknowledged."""
         cfg, db = workspace
         (incidente,) = seed(db, make_incident())
         run_resolve(cfg, incidente.incident_id)
@@ -266,7 +267,7 @@ class TestAcknowledge:
         assert "Traceback" not in erro
 
     def test_no_database_is_an_error_for_a_transition(self, workspace, capsys):
-        """Listar sem banco é 'nada ainda'; mudar estado sem banco é erro."""
+        """Listing without a database is 'nothing yet'; changing state without one is an error."""
         cfg, _ = workspace
 
         assert run_ack(cfg, 1) == 1
@@ -312,9 +313,9 @@ class TestResolve:
 
 
 class TestCommandLine:
-    """Os três subcomandos no argparse: o que existe em run_* mas não na linha
-    de comando é inalcançável pelo operador — o problema que esta feature
-    resolve."""
+    """The three subcommands in argparse: what exists in run_* but not on the
+    command line is unreachable for the operator — the problem this feature
+    solves."""
 
     def _parse(self, *argv):
         import sys
@@ -352,9 +353,9 @@ class TestCommandLine:
         assert self._parse("resolve", "7").incident_id == 7
 
     @pytest.mark.parametrize("argv", [
-        ("ack",),                       # sem id
-        ("ack", "zero"),                # id não numérico
-        ("ack", "0"),                   # id não é positivo
+        ("ack",),                       # no id
+        ("ack", "zero"),                # non-numeric id
+        ("ack", "0"),                   # id is not positive
         ("resolve", "-3"),
         ("incidents", "--severity", "catastrophic"),
         ("incidents", "--last", "ontem"),

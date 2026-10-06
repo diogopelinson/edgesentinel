@@ -5,7 +5,7 @@ from config.loader import load
 
 
 def test_loads_valid_config(tmp_path):
-    """tmp_path é uma fixture nativa do pytest — cria pasta temporária."""
+    """tmp_path is a pytest built-in fixture — it creates a temporary folder."""
     config_file = tmp_path / "config.yaml"
     config_file.write_text("""
 edgesentinel:
@@ -69,7 +69,7 @@ edgesentinel:
 
 
 def test_defaults_are_applied(tmp_path):
-    """Config mínimo deve usar valores padrão."""
+    """A minimal config must use the default values."""
     config_file = tmp_path / "config.yaml"
     config_file.write_text("""
 edgesentinel:
@@ -118,7 +118,7 @@ def test_parses_each_severity_level(tmp_path, declared):
 
 
 def test_severity_defaults_to_warning_when_omitted(tmp_path):
-    """Nenhum config existente declara severity — todos devem seguir válidos."""
+    """No existing config declares severity — they must all stay valid."""
     config = load(_config_with_rule_severity(tmp_path, ""))
 
     assert config.rules[0].severity == "warning"
@@ -132,8 +132,8 @@ def test_severity_is_case_insensitive(tmp_path):
 
 def test_raises_on_unknown_severity(tmp_path):
     """
-    Severity inválida precisa falhar no carregamento, não no primeiro disparo
-    da regra — que pode acontecer dias depois, em campo.
+    An invalid severity has to fail at load time, not on the rule's first
+    firing — which may happen days later, in the field.
     """
     config_file = _config_with_rule_severity(tmp_path, "      severity: catastrophic")
 
@@ -160,7 +160,7 @@ edgesentinel:
 
 
 def test_event_store_is_enabled_by_default(tmp_path):
-    """Histórico sem configuração nenhuma — o banco nasce na primeira execução."""
+    """History with no configuration at all — the database is born on the first run."""
     config = load(_config_with_event_store(tmp_path, ""))
 
     assert config.event_store.enabled is True
@@ -184,8 +184,8 @@ def test_parses_the_event_store_section(tmp_path):
 @pytest.mark.parametrize("retention", ["0", "-5"])
 def test_rejects_non_positive_retention(tmp_path, retention):
     """
-    Retenção zero apagaria o histórico inteiro a cada inicialização — é
-    quase certamente um erro de digitação, não uma intenção.
+    Zero retention would wipe the whole history on every start-up — it is
+    almost certainly a typo, not an intention.
     """
     config_file = _config_with_event_store(tmp_path, f"""
   event_store:
@@ -196,7 +196,7 @@ def test_rejects_non_positive_retention(tmp_path, retention):
         load(config_file)
 
 
-# --- default_actions e o campo actions das regras ---
+# --- default_actions and the actions field of the rules ---
 
 def _config_with(tmp_path, rules_yaml: str, extra_yaml: str = "") -> Path:
     config_file = tmp_path / "config.yaml"
@@ -227,14 +227,14 @@ _RULE_HEAD = """    - name: alta_temp
 
 
 def test_rule_without_actions_is_left_undeclared(tmp_path):
-    """None, não lista vazia: é o que permite ao mapper aplicar default_actions."""
+    """None, not an empty list: it is what lets the mapper apply default_actions."""
     config = load(_config_with(tmp_path, _RULE_HEAD))
 
     assert config.rules[0].actions is None
 
 
 def test_explicit_empty_actions_are_kept_as_empty(tmp_path):
-    """`actions: []` é uma escolha — só registrar no histórico — e não pode virar 'usar o padrão'."""
+    """`actions: []` is a choice — record in the history only — and must not become 'use the default'."""
     config = load(_config_with(tmp_path, _RULE_HEAD + "      actions: []\n"))
 
     assert config.rules[0].actions == []
@@ -293,7 +293,7 @@ def test_rejects_default_actions_that_are_not_a_mapping(tmp_path):
 
 
 def test_rejects_the_same_severity_twice_in_default_actions(tmp_path):
-    """'warning' e 'Warning' viram a mesma chave — um dos dois seria descartado em silêncio."""
+    """'warning' and 'Warning' become the same key — one of the two would be silently discarded."""
     config_file = _config_with(tmp_path, _RULE_HEAD, """
   default_actions:
     warning: [log]
@@ -306,8 +306,8 @@ def test_rejects_the_same_severity_twice_in_default_actions(tmp_path):
 
 def test_rejects_rule_actions_written_as_a_severity_map(tmp_path):
     """
-    Uma regra tem uma severidade só — um mapa por severidade dentro dela não
-    faz sentido. O erro precisa apontar para onde esse mapa vai.
+    A rule has a single severity — a per-severity map inside it makes no
+    sense. The error has to point at where that map does belong.
     """
     config_file = _config_with(tmp_path, _RULE_HEAD + """      actions:
         critical: [log]
@@ -322,14 +322,14 @@ def test_rejects_rule_actions_written_as_a_severity_map(tmp_path):
 
 
 def test_rejects_rule_actions_written_as_a_string(tmp_path):
-    """Sem essa checagem, 'log' seria iterado letra por letra: 'l', 'o', 'g'."""
+    """Without this check, 'log' would be iterated letter by letter: 'l', 'o', 'g'."""
     config_file = _config_with(tmp_path, _RULE_HEAD + "      actions: log\n")
 
     with pytest.raises(ValueError, match="alta_temp"):
         load(config_file)
 
 
-# --- resolve_threshold: onde o incidente fecha ---
+# --- resolve_threshold: where the incident closes ---
 
 def _config_with_condition(tmp_path, condition_yaml: str) -> Path:
     return _config_with(tmp_path, f"""    - name: alta_temp
@@ -340,7 +340,7 @@ def _config_with_condition(tmp_path, condition_yaml: str) -> Path:
 
 
 def test_resolve_threshold_is_absent_by_default(tmp_path):
-    """Sem o campo, vale a margem padrão de histerese."""
+    """Without the field, the default hysteresis margin applies."""
     config = load(_config_with_condition(tmp_path, """        sensor_id: cpu_temp
         operator: ">"
         threshold: 80.0
@@ -372,8 +372,8 @@ def test_rejects_a_non_numeric_resolve_threshold(tmp_path):
 
 def test_rejects_a_resolve_threshold_on_the_alarm_side_of_an_upper_bound(tmp_path):
     """
-    Regra '> 80' resolvendo em 85 fecharia o incidente com o sensor ainda
-    acima do limite — e abriria outro na leitura seguinte.
+    A '> 80' rule resolving at 85 would close the incident with the sensor
+    still above the limit — and open another on the next reading.
     """
     config_file = _config_with_condition(tmp_path, """        sensor_id: cpu_temp
         operator: ">"
@@ -402,7 +402,7 @@ def test_rejects_a_resolve_threshold_on_the_alarm_side_of_a_lower_bound(tmp_path
 
 @pytest.mark.parametrize("operator", ["==", "anomaly"])
 def test_rejects_a_resolve_threshold_without_a_numeric_edge(tmp_path, operator):
-    """'==' e 'anomaly' não têm borda numérica: o campo aqui é erro de config."""
+    """'==' and 'anomaly' have no numeric edge: the field here is a config error."""
     config_file = _config_with_condition(tmp_path, f"""        sensor_id: cpu_temp
         operator: "{operator}"
         resolve_threshold: 70.0
@@ -413,7 +413,7 @@ def test_rejects_a_resolve_threshold_without_a_numeric_edge(tmp_path, operator):
 
 
 def test_accepts_a_resolve_threshold_equal_to_the_threshold(tmp_path):
-    """Igual é permitido: significa 'sem margem', escolhido de propósito."""
+    """Equal is allowed: it means 'no margin', chosen on purpose."""
     config = load(_config_with_condition(tmp_path, """        sensor_id: cpu_temp
         operator: ">"
         threshold: 80.0
@@ -423,7 +423,7 @@ def test_accepts_a_resolve_threshold_equal_to_the_threshold(tmp_path):
     assert config.rules[0].condition.resolve_threshold == 80.0
 
 
-# --- params por sensor ---
+# --- per-sensor params ---
 
 CONFIG_COM_PARAMS = """
 edgesentinel:
@@ -458,8 +458,8 @@ def escreve(tmp_path, texto):
 
 class TestSensorParams:
     """
-    O bloco params é livre de propósito: o schema não pode conhecer cada tipo
-    de sensor de antemão, ou cada sensor novo passa por config/schema.py.
+    The params block is free-form on purpose: the schema cannot know every
+    sensor type up front, or every new sensor goes through config/schema.py.
     """
 
     def test_params_are_parsed(self, tmp_path):
@@ -470,8 +470,8 @@ class TestSensorParams:
 
     def test_the_yaml_types_are_preserved(self, tmp_path):
         """
-        O YAML já distingue int, float, bool e str. O loader não pode
-        normalizar para string: um sensor que espera um pino recebe 17, não
+        The YAML already distinguishes int, float, bool and str. The loader
+        must not normalize to string: a sensor expecting a pin receives 17, not
         "17".
         """
         disco = load(escreve(tmp_path, CONFIG_COM_PARAMS)).sensors[0]
@@ -485,7 +485,7 @@ class TestSensorParams:
 
     def test_a_sensor_without_params_gets_an_empty_dict(self, tmp_path):
         """
-        Nunca None: quem consome faz **params e um None ali seria TypeError.
+        Never None: the consumer does **params and a None there would be a TypeError.
         """
         simples = load(escreve(tmp_path, CONFIG_COM_PARAMS)).sensors[1]
 
@@ -513,8 +513,8 @@ class TestSensorParams:
 
     def test_params_that_is_not_a_mapping_is_refused_naming_the_sensor(self, tmp_path):
         """
-        `params: 5` explodiria mais tarde no ** com um TypeError que não diz
-        qual sensor do YAML está errado.
+        `params: 5` would blow up later at the ** with a TypeError that does
+        not say which sensor in the YAML is wrong.
         """
         texto = CONFIG_COM_PARAMS.replace(
             "      params:\n        mountpoint: /var\n        limite: 90\n"

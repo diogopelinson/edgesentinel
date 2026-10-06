@@ -5,13 +5,13 @@ from adapters.sensors.base import BaseSensor
 from core.entities import SensorReading
 
 
-# Caminhos padrão onde o Linux expõe temperatura de CPU
+# The standard paths where Linux exposes CPU temperature
 _THERMAL_PATHS = [
     "/sys/class/thermal/thermal_zone0/temp",
     "/sys/class/thermal/thermal_zone1/temp",
 ]
 
-# Caminho específico do Raspberry Pi (via vcgencmd)
+# The Raspberry Pi specific path (via vcgencmd)
 _VCGENCMD_PATH = "/usr/bin/vcgencmd"
 
 
@@ -26,15 +26,15 @@ class CpuTemperatureSensor(BaseSensor):
             return self._build_reading(self._read_vcgencmd())
         return self._build_reading(self._read_sysfs(path))
 
-    # --- métodos privados ---
+    # --- private methods ---
 
     def _find_thermal_path(self) -> str:
         """
-        Escolhe a melhor fonte disponível no hardware atual.
+        Picks the best source available on the hardware at hand.
 
-        Resolvido a cada leitura, não no __init__: um sensor sinaliza ausência
-        de hardware por is_available(), e esse hook fica inalcançável se a
-        construção levantar exceção.
+        Resolved per read, not in __init__: a sensor signals missing hardware
+        through is_available(), and that hook is unreachable if construction
+        raises.
         """
         for path in _THERMAL_PATHS:
             if Path(path).exists():
@@ -50,16 +50,16 @@ class CpuTemperatureSensor(BaseSensor):
 
     def _read_sysfs(self, path: str) -> float:
         """
-        /sys/class/thermal/thermal_zone0/temp retorna o valor em milligraus.
-        Ex: "72500" → 72.5°C
+        /sys/class/thermal/thermal_zone0/temp returns the value in millidegrees.
+        E.g. "72500" → 72.5°C
         """
         raw = Path(path).read_text(encoding="utf-8").strip()
         return int(raw) / 1000.0
 
     def _read_vcgencmd(self) -> float:
         """
-        vcgencmd measure_temp retorna "temp=72.5'C".
-        Precisamos extrair só o número.
+        vcgencmd measure_temp returns "temp=72.5'C".
+        Only the number has to be extracted from it.
         """
         import subprocess
         result = subprocess.run(

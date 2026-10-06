@@ -1,12 +1,12 @@
 """
-Caminhos citados na documentação precisam existir no repositório.
+Paths cited in the documentation have to exist in the repository.
 
-Só entra o que é versionado: links relativos em markdown e arquivos de
-dashboards/. Arquivos gerados em execução (models/*.onnx, data/events.db)
-ficam de fora de propósito.
+Only what is versioned counts: relative markdown links and files under
+dashboards/. Files generated at runtime (models/*.onnx, data/events.db) are
+left out on purpose.
 
-Os .md são descobertos, não listados: documento novo entra na verificação
-por existir, que é o único jeito de a lista não ficar para trás.
+The .md files are discovered, not listed: a new document enters the check just
+by existing, which is the only way for the list not to fall behind.
 """
 import re
 from pathlib import Path
@@ -15,16 +15,16 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# diretórios que não são documentação do projeto
+# directories that are not the project's documentation
 _IGNORADOS = {".venv", ".git", "node_modules", "__pycache__", ".pytest_cache", "build", "dist"}
 
-# AGENTS.md acima disso perde aderência — a própria convenção diz isso
+# AGENTS.md beyond this stops being followed — the convention itself says so
 AGENTS_MAX_LINHAS = 300
 
 _LINK = re.compile(r"\]\(([^)\s]+)\)")
 _DASHBOARD = re.compile(r"`(dashboards/[^`]+)`")
 
-# a seção de 0.3.0 registra, de propósito, o caminho errado que existia na época
+# the 0.3.0 section records, on purpose, the wrong path that existed at the time
 _HISTORICAL = {("CHANGELOG.md", "dashboards/edgesentinel.json")}
 
 
@@ -54,7 +54,7 @@ def dashboard_paths(doc: str) -> list[str]:
 
 
 def test_the_documentation_was_actually_found():
-    """Se o rglob parar de achar os .md, os testes abaixo passam sem verificar nada."""
+    """If the rglob stops finding the .md files, the tests below pass without checking anything."""
     assert "README.md" in DOCS
     assert "docs/README.md" in DOCS
     assert len(DOCS) > 20
@@ -85,8 +85,8 @@ def test_dashboard_files_mentioned_exist():
 @pytest.mark.parametrize("secao", ["tutorials", "how-to", "reference", "explanation", "adr"])
 def test_every_page_is_listed_in_its_index(secao):
     """
-    Página que o índice não cita é página que ninguém encontra: a navegação
-    do Diátaxis é o índice de cada diretório, não a listagem de arquivos.
+    A page the index does not cite is a page nobody finds: Diataxis navigation
+    is each directory's index, not the file listing.
     """
     diretorio = ROOT / "docs" / secao
     indice = (diretorio / "README.md").read_text(encoding="utf-8")

@@ -63,23 +63,23 @@ class TestPipelineIntegration:
         self, normal_sensor, rule_above_75, mock_action, dummy_inference
     ):
         """
-        Ciclo completo: sensor lê → pipeline roda → engine avalia.
-        Com sensor normal (58°C base), regra de 75°C não deve disparar.
+        Full cycle: the sensor reads → the pipeline runs → the engine evaluates.
+        With a normal sensor (58°C base), a 75°C rule must not fire.
         """
         engine = RuleEngine(rules=[rule_above_75], actions={"log": mock_action})
         pipeline = Pipeline(sensor=normal_sensor, engine=engine, inference=dummy_inference)
 
-        # roda 5 ciclos
+        # runs 5 cycles
         for _ in range(5):
             pipeline.run_once()
 
-        # sensor normal não deve disparar regra de alta temperatura
+        # a normal sensor must not fire a high temperature rule
         mock_action.execute.assert_not_called()
 
     def test_pipeline_records_to_exporter(
         self, normal_sensor, rule_above_75, dummy_inference
     ):
-        """Verifica que o exporter recebe as leituras do pipeline."""
+        """Checks that the exporter receives the pipeline's readings."""
         engine   = RuleEngine(rules=[rule_above_75], actions={})
         exporter = MagicMock(spec=PrometheusExporter)
         pipeline = Pipeline(
@@ -101,8 +101,8 @@ class TestPipelineIntegration:
         self, normal_sensor, rule_above_75, mock_action
     ):
         """
-        Se a inferência falhar, o pipeline não deve travar.
-        A regra ainda deve ser avaliada sem score.
+        If inference fails, the pipeline must not stall.
+        The rule must still be evaluated without a score.
         """
         broken_inference = MagicMock()
         broken_inference.predict.side_effect = RuntimeError("modelo corrompido")
@@ -114,13 +114,13 @@ class TestPipelineIntegration:
             inference=broken_inference,
         )
 
-        # não deve lançar exceção
+        # must not raise an exception
         pipeline.run_once()
 
     def test_pipeline_continues_when_sensor_fails(
         self, rule_above_75, mock_action, dummy_inference
     ):
-        """Se o sensor falhar, o pipeline deve logar e continuar."""
+        """If the sensor fails, the pipeline must log and carry on."""
         broken_sensor = MagicMock()
         broken_sensor.read.side_effect = OSError("arquivo não encontrado")
 
@@ -131,7 +131,7 @@ class TestPipelineIntegration:
             inference=dummy_inference,
         )
 
-        # não deve lançar exceção
+        # must not raise an exception
         pipeline.run_once()
         mock_action.execute.assert_not_called()
 
@@ -139,8 +139,8 @@ class TestPipelineIntegration:
         self, normal_sensor, dummy_inference
     ):
         """
-        Verifica que o AnomalyScore produzido pela inferência
-        chega corretamente no ActionContext da ação.
+        Checks that the AnomalyScore produced by inference
+        arrives correctly in the action's ActionContext.
         """
         mock_action = MagicMock(spec=ActionPort)
         rule = Rule(
@@ -168,9 +168,9 @@ class TestPipelineIntegration:
         self, stress_sensor, rule_above_75, mock_action
     ):
         """
-        Quem já leu o sensor passa a leitura adiante. Ler de novo avalia um
-        valor diferente do que o chamador tem em mãos — e, num sensor
-        simulado, ainda adianta a curva do cenário a cada tick.
+        Whoever has already read the sensor passes the reading along. Reading
+        again evaluates a value different from the one the caller holds — and, in
+        a simulated sensor, it also advances the scenario's curve on every tick.
         """
         engine = RuleEngine(rules=[rule_above_75], actions={"log": mock_action})
         pipeline = Pipeline(sensor=stress_sensor, engine=engine)
@@ -185,8 +185,8 @@ class TestPipelineIntegration:
 
     def test_multiple_sensors_run_independently(self, dummy_inference):
         """
-        Dois pipelines com sensores diferentes devem operar
-        independentemente — falha num não afeta o outro.
+        Two pipelines with different sensors must operate
+        independently — a failure in one does not affect the other.
         """
         sensor_a = SimulatedSensor("cpu_temp",  "CPU Temp",  "°C", base_value=58.0, scenario="normal")
         sensor_b = SimulatedSensor("cpu_usage", "CPU Usage", "%",  base_value=30.0, scenario="normal")
@@ -206,6 +206,6 @@ class TestPipelineIntegration:
         pipeline_a.run_once()
         pipeline_b.run_once()
 
-        # threshold impossível — nenhuma deve disparar
+        # impossible threshold — neither must fire
         action_a.execute.assert_not_called()
         action_b.execute.assert_not_called()

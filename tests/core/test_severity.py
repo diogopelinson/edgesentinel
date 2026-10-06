@@ -9,7 +9,7 @@ class TestSeverity:
         assert [s.value for s in Severity] == ["info", "warning", "critical"]
 
     def test_from_name_is_case_insensitive(self):
-        """O YAML é escrito por humanos — 'CRITICAL' e 'Critical' são o mesmo nível."""
+        """The YAML is written by humans — 'CRITICAL' and 'Critical' are the same level."""
         assert Severity.from_name("critical") is Severity.CRITICAL
         assert Severity.from_name("CRITICAL") is Severity.CRITICAL
         assert Severity.from_name("Warning") is Severity.WARNING
@@ -26,8 +26,8 @@ class TestSeverity:
 
     def test_compares_equal_to_its_string_value(self):
         """
-        Severity é str Enum para atravessar ActionContext.extras e, mais tarde,
-        serialização para o Event Store sem conversão em cada fronteira.
+        Severity is a str Enum so it crosses ActionContext.extras and, later,
+        serialization to the Event Store without a conversion at every boundary.
         """
         assert Severity.CRITICAL == "critical"
 
@@ -35,7 +35,7 @@ class TestSeverity:
 class TestRuleSeverity:
 
     def test_defaults_to_warning(self):
-        """Regra sem severity declarada continua se comportando como hoje."""
+        """A rule with no declared severity keeps behaving as it does today."""
         rule = Rule(
             name="alta_temp",
             condition=Condition(sensor_id="cpu_temp", operator=">", threshold=75.0),

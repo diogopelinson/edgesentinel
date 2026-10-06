@@ -1,8 +1,8 @@
 """
-Incidentes no mesmo arquivo SQLite do histórico.
+Incidents in the same SQLite file as the history.
 
-Os eventos apontam para o incidente (events.incident_id), então "um
-incidente agrupa N eventos" é uma consulta, não um contador mantido à mão.
+The events point at the incident (events.incident_id), so "one incident groups
+N events" is a query, not a counter kept by hand.
 """
 import sqlite3
 import time
@@ -73,8 +73,8 @@ class TestOpening:
 
     def test_a_rule_cannot_have_two_open_incidents(self, store):
         """
-        O invariante que faz os disparos se agruparem: enquanto houver um
-        incidente aberto para a regra, o banco recusa outro.
+        The invariant that makes the firings group together: as long as there
+        is an open incident for the rule, the database refuses another.
         """
         store.open_incident(make_incident())
 
@@ -117,8 +117,8 @@ class TestTransitions:
 
     def test_transitions_survive_reopening_the_database(self, tmp_path):
         """
-        O estado do incidente vive no banco, não na memória do processo: é
-        o que faz o ciclo sobreviver a um restart do agente.
+        The incident's state lives in the database, not in the process's
+        memory: that is what makes the cycle survive an agent restart.
         """
         path = tmp_path / "events.db"
 
@@ -168,9 +168,9 @@ class TestEventsPointAtIncidents:
 
 class TestQuerying:
     """
-    O operador precisa achar um incidente para reconhecê-lo. open_incidents()
-    serve ao engine — só os abertos, sem filtro; o terminal precisa de leitura
-    por id, de filtro e de contagem de disparos.
+    The operator needs to find an incident in order to acknowledge it.
+    open_incidents() serves the engine — only the open ones, with no filter;
+    the terminal needs a read by id, a filter and a count of firings.
     """
 
     def test_reads_one_incident_by_id(self, store):
@@ -181,7 +181,7 @@ class TestQuerying:
         assert lido == aberto
 
     def test_an_unknown_id_reads_none(self, store):
-        """Quem chama decide o que dizer ao operador — o store não levanta."""
+        """The caller decides what to tell the operator — the store does not raise."""
         assert store.incident(9999) is None
 
     def test_lists_only_open_incidents_by_default(self, store):
@@ -233,8 +233,8 @@ class TestQuerying:
 
     def test_counts_the_firings_of_several_incidents_at_once(self, store):
         """
-        Uma consulta, não uma por linha da tabela: a listagem do terminal
-        mostra a contagem de disparos de cada incidente.
+        One query, not one per row of the table: the terminal's listing shows
+        the firing count of each incident.
         """
         um = store.open_incident(make_incident(rule_name="um"))
         dois = store.open_incident(make_incident(rule_name="dois"))
@@ -266,8 +266,8 @@ class TestSchema:
 
     def test_a_version_one_database_is_migrated_with_its_events(self, tmp_path):
         """
-        Bancos da 0.3.0 existem em disco. PRAGMA user_version estava lá
-        justamente para que esta migração fosse detectável.
+        0.3.0 databases exist on disk. PRAGMA user_version was there precisely
+        so that this migration would be detectable.
         """
         path = tmp_path / "events.db"
         with sqlite3.connect(path) as conn:
@@ -284,8 +284,8 @@ class TestSchema:
                 );
                 PRAGMA user_version = 1;
             """)
-            # data recente: o start() aplica a retenção, e um evento de 2023
-            # seria podado antes de a migração poder ser conferida
+            # a recent date: start() applies retention, and a 2023 event
+            # would be pruned before the migration could be checked
             conn.execute(
                 "INSERT INTO events (timestamp, rule_name, sensor_id, value, unit, severity)"
                 " VALUES (?, ?, ?, ?, ?, ?)",
@@ -316,7 +316,7 @@ class TestRetention:
         assert removed == 1
 
     def test_prune_keeps_open_incidents_however_old(self, store):
-        """Incidente aberto há 40 dias é exatamente o que se quer ver."""
+        """An incident open for 40 days is exactly what one wants to see."""
         store.open_incident(make_incident(opened_at=time.time() - 40 * 86400))
 
         store.prune(before=time.time())

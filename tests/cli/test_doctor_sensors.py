@@ -1,13 +1,14 @@
 """
-O doctor contra o registry de sensores.
+The doctor against the sensor registry.
 
-O doctor mantinha a própria lista de sensores — type, módulo e nome de classe,
-importados por string — enquanto o _REGISTRY já mapeia type para classe. Duas
-listas da mesma coisa: acrescentar um sensor exigia editar as duas, e esquecer
-a do doctor fazia o comando parar de cobrir aquele sensor sem nada falhar.
+The doctor used to keep its own list of sensors — type, module and class name,
+imported by string — while _REGISTRY already maps type to class. Two lists of
+the same thing: adding a sensor required editing both, and forgetting the
+doctor's one made the command stop covering that sensor without anything
+failing.
 
-Silêncio é o pior modo de falha para um comando de diagnóstico: quem roda o
-doctor está justamente tentando descobrir o que não está funcionando.
+Silence is the worst failure mode for a diagnostic command: whoever runs the
+doctor is precisely trying to find out what is not working.
 """
 from adapters.sensors.registry import _REGISTRY
 from cli.doctor import _check_sensors
@@ -25,8 +26,8 @@ class TestDoctorCobreTodosOsTiposRegistrados:
 
     def test_it_does_not_invent_types_that_are_not_registered(self, capsys):
         """
-        O outro lado: uma lista à mão também sobrevive à remoção de um sensor,
-        e o doctor passa a reportar algo que não existe mais.
+        The other side: a hand-written list also survives the removal of a
+        sensor, and the doctor starts reporting something that no longer exists.
         """
         _check_sensors()
 
@@ -46,8 +47,8 @@ class TestDoctorCobreTodosOsTiposRegistrados:
 
     def test_an_unavailable_sensor_is_a_warning_not_a_failure(self, capsys):
         """
-        No Windows nenhum dos sensores de /proc está disponível, e o doctor
-        tem de terminar contando avisos em vez de levantar exceção.
+        On Windows none of the /proc sensors is available, and the doctor has
+        to finish counting warnings instead of raising an exception.
         """
         erros, avisos = _check_sensors()
 

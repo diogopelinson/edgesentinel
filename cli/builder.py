@@ -25,12 +25,12 @@ def build_monitor(config: EdgeSentinelConfig) -> MonitorLoop:
     actions   = build_actions(config.actions)
     rules     = to_rules(config)
     events    = build_event_store(config)
-    # o exportador vem depois do store de propósito: o gauge de incidentes
-    # abertos é lido dele na hora do scrape, não acumulado no processo
+    # the exporter comes after the store on purpose: the open-incident gauge is
+    # read from it at scrape time, not accumulated in the process
     exporter  = _build_exporter(config, incidents=events)
 
-    # o mesmo store atende os dois contratos: histórico e incidentes. Sem
-    # event_store habilitado não há incidente — o ciclo precisa ser durável
+    # one store serves both contracts: the history and the incidents. With no
+    # event_store enabled there are no incidents — the lifecycle has to be durable
     engine = RuleEngine(
         rules=rules,
         actions=actions,
@@ -67,13 +67,14 @@ def build_monitor(config: EdgeSentinelConfig) -> MonitorLoop:
 
 def build_event_store(config: EdgeSentinelConfig) -> "SQLiteEventStore | None":
     """
-    Só constrói — não abre nada. Quem decide quando o banco é criado é o
-    MonitorLoop (ou o simulate), junto com o resto do ciclo de vida.
+    Constructs only — it opens nothing. What decides when the database is
+    created is the MonitorLoop (or simulate), along with the rest of the
+    lifecycle.
 
-    O tipo é a classe, não EventPort: quem recebe precisa dos dois contratos
-    que ela atende — histórico e incidentes — e Python não tem interseção de
-    tipos para dizer isso. O import fica sob TYPE_CHECKING para o caminho com
-    o store desabilitado continuar não carregando o módulo.
+    The type is the class, not EventPort: the caller needs both contracts it
+    satisfies — the history and the incidents — and Python has no intersection
+    type to say that. The import sits under TYPE_CHECKING so the path with the
+    store disabled still does not load the module.
     """
     if not config.event_store.enabled:
         logger.info("Event Store desabilitado no config.")
