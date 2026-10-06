@@ -1,14 +1,14 @@
 """
-Comandos de incidente: listar, reconhecer, resolver.
+Incident commands: list, acknowledge, resolve.
 
-A transição acontece pelo store, e não por um canal com o processo que está
-monitorando. Isso não é detalhe de implementação: é a prova de que o estado é
-persistido. O agente lê os incidentes abertos a cada avaliação, então um
-reconhecimento feito aqui vale no ciclo seguinte dele, sem sinal e sem
+The transition happens through the store, not over a channel to the process
+doing the monitoring. That is not an implementation detail: it is the proof that
+the state is persisted. The agent reads the open incidents on every evaluation,
+so an acknowledgement made here holds on its next cycle, with no signal and no
 restart.
 
-Como no comando de eventos, stdout recebe só dados — tabela ou JSON Lines — e
-mensagem de status vai para o stderr.
+As in the events command, stdout carries data only — a table or JSON Lines — and
+status messages go to stderr.
 """
 import json
 import sqlite3
@@ -25,7 +25,7 @@ from core.incidents import Incident, IncidentState
 _HEADERS     = ("#", "ESTADO", "SEVERIDADE", "REGRA", "SENSOR", "ABERTO", "DURAÇÃO", "DISPAROS")
 _RIGHT_ALIGN = {0, 7}
 
-# como cada estado é anunciado ao operador
+# how each state is announced to the operator
 _PARTICIPIO = {
     IncidentState.ACKNOWLEDGED: "reconhecido",
     IncidentState.RESOLVED:     "resolvido",
@@ -43,7 +43,7 @@ def run_incidents(
     as_json: bool = False,
     now: float | None = None,
 ) -> int:
-    """Lista incidentes. Devolve o código de saída."""
+    """Lists incidents. Returns the exit code."""
     try:
         path = store_path(config_path)
     except StoreIndisponivel as e:
@@ -51,15 +51,15 @@ def run_incidents(
         return 1
 
     if not path.exists():
-        # checado antes de abrir: sqlite3.connect criaria um arquivo vazio
+        # checked before opening: sqlite3.connect would create an empty file
         _status(f"Nenhum incidente registrado ainda — {path} não existe.")
         return 0
 
     agora = time.time() if now is None else now
     since = None if window_seconds is None else agora - window_seconds
 
-    # sem start(): ele aplica a retenção e sobe a thread de escrita, e
-    # consultar não pode apagar nada nem deixar thread para trás
+    # no start(): that applies the retention and spins up the writer thread,
+    # and a query must neither delete anything nor leave a thread behind
     store = SQLiteEventStore(path=path)
     try:
         incidentes = store.incidents(
@@ -92,12 +92,12 @@ def run_incidents(
 
 
 def run_ack(config_path: str | Path, incident_id: int, *, now: float | None = None) -> int:
-    """Marca como reconhecido: alguém viu, o problema continua."""
+    """Marks it acknowledged: someone saw it, the problem goes on."""
     return _transition(config_path, incident_id, IncidentState.ACKNOWLEDGED, now)
 
 
 def run_resolve(config_path: str | Path, incident_id: int, *, now: float | None = None) -> int:
-    """Fecha o incidente à mão, sem esperar a leitura recuar."""
+    """Closes the incident by hand, without waiting for the reading to come back."""
     return _transition(config_path, incident_id, IncidentState.RESOLVED, now)
 
 
@@ -131,7 +131,7 @@ def format_table(
             celula.rjust(largura) if coluna in _RIGHT_ALIGN else celula.ljust(largura)
             for coluna, (celula, largura) in enumerate(zip(celulas, larguras, strict=True))
         ]
-        # cor aplicada depois do alinhamento: escape ANSI não ocupa coluna
+        # color applied after the padding: an ANSI escape occupies no column
         if color and severidade in COLORS:
             alinhadas[2] = f"{COLORS[severidade]}{alinhadas[2]}{RESET}"
         return "  ".join(alinhadas).rstrip()
@@ -158,7 +158,7 @@ def _transition(
         return 1
 
     if not path.exists():
-        # diferente da listagem: mudar estado do que não existe é erro
+        # unlike the listing: changing the state of what does not exist is an error
         _status(f"Erro: {path} não existe — nenhum incidente foi registrado ainda.")
         return 1
 
@@ -177,8 +177,8 @@ def _transition(
         return 1
 
     if incidente.state is alvo:
-        # idempotente: script que reconhece um id não falha porque alguém
-        # reconheceu antes
+        # idempotent: a script acknowledging an id does not fail because someone
+        # got there first
         _status(f"Incidente #{incident_id} já está {_PARTICIPIO[alvo]}.")
         return 0
 
