@@ -24,7 +24,7 @@ from application.engine import RuleEngine
 # --- helpers ---
 
 def make_action() -> MagicMock:
-    """Cria um mock de ActionPort para verificar chamadas."""
+    """Creates an ActionPort mock to verify calls."""
     action = MagicMock(spec=ActionPort)
     return action
 
@@ -33,7 +33,7 @@ def make_engine(rules: list[Rule], actions: dict) -> RuleEngine:
     return RuleEngine(rules=rules, actions=actions)
 
 
-# --- fixtures locais ---
+# --- local fixtures ---
 
 @pytest.fixture
 def rule_above_75() -> Rule:
@@ -64,7 +64,7 @@ def reading_82() -> SensorReading:
     )
 
 
-# --- testes ---
+# --- tests ---
 
 class TestRuleEngineDispatch:
 
@@ -104,7 +104,7 @@ class TestRuleEngineDispatch:
         log_action.execute.assert_not_called()
 
     def test_passes_correct_context_to_action(self, rule_above_75, reading_82):
-        """Verifica que o ActionContext passado para a ação está correto."""
+        """Checks that the ActionContext passed to the action is correct."""
         log_action = make_action()
         engine = make_engine(
             rules=[rule_above_75],
@@ -131,7 +131,7 @@ class TestRuleEngineDispatch:
         assert context.score is anomaly_score
 
     def test_skips_unknown_action_id_without_crashing(self, reading_82):
-        """action_id referenciado na regra mas ausente no dict não deve travar."""
+        """An action_id referenced in the rule but absent from the dict must not crash."""
         rule = Rule(
             name="teste",
             condition=Condition(sensor_id="cpu_temp", operator=">", threshold=75.0),
@@ -139,7 +139,7 @@ class TestRuleEngineDispatch:
         )
         engine = make_engine(rules=[rule], actions={})
 
-        # não deve lançar exceção
+        # must not raise an exception
         engine.evaluate(reading_82)
 
     def test_disabled_rule_is_skipped(self, reading_82):
@@ -157,7 +157,7 @@ class TestRuleEngineDispatch:
         log_action.execute.assert_not_called()
 
     def test_multiple_rules_evaluated_independently(self, reading_82):
-        """Duas regras — só a que bate deve disparar."""
+        """Two rules — only the one that matches should fire."""
         log_action = make_action()
         webhook_action = make_action()
 
@@ -179,8 +179,8 @@ class TestRuleEngineDispatch:
 
         engine.evaluate(reading_82)
 
-        log_action.execute.assert_called_once()       # 82 > 75 — dispara
-        webhook_action.execute.assert_not_called()    # 82 < 90 — não dispara
+        log_action.execute.assert_called_once()       # 82 > 75 — fires
+        webhook_action.execute.assert_not_called()    # 82 < 90 — does not fire
 
 
 class TestRuleEngineCooldown:
@@ -195,8 +195,8 @@ class TestRuleEngineCooldown:
         )
         engine = make_engine(rules=[rule], actions={"log": log_action})
 
-        engine.evaluate(reading_82)   # primeiro disparo — passa
-        engine.evaluate(reading_82)   # segundo disparo — bloqueado pelo cooldown
+        engine.evaluate(reading_82)   # first firing — passes
+        engine.evaluate(reading_82)   # second firing — blocked by the cooldown
 
         log_action.execute.assert_called_once()
 
@@ -210,9 +210,9 @@ class TestRuleEngineCooldown:
         )
         engine = make_engine(rules=[rule], actions={"log": log_action})
 
-        engine.evaluate(reading_82)       # primeiro disparo
-        time.sleep(0.15)                  # espera cooldown expirar
-        engine.evaluate(reading_82)       # segundo disparo — deve passar
+        engine.evaluate(reading_82)       # first firing
+        time.sleep(0.15)                  # waits for the cooldown to expire
+        engine.evaluate(reading_82)       # second firing — must pass
 
         assert log_action.execute.call_count == 2
 
@@ -235,8 +235,8 @@ class TestRuleEngineCooldown:
 
 class TestRuleEngineSeverityPropagation:
     """
-    A severidade viaja em ActionContext.extras, que já existe em
-    core/entities.py:25 — nenhuma assinatura de ActionPort muda por causa dela.
+    The severity travels in ActionContext.extras, which already exists in
+    core/entities.py:25 — no ActionPort signature changes because of it.
     """
 
     def _context_of(self, action) -> ActionContext:
@@ -271,7 +271,7 @@ class TestRuleEngineSeverityPropagation:
         assert self._context_of(log_action).extras["severity"] == Severity.WARNING
 
     def test_every_action_of_a_rule_receives_the_severity(self, reading_82):
-        """Uma regra despacha para N ações — todas precisam ver o mesmo nível."""
+        """One rule dispatches to N actions — all of them need to see the same level."""
         log_action     = make_action()
         webhook_action = make_action()
         rule = Rule(
@@ -293,8 +293,8 @@ class TestRuleEngineSeverityPropagation:
 
 class TestRuleEngineEventRecording:
     """
-    Todo disparo de regra vira um Event no store. Um disparo suprimido por
-    cooldown não é disparo, e uma falha do store não pode custar a ação.
+    Every rule firing becomes an Event in the store. A firing suppressed by
+    cooldown is not a firing, and a store failure must not cost the action.
     """
 
     @pytest.fixture
@@ -329,8 +329,8 @@ class TestRuleEngineEventRecording:
 
     def test_event_time_is_the_reading_time(self, store, critical_rule, reading_82):
         """
-        O evento aconteceu quando o sensor foi lido, não quando o engine
-        terminou de avaliar — num tick lento a diferença é visível.
+        The event happened when the sensor was read, not when the engine
+        finished evaluating — on a slow tick the difference is visible.
         """
         engine = RuleEngine(rules=[critical_rule], actions={}, events=store)
 
@@ -340,8 +340,8 @@ class TestRuleEngineEventRecording:
 
     def test_event_severity_is_a_plain_string(self, store, critical_rule, reading_82):
         """
-        str(Severity.CRITICAL) é 'Severity.CRITICAL' no Python 3.10 — o valor
-        que chega ao store precisa ser o texto puro, não o membro do enum.
+        str(Severity.CRITICAL) is 'Severity.CRITICAL' on Python 3.10 — the value
+        that reaches the store needs to be the plain text, not the enum member.
         """
         engine = RuleEngine(rules=[critical_rule], actions={}, events=store)
 
@@ -380,7 +380,7 @@ class TestRuleEngineEventRecording:
         store.append.assert_called_once()
 
     def test_store_failure_does_not_cost_the_action(self, store, critical_rule, reading_82):
-        """O alerta é o que importa; o histórico é secundário."""
+        """The alert is what matters; the history is secondary."""
         store.append.side_effect = RuntimeError("disco cheio")
         log_action = make_action()
         engine = RuleEngine(rules=[critical_rule], actions={"log": log_action}, events=store)
@@ -402,9 +402,9 @@ class TestRuleEngineEventRecording:
 
 class FakeIncidents(IncidentPort):
     """
-    Fake em memória com o mesmo invariante do banco: uma regra tem no
-    máximo um incidente aberto. Se o engine tentar abrir dois, o teste
-    quebra aqui em vez de passar silenciosamente.
+    In-memory fake with the same invariant as the database: a rule has at
+    most one open incident. If the engine tries to open two, the test
+    breaks here instead of passing silently.
     """
 
     def __init__(self) -> None:
@@ -434,8 +434,8 @@ class FakeIncidents(IncidentPort):
 
 class TestRuleEngineIncidents:
     """
-    Disparos repetidos da mesma regra formam um incidente, que fecha quando
-    a leitura recua além da margem de histerese.
+    Repeated firings of the same rule form one incident, which closes when
+    the reading falls back past the hysteresis margin.
     """
 
     @pytest.fixture
@@ -444,7 +444,7 @@ class TestRuleEngineIncidents:
 
     @pytest.fixture
     def rule(self) -> Rule:
-        # resolve em 72.0 (80 menos 10%)
+        # resolves at 72.0 (80 minus 10%)
         return Rule(
             name="alta_temp",
             condition=Condition(sensor_id="cpu_temp", operator=">", threshold=80.0),
@@ -511,7 +511,7 @@ class TestRuleEngineIncidents:
         assert len(incidents.open_incidents()) == 1
 
     def test_an_oscillating_series_produces_a_single_incident(self, rule, incidents):
-        """O caso que a histerese existe para evitar: flapping na borda."""
+        """The case the hysteresis exists to avoid: flapping at the edge."""
         engine = self.engine_for(rule, incidents)
 
         for value in (85.0, 79.0, 81.0, 78.0, 83.0, 79.5):
@@ -538,7 +538,7 @@ class TestRuleEngineIncidents:
         assert len(incidents.open_incidents()) == 1
 
     def test_an_acknowledged_incident_stops_dispatching_actions(self, rule, incidents):
-        """Reconhecer é dizer 'já sei' — o alerta para de repetir."""
+        """Acknowledging is saying 'I already know' — the alert stops repeating."""
         log_action = make_action()
         engine = self.engine_for(rule, incidents, actions={"log": log_action})
         engine.evaluate(self.reading(85.0))
@@ -547,10 +547,10 @@ class TestRuleEngineIncidents:
 
         engine.evaluate(self.reading(90.0))
 
-        log_action.execute.assert_called_once()   # só o disparo anterior ao ack
+        log_action.execute.assert_called_once()   # only the firing before the ack
 
     def test_an_acknowledged_incident_still_records_events(self, rule, incidents):
-        """O problema continua acontecendo; o histórico tem de mostrar isso."""
+        """The problem keeps happening; the history has to show that."""
         store = MagicMock(spec=EventPort)
         engine = self.engine_for(rule, incidents, events=store)
         engine.evaluate(self.reading(85.0))
@@ -572,7 +572,7 @@ class TestRuleEngineIncidents:
         assert incidents.open_incidents() == []
 
     def test_without_an_incident_port_nothing_changes(self, rule):
-        """Incidentes são opcionais: sem a porta, o engine age como antes."""
+        """Incidents are optional: without the port, the engine behaves as before."""
         log_action = make_action()
         engine = RuleEngine(rules=[rule], actions={"log": log_action})
 
@@ -584,9 +584,9 @@ class TestRuleEngineIncidents:
 
 class TestRuleEngineCooldownState:
     """
-    O cooldown deixa de ser um campo da Rule e passa pelo StatePort. É o que
-    permite trocar estado local por Redis em deployment multi-device sem
-    mexer no engine.
+    The cooldown stops being a field of the Rule and goes through the StatePort.
+    It is what allows swapping local state for Redis in a multi-device
+    deployment without touching the engine.
     """
 
     @pytest.fixture
@@ -621,7 +621,7 @@ class TestRuleEngineCooldownState:
         log_action.execute.assert_not_called()
 
     def test_each_rule_has_its_own_cooldown_key(self, reading_82):
-        """Duas regras que casam a mesma leitura não podem consumir um cooldown só."""
+        """Two rules that match the same reading must not consume a single cooldown."""
         first = Rule(
             name="primeira",
             condition=Condition(sensor_id="cpu_temp", operator=">", threshold=75.0),
@@ -642,14 +642,14 @@ class TestRuleEngineCooldownState:
         assert log_action.execute.call_count == 2
 
     def test_rules_no_longer_carry_cooldown_state(self, rule_with_cooldown):
-        """O estado saiu da entidade: a Rule volta a ser só a declaração da regra."""
+        """The state left the entity: the Rule goes back to being only the rule declaration."""
         assert not hasattr(rule_with_cooldown, "_last_triggered")
 
     def test_the_engine_does_not_read_the_clock_itself(self):
         """
-        time.monotonic() não atravessa processos — seu epoch é por processo.
-        Se o engine voltar a comparar timestamps, o RedisState não tem como
-        fazer o cooldown valer entre dispositivos.
+        time.monotonic() does not cross processes — its epoch is per process.
+        If the engine goes back to comparing timestamps, RedisState has no way
+        to make the cooldown hold across devices.
         """
         source = Path(application.engine.__file__).read_text(encoding="utf-8")
 
@@ -657,9 +657,9 @@ class TestRuleEngineCooldownState:
 
 class BrokenIncidents(FakeIncidents):
     """
-    Loja de incidentes que falha em uma operação e funciona no resto —
-    banco travado, disco cheio, Redis fora do ar. `failing` pode ser
-    limpado no meio do teste para simular a volta do serviço.
+    Incident store that fails on one operation and works on all the rest —
+    locked database, full disk, Redis down. `failing` can be cleared
+    mid-test to simulate the service coming back.
     """
 
     def __init__(self, failing: str) -> None:
@@ -687,14 +687,14 @@ class BrokenIncidents(FakeIncidents):
 
 class TestRuleEngineSurvivesAnIncidentStoreFailure:
     """
-    O incidente é contexto do alarme, não o alarme. Se a loja de incidentes
-    cair, o disparo continua saindo e o histórico continua sendo escrito:
-    o contrário deixaria um disco cheio silenciar a temperatura crítica.
+    The incident is context for the alarm, not the alarm. If the incident store
+    goes down, the firing still goes out and the history is still written:
+    the opposite would let a full disk silence a critical temperature.
     """
 
     @pytest.fixture
     def rule(self) -> Rule:
-        # resolve em 72.0 (80 menos 10%)
+        # resolves at 72.0 (80 minus 10%)
         return Rule(
             name="alta_temp",
             condition=Condition(sensor_id="cpu_temp", operator=">", threshold=80.0),
@@ -714,7 +714,7 @@ class TestRuleEngineSurvivesAnIncidentStoreFailure:
         return SensorReading("cpu_temp", "CPU Temperature", value, "°C")
 
     def test_a_failing_open_still_alerts_and_records(self, rule, caplog):
-        """Sem incidente, o evento vai para o histórico sem incident_id."""
+        """Without an incident, the event goes to the history without an incident_id."""
         incidents = BrokenIncidents("open_incident")
         log_action = make_action()
         store = MagicMock(spec=EventPort)
@@ -740,9 +740,9 @@ class TestRuleEngineSurvivesAnIncidentStoreFailure:
 
     def test_a_blind_engine_cannot_duplicate_the_incident(self, rule, caplog):
         """
-        Sem conseguir ler os abertos, o engine tenta abrir outro a cada
-        disparo. Quem recusa é o índice único do banco — aqui, o mesmo
-        invariante no fake — e a recusa não pode parar o alerta.
+        Unable to read the open ones, the engine tries to open another on every
+        firing. What refuses is the unique index of the database — here, the same
+        invariant in the fake — and the refusal must not stop the alert.
         """
         incidents = BrokenIncidents("open_incidents")
         log_action = make_action()
@@ -757,9 +757,9 @@ class TestRuleEngineSurvivesAnIncidentStoreFailure:
 
     def test_a_failing_resolve_keeps_the_incident_open_for_the_next_reading(self, rule, caplog):
         """
-        Falhar ao fechar não pode deixar o incidente meio fechado: ele
-        continua aberto e a próxima leitura tenta de novo, porque o engine
-        relê o estado a cada avaliação em vez de guardar em memória.
+        Failing to close must not leave the incident half closed: it
+        stays open and the next reading tries again, because the engine
+        re-reads the state on every evaluation instead of keeping it in memory.
         """
         incidents = BrokenIncidents("resolve_incident")
         engine = self.engine_for(rule, incidents)
@@ -779,7 +779,7 @@ class TestRuleEngineSurvivesAnIncidentStoreFailure:
 
 
 class FakeMetrics(IncidentMetricsPort):
-    """Registra o que foi contabilizado, para o teste comparar com o ciclo."""
+    """Records what was counted, so the test can compare it with the cycle."""
 
     def __init__(self, failing: bool = False) -> None:
         self.opened: list[Incident] = []
@@ -799,9 +799,9 @@ class FakeMetrics(IncidentMetricsPort):
 
 class TestRuleEngineIncidentMetrics:
     """
-    O engine é quem vê as transições, então é dele que sai a contagem. O
-    gauge de abertos não passa por aqui: quem publica lê a loja no scrape,
-    porque o engine não guarda incidente em memória.
+    The engine is the one that sees the transitions, so the counting comes from
+    it. The gauge of open ones does not go through here: whoever publishes reads
+    the store at scrape time, because the engine keeps no incident in memory.
     """
 
     @pytest.fixture
@@ -814,7 +814,7 @@ class TestRuleEngineIncidentMetrics:
 
     @pytest.fixture
     def rule(self) -> Rule:
-        # resolve em 72.0 (80 menos 10%)
+        # resolves at 72.0 (80 minus 10%)
         return Rule(
             name="alta_temp",
             condition=Condition(sensor_id="cpu_temp", operator=">", threshold=80.0),
@@ -846,9 +846,9 @@ class TestRuleEngineIncidentMetrics:
         self, rule, incidents, metrics,
     ):
         """
-        O contador conta episódios, não disparos — o disparo já tem o seu em
-        edgesentinel_rule_triggered_total. Contar aqui de novo faria a taxa
-        de abertura seguir a frequência de leitura.
+        The counter counts episodes, not firings — the firing already has its own
+        in edgesentinel_rule_triggered_total. Counting it again here would make
+        the opening rate follow the reading frequency.
         """
         engine = self.engine_for(rule, incidents, metrics)
 
@@ -871,9 +871,10 @@ class TestRuleEngineIncidentMetrics:
         self, rule, incidents, metrics,
     ):
         """
-        A duração do incidente é a distância entre as duas leituras que o
-        abriram e o fecharam. Medir com o relógio da avaliação daria o tempo
-        que o engine levou para rodar, não o que o problema durou.
+        The duration of the incident is the distance between the two readings
+        that opened and closed it. Measuring with the clock of the evaluation
+        would give the time the engine took to run, not how long the problem
+        lasted.
         """
         engine = self.engine_for(rule, incidents, metrics)
 
@@ -884,8 +885,8 @@ class TestRuleEngineIncidentMetrics:
 
     def test_a_failed_resolve_is_not_counted(self, rule, metrics):
         """
-        Contabilizar um fechamento que o banco recusou faria a soma de
-        abertos menos fechados divergir do que está no disco.
+        Counting a close that the database refused would make the sum of
+        opened minus closed diverge from what is on disk.
         """
         incidents = BrokenIncidents("resolve_incident")
         engine = self.engine_for(rule, incidents, metrics)
@@ -905,8 +906,9 @@ class TestRuleEngineIncidentMetrics:
 
     def test_a_broken_exporter_does_not_cost_the_alert(self, rule, incidents):
         """
-        Métrica é observação do alarme, não o alarme. Um exportador que
-        levanta não pode impedir a ação de rodar nem o incidente de abrir.
+        A metric is an observation of the alarm, not the alarm. An exporter that
+        raises must not prevent the action from running nor the incident from
+        opening.
         """
         log_action = make_action()
         engine = RuleEngine(
@@ -936,11 +938,11 @@ class TestRuleEngineIncidentMetrics:
         self, rule, incidents, caplog,
     ):
         """
-        Achado por mutação: contar a abertura vinha dentro do try que protege
-        a loja, e uma métrica que levantasse caía naquele except. O banco já
-        tinha aberto o incidente, mas o engine devolvia None — o evento
-        daquele disparo saía sem incident_id e o log dizia que a abertura
-        falhou. Contar é depois de abrir, não dentro.
+        Found by mutation: counting the opening used to sit inside the try that
+        protects the store, and a metric that raised fell into that except. The
+        database had already opened the incident, but the engine returned None —
+        the event of that firing went out without an incident_id and the log said
+        the opening had failed. Counting comes after opening, not inside it.
         """
         store = MagicMock(spec=EventPort)
         engine = RuleEngine(
@@ -959,9 +961,9 @@ class TestRuleEngineIncidentMetrics:
         self, rule, incidents, caplog,
     ):
         """
-        O mesmo no fechamento: o incidente fecha no banco e o log não pode
-        dizer que o fechamento falhou, ou o operador vai procurar um
-        incidente que já está resolvido.
+        The same on closing: the incident closes in the database and the log
+        must not say that the close failed, or the operator will go looking for
+        an incident that is already resolved.
         """
         engine = RuleEngine(
             rules=[rule], actions={},
