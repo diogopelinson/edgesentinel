@@ -5,23 +5,23 @@ from core.entities import SensorReading
 
 _LOADAVG_PATH = "/proc/loadavg"
 
-# janela em minutos → coluna de /proc/loadavg. São as três que o kernel
-# publica; não há como pedir outra
+# window in minutes → column of /proc/loadavg. These are the three the kernel
+# publishes; there is no way to ask for another
 _JANELAS = {1: 0, 5: 1, 15: 2}
 
 
 class LoadAverageSensor(BaseSensor):
     """
-    Load average do dispositivo, de /proc/loadavg.
+    The device's load average, from /proc/loadavg.
 
-    Acrescenta ao motor de regras a janela temporal que o cpu_usage
-    instantâneo não tem: 100% de CPU numa leitura é uma leitura, load 4
-    sustentado por quinze minutos num dispositivo de um núcleo é um problema.
+    Adds to the rule engine the time window the instantaneous cpu_usage does
+    not have: 100% CPU in one read is one read, load 4 sustained for fifteen
+    minutes on a single-core device is a problem.
 
-    A janela vem de `params.window` e vale 1, 5 ou 15 — as três que o kernel
-    publica. Validada aqui, no construtor, e não no registry: o registry
-    confere que `window` é um param que este sensor aceita, e só este sensor
-    sabe que 7 não é uma janela que existe.
+    The window comes from `params.window` and is 1, 5 or 15 — the three the
+    kernel publishes. Validated here, in the constructor, and not in the
+    registry: the registry checks that `window` is a param this sensor accepts,
+    and only this sensor knows that 7 is not a window that exists.
     """
 
     def __init__(self, sensor_id: str = "load_average", window: int = 1) -> None:
@@ -31,8 +31,8 @@ class LoadAverageSensor(BaseSensor):
                 f"O kernel publica {', '.join(str(j) for j in _JANELAS)} minutos."
             )
 
-        # a janela entra no nome porque três sensores de load no mesmo painel
-        # são indistinguíveis sem ela
+        # the window goes into the name because three load sensors on the same
+        # panel are indistinguishable without it
         super().__init__(
             sensor_id=sensor_id,
             name=f"Load Average ({window} min)",
@@ -46,10 +46,10 @@ class LoadAverageSensor(BaseSensor):
 
     def _read_loadavg(self) -> float:
         """
-        /proc/loadavg tem cinco campos: os três load averages, a razão de
-        processos rodando sobre o total e o último pid. Só os três primeiros
-        interessam, e são acessados por posição a partir do começo — indexar
-        do fim traria o pid.
+        /proc/loadavg has five fields: the three load averages, the ratio of
+        running processes over the total, and the last pid. Only the first
+        three matter, and they are reached by position from the start —
+        indexing from the end would bring back the pid.
         """
         campos = Path(_LOADAVG_PATH).read_text(encoding="utf-8").split()
         if len(campos) <= self._coluna:
