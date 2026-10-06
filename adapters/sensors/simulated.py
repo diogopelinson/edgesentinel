@@ -7,9 +7,9 @@ from core.entities import SensorReading
 
 class SimulatedSensor(BaseSensor):
     """
-    Sensor que gera dados falsos mas realistas.
-    Usa uma função senoidal + ruído para simular variação natural.
-    Suporta cenários: normal, stress, spike.
+    A sensor that generates fake but realistic data.
+    Uses a sine function + noise to simulate natural variation.
+    Supports the scenarios: normal, stress, spike.
     """
 
     def __init__(
@@ -31,27 +31,27 @@ class SimulatedSensor(BaseSensor):
         return self._build_reading(self._generate())
 
     def is_available(self) -> bool:
-        return True  # simulado sempre está disponível
+        return True  # a simulated sensor is always available
 
     def _generate(self) -> float:
         elapsed = time.monotonic() - self._start
 
-        # onda senoidal suave — simula variação natural
+        # a smooth sine wave — simulates natural variation
         wave = math.sin(elapsed * 0.3) * self.amplitude
 
-        # ruído pequeno — simula imprecisão do sensor
+        # a little noise — simulates the sensor's imprecision
         noise = random.uniform(-1.0, 1.0)
 
         value = self.base_value + wave + noise
 
-        # aplica cenário
+        # applies the scenario
         if self.scenario == "stress":
-            # valor sobe progressivamente ao longo do tempo
+            # the value climbs progressively over time
             ramp = min(elapsed * 0.5, 30.0)
             value += ramp
 
         elif self.scenario == "spike":
-            # pico aleatório a cada ~20s
+            # a random spike every ~20s
             if int(elapsed) % 20 < 3:
                 value += 25.0
         value = max(0.0, min(100.0, value))
